@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Categoria {
+  id_categoria   Int      @id @default(autoincrement())
+  nombre         String   @unique
+  descripcion    String?
+  activo         Boolean  @default(true)
+  fecha_creacion DateTime @default(now())
+  Plato          Plato[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model CierreCaja {
+  id_cierre    Int      @id @default(autoincrement())
+  fecha        DateTime
+  turno        String
+  total_ventas Decimal
+  id_cajero    Int
+  Usuario      Usuario  @relation(fields: [id_cajero], references: [id_usuario])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model DetallePedido {
+  id_detalle      Int     @id @default(autoincrement())
+  id_pedido       Int
+  id_plato        Int
+  cantidad        Int
+  precio_unitario Decimal
+  subtotal        Decimal
+  Pedido          Pedido  @relation(fields: [id_pedido], references: [id_pedido], onDelete: Cascade)
+  Plato           Plato   @relation(fields: [id_plato], references: [id_plato])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Factura {
+  id_factura Int      @id @default(autoincrement())
+  id_pedido  Int      @unique
+  subtotal   Decimal
+  impuesto   Decimal
+  total      Decimal
+  fecha      DateTime @default(now())
+  Pedido     Pedido   @relation(fields: [id_pedido], references: [id_pedido])
+  Pago       Pago[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Mesa {
+  id_mesa   Int      @id @default(autoincrement())
+  numero    Int      @unique
+  capacidad Int
+  estado    String   @default("LIBRE")
+  Pedido    Pedido[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Pago {
+  id_pago    Int      @id @default(autoincrement())
+  id_factura Int
+  metodo     String
+  monto      Decimal
+  fecha      DateTime @default(now())
+  Factura    Factura  @relation(fields: [id_factura], references: [id_factura])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Pedido {
+  id_pedido      Int             @id @default(autoincrement())
+  tipo           String
+  nombre_cliente String?
+  direccion      String?
+  telefono       String?
+  estado         String          @default("PENDIENTE")
+  fecha          DateTime        @default(now())
+  id_mesa        Int?
+  DetallePedido  DetallePedido[]
+  Factura        Factura?
+  Mesa           Mesa?           @relation(fields: [id_mesa], references: [id_mesa])
+  PedidoUsuario  PedidoUsuario[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model PedidoUsuario {
+  id_pedido_usuario Int      @id @default(autoincrement())
+  id_pedido         Int
+  id_usuario        Int
+  rol_en_pedido     String
+  fecha_asignacion  DateTime @default(now())
+  Pedido            Pedido   @relation(fields: [id_pedido], references: [id_pedido], onDelete: Cascade)
+  Usuario           Usuario  @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@unique([id_pedido, id_usuario, rol_en_pedido])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Plato {
+  id_plato      Int             @id @default(autoincrement())
+  nombre        String
+  descripcion   String?
+  precio        Decimal
+  imagen_url    String?
+  disponible    Boolean         @default(true)
+  id_categoria  Int
+  DetallePedido DetallePedido[]
+  Categoria     Categoria       @relation(fields: [id_categoria], references: [id_categoria])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Rol {
+  id_rol  Int       @id @default(autoincrement())
+  nombre  String    @unique
+  Usuario Usuario[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Usuario {
+  id_usuario    Int             @id @default(autoincrement())
+  nombre        String
+  username      String          @unique
+  password_hash String
+  activo        Boolean         @default(true)
+  id_rol        Int
+  CierreCaja    CierreCaja[]
+  PedidoUsuario PedidoUsuario[]
+  Rol           Rol             @relation(fields: [id_rol], references: [id_rol])
+}
