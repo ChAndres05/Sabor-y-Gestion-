@@ -4,12 +4,14 @@ export default function Home() {
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
       <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
+        {/* Ajuste en el logo de Next.js */}
         <Image
           className="dark:invert"
           src="/next.svg"
           alt="Next.js logo"
           width={100}
           height={20}
+          style={{ height: "auto" }} // Mantiene la proporción
           priority
         />
         <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
@@ -41,12 +43,14 @@ export default function Home() {
             target="_blank"
             rel="noopener noreferrer"
           >
+            {/* Ajuste en el logo de Vercel */}
             <Image
               className="dark:invert"
               src="/vercel.svg"
               alt="Vercel logomark"
               width={16}
               height={16}
+              style={{ width: "auto", height: "auto" }} // Asegura que no se deforme
             />
             Deploy Now
           </a>
