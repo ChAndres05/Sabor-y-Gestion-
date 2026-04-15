@@ -9,8 +9,8 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "dev:web": "pnpm --filter web dev",
-    "dev:api": "pnpm --filter api dev"
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter backend dev"
   },
   "devDependencies": {
     "prettier": "^3.8.1",
