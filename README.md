@@ -148,7 +148,7 @@ estabilidad del repositorio compartido.
 ────────────────────────────────────────────────────────────────────────────────
 8. ESTRUCTURA DE CARPETAS
 ────────────────────────────────────────────────────────────────────────────────
-
+```
   / (raíz del proyecto)
   ├── apps/
   │   ├── backend/                  Backend (Next.js 16 + Prisma)
@@ -165,7 +165,7 @@ estabilidad del repositorio compartido.
   ├── package.json              Dependencias raíz y scripts principales
   ├── pnpm-workspace.yaml       Definición de los workspaces de pnpm
   └── turbo.json                Configuración de las tareas de Turborepo
-
+```
 
 ────────────────────────────────────────────────────────────────────────────────
 9. CONSIDERACIONES DE SEGURIDAD
@@ -182,4 +182,3 @@ estabilidad del repositorio compartido.
 
 
 ================================================================================
-elerar builds futuros).
