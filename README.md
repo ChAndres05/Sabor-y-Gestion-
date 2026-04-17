@@ -43,13 +43,15 @@ Ejecute el siguiente comando desde la raíz del monorepo para instalar todas las
 ```bash
 pnpm install
 ```
+#### 4.1.1 Poner las dependencias 
+El formato ejemplo esta debajo de estos pasos
 
 ### 4.2 Generación del Cliente de Prisma
 
-Este paso es obligatorio para que la API pueda interactuar con la base de datos. Debe ejecutarse inmediatamente después de la instalación de dependencias:
+Este paso es obligatorio para que la API pueda interactuar con la base de datos(previamente se debe crear los .env y poner las credenciales). Debe ejecutarse inmediatamente después de la instalación de dependencias:
 
 ```bash
-pnpm --filter api run prisma:generate
+pnpm --filter backend exec prisma generate
 ```
 
 ### 4.3 Configuración de Variables de Entorno
