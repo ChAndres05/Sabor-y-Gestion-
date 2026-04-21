@@ -10,8 +10,15 @@ jobs:
   validate:
     name: Lint, Typecheck & Build
     runs-on: ubuntu-latest
+    
+    # Definimos las variables de entorno a nivel de Job para que todos los pasos las vean
     env:
-      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/dummy_db"
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
 
     steps:
       - name: Checkout Repo
@@ -20,7 +27,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10.33.0 # Según tu package.json
+          version: 10.33.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -32,13 +39,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma Client
-        run: pnpm --filter backend exec prisma generate # Paso obligatorio según tu README
+        run: pnpm --filter backend exec prisma generate 
 
       - name: Lint
-        run: pnpm lint # Ejecuta turbo run lint
+        run: pnpm lint
 
       - name: Typecheck
-        run: pnpm typecheck # Ejecuta turbo run typecheck
+        run: pnpm typecheck
 
       - name: Build
-        run: pnpm build # Valida que el proyecto compile correctamente
+        run: pnpm build
