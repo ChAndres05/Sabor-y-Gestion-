@@ -1,4 +1,4 @@
-name: CI - Sabor y Gestión
+name: CI/CD - Sabor y Gestión
 
 on:
   push:
@@ -49,3 +49,26 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  deploy:
+    name: Deploy to Production
+    needs: validate # Solo se ejecuta si "validate" termina sin errores
+    runs-on: ubuntu-latest
+    
+    # Solo hacer deploy si el evento es un push directo a la rama 'main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      # Simulación de despliegue
+      - name: Execute Deployment
+        run: |
+          echo "Simulando el despliegue a producción..."
+          sleep 5
+          echo "¡Despliegue simulado exitoso!"
+          
+          # NOTA: Una vez que compruebes que este paso solo se ejecuta en main,
+          # borra los comandos de arriba (echo y sleep) y reemplázalos por tus comandos reales.
+          # Ejemplo: pnpm deploy o los comandos de tu servidor.
