@@ -181,6 +181,7 @@ El pipeline se dispara automáticamente en los siguientes eventos:
 | :--- | :--- | :--- |
 | **Validate** | Realiza la instalación de dependencias (pnpm), genera el cliente de Prisma, ejecuta el Linter, verifica tipos (Typecheck) y compila el proyecto (Build). | Ninguno |
 | **Deploy** | Realiza el despliegue automático a producción. **Solo se ejecuta si el push es directo a la rama `main`**. | Debe pasar el job `validate` |
+hacer comits
 
 ### 10.3 Secretos de GitHub (Action Secrets)
 Para que el pipeline funcione correctamente, se deben configurar los siguientes secretos en el repositorio de GitHub:
