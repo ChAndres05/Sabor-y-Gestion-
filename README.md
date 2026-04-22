@@ -164,3 +164,29 @@ pnpm typecheck
 - Utilizar `.env.example` como plantilla base  
 
 ---
+---
+
+## 10. INTEGRACIÓN Y DESPLIEGUE CONTINUO (CI/CD)
+
+El proyecto utiliza **GitHub Actions** para automatizar los procesos de validación y despliegue. El flujo está definido en `.github/workflows/ci.yml`.
+
+### 10.1 Workflow: CI/CD - Sabor y Gestión
+El pipeline se dispara automáticamente en los siguientes eventos:
+- **Push** a las ramas `main` y `develop`.
+- **Pull Requests** hacia las ramas `main` y `develop`.
+
+### 10.2 Jobs del Pipeline
+
+| Job | Descripción | Requisito |
+| :--- | :--- | :--- |
+| **Validate** | Realiza la instalación de dependencias (pnpm), genera el cliente de Prisma, ejecuta el Linter, verifica tipos (Typecheck) y compila el proyecto (Build). | Ninguno |
+| **Deploy** | Realiza el despliegue automático a producción. **Solo se ejecuta si el push es directo a la rama `main`**. | Debe pasar el job `validate` |
+
+### 10.3 Secretos de GitHub (Action Secrets)
+Para que el pipeline funcione correctamente, se deben configurar los siguientes secretos en el repositorio de GitHub:
+- `DATABASE_URL`: URL de conexión a la base de datos.
+- `DIRECT_URL`: URL para migraciones directas.
+- `SUPABASE_URL`: URL de tu proyecto Supabase.
+- `SUPABASE_SECRET_KEY`: Clave secreta de servicio.
+- `SUPABASE_PUBLISHABLE_KEY`: Clave pública (Anon Key).
+- 
