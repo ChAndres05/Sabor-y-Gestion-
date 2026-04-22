@@ -166,28 +166,28 @@ pnpm typecheck
 ---
 ---
 
+---
+
 ## 10. INTEGRACIÓN Y DESPLIEGUE CONTINUO (CI/CD)
 
-El proyecto utiliza **GitHub Actions** para automatizar los procesos de validación y despliegue. El flujo está definido en `.github/workflows/ci.yml`.
+El proyecto utiliza **GitHub Actions** para automatizar la validación y el despliegue. El flujo está diseñado para garantizar la estabilidad de las ramas principales.
 
-### 10.1 Workflow: CI/CD - Sabor y Gestión
-El pipeline se dispara automáticamente en los siguientes eventos:
-- **Push** a las ramas `main` y `develop`.
-- **Pull Requests** hacia las ramas `main` y `develop`.
+### 10.1 Restricciones de Acceso y Commits
+- **Ramas Protegidas:** Las ramas `main` y `develop` están bloqueadas para commits directos.
+- **Flujo de Trabajo:** Está estrictamente prohibido intentar realizar un `git commit` o `git push` directamente a estas ramas. 
+- **Integración:** Toda mejora o corrección debe realizarse en ramas de funcionalidad (*feature branches*) y enviarse mediante un **Pull Request** hacia `develop` o `main`.
 
-### 10.2 Jobs del Pipeline
+### 10.2 Disparadores del Pipeline (Triggers)
+El pipeline de CI/CD se activa automáticamente en:
+- **Push**: Al subir cambios a las ramas de trabajo que tengan un Pull Request abierto.
+- **Pull Requests**: Al abrir o actualizar una solicitud hacia `main` o `develop`.
+
+### 10.3 Jobs del Pipeline
 
 | Job | Descripción | Requisito |
 | :--- | :--- | :--- |
-| **Validate** | Realiza la instalación de dependencias (pnpm), genera el cliente de Prisma, ejecuta el Linter, verifica tipos (Typecheck) y compila el proyecto (Build). | Ninguno |
-| **Deploy** | Realiza el despliegue automático a producción. **Solo se ejecuta si el push es directo a la rama `main`**. | Debe pasar el job `validate` |
-hacer comits
+| **Validate** | Instala dependencias con pnpm, genera el cliente de Prisma y ejecuta `lint`, `typecheck` y `build`. | Ninguno |
+| **Deploy** | Ejecuta el despliegue automático a producción. | Solo se activa en un merge/push a `main` tras validar con éxito. |
 
-### 10.3 Secretos de GitHub (Action Secrets)
-Para que el pipeline funcione correctamente, se deben configurar los siguientes secretos en el repositorio de GitHub:
-- `DATABASE_URL`: URL de conexión a la base de datos.
-- `DIRECT_URL`: URL para migraciones directas.
-- `SUPABASE_URL`: URL de tu proyecto Supabase.
-- `SUPABASE_SECRET_KEY`: Clave secreta de servicio.
-- `SUPABASE_PUBLISHABLE_KEY`: Clave pública (Anon Key).
-- 
+### 10.4 Configuración de Secretos
+Es obligatorio configurar los secretos en GitHub (`DATABASE_URL`, `DIRECT_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY`) para que el entorno de CI pueda generar el cliente de Prisma y validar el build correctamente.
