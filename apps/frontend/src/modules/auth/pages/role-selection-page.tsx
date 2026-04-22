@@ -1,84 +1,57 @@
-import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import type { UserProfile } from '../../profile/types/profile.types';
-import {
-  ALL_ROLE_KEYS,
-  ROLE_LABELS,
-  type RoleKey,
-} from '../../../shared/constants/roles';
-import { APP_ROUTES } from '../../../shared/constants/routes';
-import {
-  getUserRoleKey,
-  hasRequiredRole,
-  isUserActive,
-  isAdmin,
-} from '../../../shared/utils/permissions';
-import { getDefaultRouteByRole } from '../../../shared/utils/redirect-by-role';
+export interface RoleSelectionOption {
+  key: string;
+  title: string;
+  description: string;
+  route: string;
+}
 
-const mockUser: UserProfile = {
-  id_usuario: 1,
-  id_rol: 1,
-  usuario_ci: 12345678,
-  nombre: 'Ronici',
-  apellido: 'Cuellar',
-  nombre_usuario: 'ronicicuellar0',
-  telefono: '70000000',
-  correo_electronico: 'ronicicuellar0@gmail.com',
-  activo: true,
-  fecha_creacion: new Date().toISOString(),
-  rol: {
-    id_rol: 1,
-    nombre: 'ADMINISTRADOR',
+interface RoleSelectionPageProps {
+  title?: string;
+  subtitle?: string;
+  options?: RoleSelectionOption[];
+  onOptionClick?: (option: RoleSelectionOption) => void;
+}
+
+const DEFAULT_OPTIONS: RoleSelectionOption[] = [
+  {
+    key: 'admin',
+    title: 'Administración',
+    description: 'Acceder al panel administrativo del sistema.',
+    route: '/admin',
   },
-};
+  {
+    key: 'mesero',
+    title: 'Mesero',
+    description: 'Ingresar al flujo visual de mesas y atención.',
+    route: '/mesas',
+  },
+  {
+    key: 'caja',
+    title: 'Caja',
+    description: 'Entrar al entorno de caja y cobros.',
+    route: '/caja',
+  },
+  {
+    key: 'cocina',
+    title: 'Cocina',
+    description: 'Ver el monitor de preparación y pedidos.',
+    route: '/cocina/monitor',
+  },
+];
 
-const getRoleRoute = (role: RoleKey): string => {
-  switch (role) {
-    case 'ADMIN':
-      return APP_ROUTES.ADMIN_HOME;
-    case 'MESERO':
-      return APP_ROUTES.TABLES;
-    case 'CAJA':
-      return APP_ROUTES.CAJA_HOME;
-    case 'COCINA':
-      return APP_ROUTES.KITCHEN_MONITOR;
-    case 'CLIENTE':
-      return APP_ROUTES.CLIENTE_HOME;
-    case 'DELIVERY':
-      return APP_ROUTES.DELIVERY_HOME;
-    default:
-      return APP_ROUTES.UNAUTHORIZED;
-  }
-};
-
-const getVisibleRoles = (user: UserProfile): RoleKey[] => {
-  if (!isUserActive(user)) return [];
-
-  if (isAdmin(user)) {
-    return ALL_ROLE_KEYS;
-  }
-
-  const currentRole = getUserRoleKey(user);
-  return currentRole ? [currentRole] : [];
-};
-
-export const RoleSelectionPage = () => {
+export const RoleSelectionPage = ({
+  title = 'Selección de entorno',
+  subtitle = 'Elige el módulo visual al que deseas ingresar.',
+  options = DEFAULT_OPTIONS,
+  onOptionClick,
+}: RoleSelectionPageProps) => {
   const navigate = useNavigate();
 
-  const availableRoles = useMemo(() => getVisibleRoles(mockUser), []);
-
-  const handleGoByRole = (role: RoleKey) => {
-    if (!hasRequiredRole(mockUser, [role]) && !isAdmin(mockUser)) {
-      navigate(APP_ROUTES.UNAUTHORIZED);
-      return;
-    }
-
-    navigate(getRoleRoute(role));
-  };
-
-  const handleContinue = () => {
-    navigate(getDefaultRouteByRole(mockUser));
+  const handleClick = (option: RoleSelectionOption) => {
+    onOptionClick?.(option);
+    navigate(option.route);
   };
 
   return (
@@ -92,7 +65,8 @@ export const RoleSelectionPage = () => {
     >
       <section
         style={{
-          maxWidth: '960px',
+          width: '100%',
+          maxWidth: '1080px',
           margin: '0 auto',
         }}
       >
@@ -106,29 +80,31 @@ export const RoleSelectionPage = () => {
               textTransform: 'uppercase',
             }}
           >
-            Selección de entorno
+            Acceso visual
           </p>
 
           <h1
             style={{
               marginTop: '12px',
               marginBottom: '8px',
-              fontSize: '2rem',
+              fontSize: 'clamp(1.8rem, 4vw, 2.5rem)',
               color: '#111827',
+              lineHeight: 1.1,
             }}
           >
-            Bienvenido, {mockUser.nombre}
+            {title}
           </h1>
 
           <p
             style={{
               margin: 0,
               color: '#6b7280',
-              maxWidth: '680px',
+              maxWidth: '700px',
               lineHeight: 1.6,
+              fontSize: '1rem',
             }}
           >
-            Elige el entorno de trabajo al que deseas ingresar según tu rol.
+            {subtitle}
           </p>
         </header>
 
@@ -137,15 +113,15 @@ export const RoleSelectionPage = () => {
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
             gap: '16px',
-            marginBottom: '24px',
           }}
         >
-          {availableRoles.map((role) => (
+          {options.map((option) => (
             <button
-              key={role}
+              key={option.key}
               type="button"
-              onClick={() => handleGoByRole(role)}
+              onClick={() => handleClick(option)}
               style={{
+                width: '100%',
                 border: '1px solid #fed7aa',
                 borderRadius: '18px',
                 padding: '20px',
@@ -153,7 +129,6 @@ export const RoleSelectionPage = () => {
                 cursor: 'pointer',
                 textAlign: 'left',
                 boxShadow: '0 10px 24px rgba(0, 0, 0, 0.06)',
-                transition: 'transform 0.2s ease',
               }}
             >
               <span
@@ -167,17 +142,17 @@ export const RoleSelectionPage = () => {
                   letterSpacing: '0.04em',
                 }}
               >
-                Acceso
+                Módulo
               </span>
 
               <h2
                 style={{
                   margin: 0,
-                  fontSize: '1.15rem',
+                  fontSize: '1.1rem',
                   color: '#111827',
                 }}
               >
-                {ROLE_LABELS[role]}
+                {option.title}
               </h2>
 
               <p
@@ -186,46 +161,13 @@ export const RoleSelectionPage = () => {
                   marginBottom: 0,
                   color: '#6b7280',
                   lineHeight: 1.5,
+                  fontSize: '0.95rem',
                 }}
               >
-                Ingresar al módulo de {ROLE_LABELS[role].toLowerCase()}.
+                {option.description}
               </p>
             </button>
           ))}
-        </div>
-
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={handleContinue}
-            style={{
-              border: 'none',
-              borderRadius: '14px',
-              padding: '12px 18px',
-              backgroundColor: '#ea580c',
-              color: '#ffffff',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            Continuar con mi acceso principal
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate(APP_ROUTES.PROFILE)}
-            style={{
-              border: '1px solid #d1d5db',
-              borderRadius: '14px',
-              padding: '12px 18px',
-              backgroundColor: '#ffffff',
-              color: '#111827',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Ver mi perfil
-          </button>
         </div>
       </section>
     </main>

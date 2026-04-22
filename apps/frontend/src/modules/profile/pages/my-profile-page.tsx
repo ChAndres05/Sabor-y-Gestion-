@@ -1,7 +1,7 @@
 import ProfileCard from '../components/profile-card';
 import type { UserProfile } from '../types/profile.types';
 
-const mockUser: UserProfile = {
+const profileData: UserProfile = {
   id_usuario: 1,
   id_rol: 1,
   usuario_ci: 12345678,
@@ -14,7 +14,7 @@ const mockUser: UserProfile = {
   fecha_creacion: new Date().toISOString(),
   rol: {
     id_rol: 1,
-    nombre: 'ADMINISTRADOR',
+    nombre: 'Administrador',
   },
 };
 
@@ -30,7 +30,7 @@ export const MyProfilePage = () => {
         alignItems: 'flex-start',
       }}
     >
-      <ProfileCard user={mockUser} />
+      <ProfileCard user={profileData} />
     </main>
   );
 };

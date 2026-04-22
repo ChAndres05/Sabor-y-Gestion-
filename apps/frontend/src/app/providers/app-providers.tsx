@@ -1,13 +1,12 @@
+import type { ReactNode } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 
-import AppRouter from '../router/app-router';
+interface AppProvidersProps {
+  children: ReactNode;
+}
 
-export const AppProviders = () => {
-  return (
-    <BrowserRouter>
-      <AppRouter />
-    </BrowserRouter>
-  );
+export const AppProviders = ({ children }: AppProvidersProps) => {
+  return <BrowserRouter>{children}</BrowserRouter>;
 };
 
 export default AppProviders;

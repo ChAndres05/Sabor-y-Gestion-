@@ -1,47 +1,40 @@
 import type { UserProfile } from '../types/profile.types';
-import { ROLE_LABELS, resolveRoleKey } from '../../../shared/constants/roles';
 
 interface ProfileCardProps {
   user: UserProfile;
+  title?: string;
 }
 
 const getFullName = (user: UserProfile): string => {
   return [user.nombre, user.apellido].filter(Boolean).join(' ');
 };
 
-const getRoleLabel = (user: UserProfile): string => {
-  const roleKey = resolveRoleKey(user.rol?.nombre ?? null);
-
-  if (!roleKey) {
-    return user.rol?.nombre ?? 'Rol no definido';
-  }
-
-  return ROLE_LABELS[roleKey];
-};
-
-export const ProfileCard = ({ user }: ProfileCardProps) => {
+export const ProfileCard = ({
+  user,
+  title = 'Perfil de usuario',
+}: ProfileCardProps) => {
   return (
     <section
       style={{
+        width: '100%',
+        maxWidth: '720px',
         border: '1px solid #e5e7eb',
         borderRadius: '16px',
         padding: '24px',
         backgroundColor: '#ffffff',
         boxShadow: '0 4px 14px rgba(0, 0, 0, 0.06)',
-        maxWidth: '720px',
-        width: '100%',
       }}
     >
       <header style={{ marginBottom: '20px' }}>
         <h2
           style={{
             margin: 0,
-            fontSize: '1.5rem',
+            fontSize: 'clamp(1.3rem, 3vw, 1.8rem)',
             fontWeight: 700,
             color: '#111827',
           }}
         >
-          Perfil de usuario
+          {title}
         </h2>
 
         <p
@@ -52,7 +45,7 @@ export const ProfileCard = ({ user }: ProfileCardProps) => {
             fontSize: '0.95rem',
           }}
         >
-          Información principal del usuario autenticado.
+          Información principal del usuario.
         </p>
       </header>
 
@@ -90,7 +83,7 @@ export const ProfileCard = ({ user }: ProfileCardProps) => {
 
         <div>
           <strong>Rol</strong>
-          <p>{getRoleLabel(user)}</p>
+          <p>{user.rol?.nombre ?? 'No definido'}</p>
         </div>
 
         <div>
