@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #B44A24;
+  --color-primary-hover: #923b1d;
+  --color-background: #F6EBDD;
+  --color-text-dark: #1A1714;
+  --color-text-muted: #7A746E;
+  --shadow-premium: 0 10px 25px -5px rgba(180, 74, 36, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+}
+
+/* Si no ves la fuente Inter, Tailwind usará la sans por defecto */
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-text-dark);
+    -webkit-font-smoothing: antialiased;
+  }
+}
