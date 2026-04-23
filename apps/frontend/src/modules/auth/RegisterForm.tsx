@@ -6,7 +6,6 @@ interface RegisterFormProps {
 }
 
 export const RegisterForm: React.FC<RegisterFormProps> = ({ alVolver }) => {
-  // Estados para el flujo de ventanas
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
@@ -24,9 +23,9 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ alVolver }) => {
     <div className="relative min-h-screen">
       <AuthLayout onBack={alVolver}>
         <div className="mb-6">
-          <h3 className="text-xl font-bold text-text-dark mb-1">Registrarse</h3>
-          <p className="text-text-muted text-sm">
-            Por favor, introduzca su información personal
+          <h3 className="mb-1 text-xl font-bold text-text">Registrarse</h3>
+          <p className="text-sm text-gray-600">
+            Por favor, introduce tu información personal
           </p>
         </div>
 
@@ -36,43 +35,47 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ alVolver }) => {
             { label: 'Apellidos', type: 'text' },
             { label: 'Nombre de usuario', type: 'text' },
             { label: 'Correo electrónico', type: 'email' },
+            { label: 'Contraseña', type: 'password' },
           ].map((field) => (
             <div key={field.label} className="flex flex-col gap-1.5 text-left">
-              <label className="text-[11px] font-black text-text-dark uppercase tracking-widest ml-1">
+              <label className="ml-1 text-[11px] font-bold uppercase tracking-widest text-text">
                 {field.label}
               </label>
               <input
                 required
                 type={field.type}
-                className="w-full p-3 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none transition-all placeholder:text-gray-300"
+                className="w-full rounded-2xl border border-gray-200 bg-white p-3 outline-none transition-all focus:border-primary"
               />
             </div>
           ))}
 
-          <div className="flex items-center gap-3 mt-2 px-1">
-            <input 
-              type="checkbox" 
+          <div className="mt-2 flex items-center gap-3 px-1">
+            <input
+              type="checkbox"
               id="terms"
               required
-              className="w-5 h-5 accent-primary rounded-md cursor-pointer"
+              className="h-5 w-5 cursor-pointer accent-primary"
             />
-            <label htmlFor="terms" className="text-sm text-text-dark font-semibold cursor-pointer">
+            <label
+              htmlFor="terms"
+              className="cursor-pointer text-sm font-semibold text-text"
+            >
               Acepto los términos del acuerdo
             </label>
           </div>
 
-          <div className="flex flex-col gap-3 mt-6">
-            <button 
-              type="submit" 
-              className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-lg shadow-primary/20 hover:bg-primary-hover active:scale-[0.98] transition-all uppercase tracking-widest text-sm"
+          <div className="mt-6 flex flex-col gap-3">
+            <button
+              type="submit"
+              className="w-full rounded-2xl bg-primary py-4 text-sm font-bold uppercase tracking-widest text-white hover:bg-primary-hover"
             >
               Registrar
             </button>
-            
-            <button 
+
+            <button
               type="button"
               onClick={alVolver}
-              className="w-full py-4 bg-white text-text-dark border border-gray-200 rounded-2xl font-bold hover:bg-gray-50 transition-all uppercase tracking-widest text-sm"
+              className="w-full rounded-2xl border border-gray-200 bg-white py-4 text-sm font-bold uppercase tracking-widest text-text hover:bg-gray-50"
             >
               Cancelar
             </button>
@@ -80,21 +83,20 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ alVolver }) => {
         </form>
       </AuthLayout>
 
-      {/* --- MODAL 1: ¿Confirmar registro? --- */}
       {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-[340px] p-8 rounded-[2rem] shadow-2xl text-center scale-up-center">
-            <h4 className="text-xl font-bold text-text-dark mb-8">¿Confirmar registro?</h4>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-[340px] rounded-[2rem] bg-white p-8 text-center shadow-2xl">
+            <h4 className="mb-8 text-xl font-bold text-text">¿Confirmar registro?</h4>
             <div className="flex gap-4">
-              <button 
+              <button
                 onClick={() => setShowConfirm(false)}
-                className="flex-1 py-3 border border-gray-200 rounded-xl font-bold text-text-dark hover:bg-gray-50 transition-all"
+                className="flex-1 rounded-xl border border-gray-200 py-3 font-bold text-text hover:bg-gray-50"
               >
                 Cancelar
               </button>
-              <button 
+              <button
                 onClick={handleConfirm}
-                className="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-md shadow-primary/20 hover:bg-primary-hover transition-all"
+                className="flex-1 rounded-xl bg-primary py-3 font-bold text-white hover:bg-primary-hover"
               >
                 Confirmar
               </button>
@@ -103,14 +105,13 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ alVolver }) => {
         </div>
       )}
 
-      {/* --- MODAL 2: Registro exitoso --- */}
       {showSuccess && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-[340px] p-8 rounded-[2rem] shadow-2xl text-center">
-            <h4 className="text-xl font-bold text-text-dark mb-8">Registro exitoso</h4>
-            <button 
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-[340px] rounded-[2rem] bg-white p-8 text-center shadow-2xl">
+            <h4 className="mb-8 text-xl font-bold text-text">Registro exitoso</h4>
+            <button
               onClick={alVolver}
-              className="w-full py-4 bg-primary text-white rounded-2xl font-bold shadow-lg shadow-primary/20 hover:bg-primary-hover transition-all uppercase tracking-widest"
+              className="w-full rounded-2xl bg-primary py-4 font-bold uppercase tracking-widest text-white hover:bg-primary-hover"
             >
               Confirmar
             </button>

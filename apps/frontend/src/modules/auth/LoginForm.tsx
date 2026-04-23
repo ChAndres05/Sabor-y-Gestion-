@@ -1,40 +1,65 @@
 import React from 'react';
 import { AuthLayout } from '../../shared/components/AuthLayout';
 
-export const LoginForm = ({ rol, alEntrar, alVolver, alOlvidar, alRegistrar }: any) => {
+interface LoginFormProps {
+  alEntrar: () => void;
+  alRegistrar: () => void;
+}
+
+export const LoginForm: React.FC<LoginFormProps> = ({
+  alEntrar,
+  alRegistrar,
+}) => {
   return (
-    <AuthLayout rol={rol} onBack={alVolver}>
-      <h3 className="text-[18px] font-bold uppercase mb-2">INICIAR SESION</h3>
-      <p className="text-text-muted text-sm mb-6">
-        Ingresa tu nombre de usuario o correo electrónico a continuación para acceder a tu cuenta
+    <AuthLayout>
+      <h3 className="mb-2 text-lg font-bold uppercase text-text">
+        Iniciar sesión
+      </h3>
+
+      <p className="mb-6 text-sm text-gray-600">
+        Ingresa tu nombre de usuario o correo electrónico para acceder a tu cuenta.
       </p>
 
-      <form className="flex flex-col gap-5" onSubmit={(e) => { e.preventDefault(); alEntrar(); }}>
+      <form
+        className="flex flex-col gap-5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          alEntrar();
+        }}
+      >
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-bold text-text-dark uppercase">Nombre de usuario o correo electronico</label>
-          <input type="text" className="w-full p-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl outline-none" />
+          <label className="text-xs font-bold uppercase text-text">
+            Nombre de usuario o correo electrónico
+          </label>
+          <input
+            type="text"
+            className="w-full rounded-2xl border border-gray-200 bg-white p-3.5 outline-none focus:border-primary"
+          />
         </div>
 
-        <div className="relative flex flex-col gap-1.5">
-          <div className="flex justify-between items-center">
-            <label className="text-xs font-bold text-text-dark uppercase">Contraseña</label>
-            <button type="button" onClick={alOlvidar} className="text-[11px] text-text-dark font-bold hover:text-primary transition-colors">
-              ¿Olvidaste tu contraseña?
-            </button>
-          </div>
-          <input type="password" className="w-full p-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl outline-none" />
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-bold uppercase text-text">
+            Contraseña
+          </label>
+          <input
+            type="password"
+            className="w-full rounded-2xl border border-gray-200 bg-white p-3.5 outline-none focus:border-primary"
+          />
         </div>
 
-        <button type="submit" className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-lg shadow-primary/20 mt-2">
+        <button
+          type="submit"
+          className="mt-2 w-full rounded-2xl bg-primary py-4 font-bold text-white hover:bg-primary-hover"
+        >
           Iniciar sesión
         </button>
 
-        <p className="text-center text-sm font-medium text-text-dark mt-2">
+        <p className="mt-2 text-center text-sm text-text">
           ¿No tienes una cuenta?{' '}
-          <button 
-            type="button" 
-            onClick={alRegistrar} 
-            className="text-text-dark font-bold underline hover:text-primary transition-colors"
+          <button
+            type="button"
+            onClick={alRegistrar}
+            className="font-bold underline hover:text-primary"
           >
             Regístrate
           </button>

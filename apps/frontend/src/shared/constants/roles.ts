@@ -1,0 +1,17 @@
+export const USER_ROLES = {
+  ADMIN: 'ADMIN',
+  MESERO: 'MESERO',
+  COCINERO: 'COCINERO',
+  CAJERO: 'CAJERO',
+  CLIENTE: 'CLIENTE',
+} as const;
+
+export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES];
+
+export const USER_ROLE_OPTIONS: UserRole[] = [
+  USER_ROLES.ADMIN,
+  USER_ROLES.MESERO,
+  USER_ROLES.COCINERO,
+  USER_ROLES.CAJERO,
+  USER_ROLES.CLIENTE,
+];
