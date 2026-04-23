@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../../lib/prisma';
 
 // Evita que Next.js cachee esta ruta (obligatorio para búsquedas en tiempo real)
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
   const rolDB = rol === 'Todos' ? 'Todos' : rol.toUpperCase();
 
   try {
-    const whereUsuarios: any = {};
+    const whereUsuarios: Prisma.usuariosWhereInput = {};
     
     if (rolDB !== 'Todos') {
       whereUsuarios.rol = { nombre: rolDB };
@@ -22,31 +23,34 @@ export async function GET(request: Request) {
 
     if (q) {
       // Separar la búsqueda por espacios para buscar "Juan Perez" correctamente
-      const terms = q.split(' ').filter(t => t.trim() !== '');
-      whereUsuarios.AND = terms.map(term => {
-        const orConditions: any[] = [
+      const terms = q.split(' ').filter((t) => t.trim() !== '');
+
+      whereUsuarios.AND = terms.map((term): Prisma.usuariosWhereInput => {
+        const orConditions: Prisma.usuariosWhereInput[] = [
           { nombre: { contains: term, mode: 'insensitive' } },
           { apellido: { contains: term, mode: 'insensitive' } }
         ];
+
         if (!isNaN(Number(term))) {
           orConditions.push({ usuario_ci: Number(term) });
         }
+
         return { OR: orConditions };
       });
     }
 
     const usuariosDB = await prisma.usuarios.findMany({
       where: whereUsuarios,
-      include: { rol: true } 
+      include: { rol: true }
     });
 
     // Mapeamos al formato que espera el frontend
-    const resultados = usuariosDB.map(u => ({
+    const resultados = usuariosDB.map((u) => ({
       id: `u-${u.id_usuario}`,
       nombre: u.nombre,
       apellido: u.apellido || '',
       documento: u.usuario_ci.toString(),
-      rol: u.rol.nombre, 
+      rol: u.rol.nombre,
       correo: u.correo_electronico || 'N/A',
       estado: u.activo
     }));
@@ -59,7 +63,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Error en la búsqueda:', error);
     return NextResponse.json(
-      { error: 'Error al realizar la búsqueda' }, 
+      { error: 'Error al realizar la búsqueda' },
       { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
     );
   }
