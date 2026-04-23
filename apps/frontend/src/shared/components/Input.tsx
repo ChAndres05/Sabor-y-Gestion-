@@ -5,19 +5,21 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: string;
 }
 
-export const Input: React.FC<InputProps> = ({ label, error, ...props }) => {
+export const Input: React.FC<InputProps> = ({ label, error, className = '', ...props }) => {
   return (
-    <div className="flex flex-col gap-1 w-full mb-4">
-      <label className="text-text font-bold text-[14px] uppercase tracking-wider">
+    <div className="mb-4 flex w-full flex-col gap-1">
+      <label className="text-[14px] font-bold uppercase tracking-wider text-text">
         {label}
       </label>
+
       <input
-        className={`p-3 border rounded-xl outline-none transition-all focus:border-primary bg-white ${
+        className={`rounded-xl border bg-white p-3 outline-none transition-all focus:border-primary ${
           error ? 'border-alert' : 'border-gray-200'
-        }`}
+        } ${className}`}
         {...props}
       />
-      {error && <span className="text-alert text-xs italic">{error}</span>}
+
+      {error && <span className="text-xs italic text-alert">{error}</span>}
     </div>
   );
 };

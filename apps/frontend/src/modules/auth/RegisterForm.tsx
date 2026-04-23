@@ -1,27 +1,74 @@
 import React, { useState } from 'react';
 import { AuthLayout } from '../../shared/components/AuthLayout';
+import { authApi } from './api/auth.api';
 
 interface RegisterFormProps {
-  alVolver: () => void;
+  onGoToLogin: () => void;
 }
 
-export const RegisterForm: React.FC<RegisterFormProps> = ({ alVolver }) => {
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
+const initialForm = {
+  nombre: '',
+  apellido: '',
+  username: '',
+  correo: '',
+  telefono: '',
+  password: '',
+  confirmPassword: '',
+};
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setShowConfirm(true);
+export const RegisterForm: React.FC<RegisterFormProps> = ({ onGoToLogin }) => {
+  const [form, setForm] = useState(initialForm);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const updateField = (field: keyof typeof initialForm, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
   };
 
-  const handleConfirm = () => {
-    setShowConfirm(false);
-    setShowSuccess(true);
+  const handleOpenConfirm = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setErrorMessage('');
+
+    if (!acceptedTerms) {
+      setErrorMessage('Debes aceptar los términos del acuerdo');
+      return;
+    }
+
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmRegister = async () => {
+    setIsSubmitting(true);
+    setErrorMessage('');
+
+    try {
+      await authApi.register(form);
+      setShowConfirmModal(false);
+      setShowSuccessModal(true);
+      setForm(initialForm);
+      setAcceptedTerms(false);
+    } catch (error) {
+      setShowConfirmModal(false);
+
+      if (error instanceof Error) {
+        setErrorMessage(error.message);
+      } else {
+        setErrorMessage('No se pudo completar el registro');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="relative min-h-screen">
-      <AuthLayout onBack={alVolver}>
+    <div className="relative">
+      <AuthLayout>
         <div className="mb-6">
           <h3 className="mb-1 text-xl font-bold text-text">Registrarse</h3>
           <p className="text-sm text-gray-600">
@@ -29,31 +76,104 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ alVolver }) => {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {[
-            { label: 'Nombres', type: 'text' },
-            { label: 'Apellidos', type: 'text' },
-            { label: 'Nombre de usuario', type: 'text' },
-            { label: 'Correo electrónico', type: 'email' },
-            { label: 'Contraseña', type: 'password' },
-          ].map((field) => (
-            <div key={field.label} className="flex flex-col gap-1.5 text-left">
-              <label className="ml-1 text-[11px] font-bold uppercase tracking-widest text-text">
-                {field.label}
-              </label>
-              <input
-                required
-                type={field.type}
-                className="w-full rounded-2xl border border-gray-200 bg-white p-3 outline-none transition-all focus:border-primary"
-              />
-            </div>
-          ))}
+        <form onSubmit={handleOpenConfirm} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-text">
+              Nombres
+            </label>
+            <input
+              type="text"
+              value={form.nombre}
+              onChange={(e) => updateField('nombre', e.target.value)}
+              className="w-full rounded-2xl border border-gray-200 bg-white p-3 outline-none focus:border-primary"
+              required
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-text">
+              Apellidos
+            </label>
+            <input
+              type="text"
+              value={form.apellido}
+              onChange={(e) => updateField('apellido', e.target.value)}
+              className="w-full rounded-2xl border border-gray-200 bg-white p-3 outline-none focus:border-primary"
+              required
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-text">
+              Nombre de usuario
+            </label>
+            <input
+              type="text"
+              value={form.username}
+              onChange={(e) => updateField('username', e.target.value)}
+              className="w-full rounded-2xl border border-gray-200 bg-white p-3 outline-none focus:border-primary"
+              required
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-text">
+              Correo electrónico
+            </label>
+            <input
+              type="email"
+              value={form.correo}
+              onChange={(e) => updateField('correo', e.target.value)}
+              className="w-full rounded-2xl border border-gray-200 bg-white p-3 outline-none focus:border-primary"
+              required
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-text">
+              Introduzca su número de teléfono
+            </label>
+            <input
+              type="text"
+              value={form.telefono}
+              onChange={(e) => updateField('telefono', e.target.value)}
+              className="w-full rounded-2xl border border-gray-200 bg-white p-3 outline-none focus:border-primary"
+              required
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-text">
+              Introduzca la contraseña
+            </label>
+            <input
+              type="password"
+              value={form.password}
+              onChange={(e) => updateField('password', e.target.value)}
+              className="w-full rounded-2xl border border-gray-200 bg-white p-3 outline-none focus:border-primary"
+              required
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-text">
+              Vuelve a introducir la contraseña
+            </label>
+            <input
+              type="password"
+              value={form.confirmPassword}
+              onChange={(e) => updateField('confirmPassword', e.target.value)}
+              className="w-full rounded-2xl border border-gray-200 bg-white p-3 outline-none focus:border-primary"
+              required
+            />
+          </div>
 
           <div className="mt-2 flex items-center gap-3 px-1">
             <input
               type="checkbox"
               id="terms"
-              required
+              checked={acceptedTerms}
+              onChange={(e) => setAcceptedTerms(e.target.checked)}
               className="h-5 w-5 cursor-pointer accent-primary"
             />
             <label
@@ -63,6 +183,10 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ alVolver }) => {
               Acepto los términos del acuerdo
             </label>
           </div>
+
+          {errorMessage && (
+            <p className="text-sm font-medium text-alert">{errorMessage}</p>
+          )}
 
           <div className="mt-6 flex flex-col gap-3">
             <button
@@ -74,7 +198,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ alVolver }) => {
 
             <button
               type="button"
-              onClick={alVolver}
+              onClick={onGoToLogin}
               className="w-full rounded-2xl border border-gray-200 bg-white py-4 text-sm font-bold uppercase tracking-widest text-text hover:bg-gray-50"
             >
               Cancelar
@@ -83,34 +207,41 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ alVolver }) => {
         </form>
       </AuthLayout>
 
-      {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
           <div className="w-full max-w-[340px] rounded-[2rem] bg-white p-8 text-center shadow-2xl">
             <h4 className="mb-8 text-xl font-bold text-text">¿Confirmar registro?</h4>
+
             <div className="flex gap-4">
               <button
-                onClick={() => setShowConfirm(false)}
-                className="flex-1 rounded-xl border border-gray-200 py-3 font-bold text-text hover:bg-gray-50"
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1 rounded-xl border border-black-200 py-3 font-bold text-text hover:bg-gray-50"
               >
                 Cancelar
               </button>
+
               <button
-                onClick={handleConfirm}
-                className="flex-1 rounded-xl bg-primary py-3 font-bold text-white hover:bg-primary-hover"
+                onClick={handleConfirmRegister}
+                disabled={isSubmitting}
+                className="flex-1 rounded-xl bg-primary py-3 font-bold text-white hover:bg-primary-hover disabled:opacity-60"
               >
-                Confirmar
+                {isSubmitting ? 'Guardando...' : 'Confirmar'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {showSuccess && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
           <div className="w-full max-w-[340px] rounded-[2rem] bg-white p-8 text-center shadow-2xl">
             <h4 className="mb-8 text-xl font-bold text-text">Registro exitoso</h4>
+
             <button
-              onClick={alVolver}
+              onClick={() => {
+                setShowSuccessModal(false);
+                onGoToLogin();
+              }}
               className="w-full rounded-2xl bg-primary py-4 font-bold uppercase tracking-widest text-white hover:bg-primary-hover"
             >
               Confirmar
