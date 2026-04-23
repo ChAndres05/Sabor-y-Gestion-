@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server';
-import { Prisma } from '@prisma/client';
 import { prisma } from '../../../lib/prisma';
 
 // Evita que Next.js cachee esta ruta (obligatorio para búsquedas en tiempo real)
 export const dynamic = 'force-dynamic';
+
+type OrCondition =
+  | { nombre: { contains: string; mode: 'insensitive' } }
+  | { apellido: { contains: string; mode: 'insensitive' } }
+  | { usuario_ci: number };
+
+type WhereUsuarios = {
+  rol?: { nombre: string };
+  AND?: Array<{ OR: OrCondition[] }>;
+};
 
 export async function GET(request: Request) {
   // 1. Obtener los parámetros de la URL
@@ -15,8 +24,8 @@ export async function GET(request: Request) {
   const rolDB = rol === 'Todos' ? 'Todos' : rol.toUpperCase();
 
   try {
-    const whereUsuarios: Prisma.usuariosWhereInput = {};
-    
+    const whereUsuarios: WhereUsuarios = {};
+
     if (rolDB !== 'Todos') {
       whereUsuarios.rol = { nombre: rolDB };
     }
@@ -25,8 +34,8 @@ export async function GET(request: Request) {
       // Separar la búsqueda por espacios para buscar "Juan Perez" correctamente
       const terms = q.split(' ').filter((t) => t.trim() !== '');
 
-      whereUsuarios.AND = terms.map((term): Prisma.usuariosWhereInput => {
-        const orConditions: Prisma.usuariosWhereInput[] = [
+      whereUsuarios.AND = terms.map((term) => {
+        const orConditions: OrCondition[] = [
           { nombre: { contains: term, mode: 'insensitive' } },
           { apellido: { contains: term, mode: 'insensitive' } }
         ];
@@ -40,7 +49,7 @@ export async function GET(request: Request) {
     }
 
     const usuariosDB = await prisma.usuarios.findMany({
-      where: whereUsuarios,
+      where: whereUsuarios as never,
       include: { rol: true }
     });
 
