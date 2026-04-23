@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { AuthLayout } from '../../shared/components/AuthLayout';
 import { authApi } from './api/auth.api';
-import type { AuthUser } from './types/auth.types';
+import type { AuthSession } from './types/auth.types';
 
 interface LoginFormProps {
-  onLoginSuccess: (user: AuthUser) => void;
+  onLoginSuccess: (session: AuthSession) => void;
   onGoToRegister: () => void;
 }
 
@@ -28,7 +28,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         password,
       });
 
-      onLoginSuccess(session.user);
+      onLoginSuccess(session);
     } catch (error) {
       if (error instanceof Error) {
         setErrorMessage(error.message);

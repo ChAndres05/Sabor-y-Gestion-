@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LoginForm } from './modules/auth/LoginForm';
 import RegisterForm from './modules/auth/RegisterForm';
-import type { AuthUser } from './modules/auth/types/auth.types';
+import type { AuthSession, AuthUser } from './modules/auth/types/auth.types';
 import { USER_ROLES } from './shared/constants/roles';
 import AdminMenuPage from './modules/admin/AdminMenuPage';
 import MeseroHomePage from './modules/mesero/MeseroHomePage';
@@ -19,6 +19,8 @@ type AppScreen =
   | 'cocina-home'
   | 'cajero-home'
   | 'cliente-home';
+
+const AUTH_STORAGE_KEY = 'gestionysabor_auth';
 
 function getScreenByRole(role: AuthUser['rol']): AppScreen {
   switch (role) {
@@ -40,16 +42,63 @@ function getScreenByRole(role: AuthUser['rol']): AppScreen {
 function App() {
   const [screen, setScreen] = useState<AppScreen>('login');
   const [sessionUser, setSessionUser] = useState<AuthUser | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
 
-  const handleLoginSuccess = (user: AuthUser) => {
-    setSessionUser(user);
-    setScreen(getScreenByRole(user.rol));
+  useEffect(() => {
+    try {
+      const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
+
+      if (!savedAuth) {
+        setIsBootstrapping(false);
+        return;
+      }
+
+      const parsed = JSON.parse(savedAuth) as {
+        accessToken: string;
+        user: AuthUser;
+      };
+
+      if (parsed?.accessToken && parsed?.user) {
+        setAccessToken(parsed.accessToken);
+        setSessionUser(parsed.user);
+        setScreen(getScreenByRole(parsed.user.rol));
+      }
+    } catch {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    } finally {
+      setIsBootstrapping(false);
+    }
+  }, []);
+
+  const handleLoginSuccess = (session: AuthSession) => {
+    setAccessToken(session.accessToken);
+    setSessionUser(session.user);
+    setScreen(getScreenByRole(session.user.rol));
+
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({
+        accessToken: session.accessToken,
+        user: session.user,
+      })
+    );
   };
 
   const handleLogout = () => {
+    setAccessToken(null);
     setSessionUser(null);
     setScreen('login');
+    localStorage.removeItem(AUTH_STORAGE_KEY);
   };
+
+  if (isBootstrapping) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background font-sans text-text">
+        <p className="text-content">Cargando sesión...</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-background font-sans text-text antialiased">
@@ -64,7 +113,7 @@ function App() {
         <RegisterForm onGoToLogin={() => setScreen('login')} />
       )}
 
-      {screen === 'admin-menu' && sessionUser && (
+      {screen === 'admin-menu' && sessionUser && accessToken && (
         <AdminMenuPage
           user={sessionUser}
           onLogout={handleLogout}
@@ -72,23 +121,23 @@ function App() {
         />
       )}
 
-      {screen === 'admin-users' && sessionUser && (
+      {screen === 'admin-users' && sessionUser && accessToken && (
         <UsersPage onBack={() => setScreen('admin-menu')} />
       )}
 
-      {screen === 'mesero-home' && sessionUser && (
+      {screen === 'mesero-home' && sessionUser && accessToken && (
         <MeseroHomePage user={sessionUser} onLogout={handleLogout} />
       )}
 
-      {screen === 'cocina-home' && sessionUser && (
+      {screen === 'cocina-home' && sessionUser && accessToken && (
         <CocinaHomePage user={sessionUser} onLogout={handleLogout} />
       )}
 
-      {screen === 'cajero-home' && sessionUser && (
+      {screen === 'cajero-home' && sessionUser && accessToken && (
         <CajeroHomePage user={sessionUser} onLogout={handleLogout} />
       )}
 
-      {screen === 'cliente-home' && sessionUser && (
+      {screen === 'cliente-home' && sessionUser && accessToken && (
         <ClienteHomePage user={sessionUser} onLogout={handleLogout} />
       )}
     </main>

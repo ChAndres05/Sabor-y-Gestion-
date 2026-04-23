@@ -138,16 +138,17 @@ export async function registerMock(
   }
 
   const newUser: MockUserRecord = {
-    id: nextId++,
-    username: payload.username,
-    nombre: payload.nombre,
-    apellido: payload.apellido,
-    correo: payload.correo,
-    telefono: payload.telefono,
-    activo: true,
-    rol: USER_ROLES.CLIENTE,
-    password: payload.password,
-  };
+  id: nextId++,
+  username: payload.username,
+  nombre: payload.nombre,
+  apellido: payload.apellido,
+  correo: payload.correo,
+  telefono: payload.telefono,
+  ci: payload.ci ? Number(payload.ci) : null,
+  activo: true,
+  rol: USER_ROLES.CLIENTE,
+  password: payload.password,
+};
 
   users.push(newUser);
 
