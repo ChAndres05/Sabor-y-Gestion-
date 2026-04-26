@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { USER_ROLE_OPTIONS, type UserRole } from '../../shared/constants/roles';
 import { usersApi } from './api/users.api';
 import type { UserListItem } from './types/users.types';
@@ -34,7 +34,7 @@ export default function UsersPage({ onBack }: UsersPageProps) {
     return roleFilter;
   }, [roleFilter]);
 
-  const loadUsers = async (query = searchTerm, role = roleFilter) => {
+  const loadUsers = useCallback(async (query = searchTerm, role = roleFilter) => {
     setIsLoading(true);
     setErrorMessage('');
 
@@ -54,7 +54,7 @@ export default function UsersPage({ onBack }: UsersPageProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [searchTerm, roleFilter]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -62,7 +62,7 @@ export default function UsersPage({ onBack }: UsersPageProps) {
     }, 250);
 
     return () => clearTimeout(timeout);
-  }, [searchTerm, roleFilter]);
+  }, [searchTerm, roleFilter, loadUsers]);
 
   const handleOpenEdit = (user: UserListItem) => {
     setOpenMenuUserId(null);
