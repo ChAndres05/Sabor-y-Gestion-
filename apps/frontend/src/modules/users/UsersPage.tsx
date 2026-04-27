@@ -128,8 +128,9 @@ export default function UsersPage({ onBack }: UsersPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background px-4 py-6">
-      <div className="mx-auto max-w-md">
+  <div className="h-screen bg-background">
+    <div className="mx-auto flex h-full max-w-md flex-col px-4 py-6">
+      <div className="shrink-0">
         <button
           type="button"
           onClick={onBack}
@@ -159,14 +160,14 @@ export default function UsersPage({ onBack }: UsersPageProps) {
           <button
             type="button"
             onClick={() => setIsFilterOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between bg-primary px-4 py-3 text-sm font-medium text-white"
+            className="flex w-full items-center justify-between rounded-2xl bg-primary px-4 py-3 text-sm font-medium text-white"
           >
             <span>{filterLabel}</span>
             <span>˅</span>
           </button>
 
           {isFilterOpen && (
-            <div className="absolute left-0 right-0 z-20 bg-white shadow-lg">
+            <div className="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-2xl bg-white shadow-lg">
               <button
                 type="button"
                 onClick={() => {
@@ -196,20 +197,22 @@ export default function UsersPage({ onBack }: UsersPageProps) {
         </div>
 
         <div className="mb-4 border-t border-primary" />
+      </div>
 
+      <div className="min-h-0 flex-1 overflow-y-auto pb-2">
         {isLoading ? (
           <p className="text-sm text-gray-500">Cargando usuarios...</p>
         ) : users.length === 0 ? (
           <p className="text-sm text-gray-500">No se encontraron usuarios.</p>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-4 pr-1">
             {users.map((user) => {
               const isMenuOpen = openMenuUserId === user.id;
 
               return (
                 <div
                   key={user.backendId}
-                  className="relative rounded-xl bg-white p-4 shadow-sm"
+                  className="relative rounded-2xl bg-white p-4 shadow-sm"
                 >
                   <button
                     type="button"
@@ -222,7 +225,7 @@ export default function UsersPage({ onBack }: UsersPageProps) {
                   </button>
 
                   {isMenuOpen && (
-                    <div className="absolute right-8 top-8 z-10 min-w-[120px] rounded-md bg-white py-2 shadow-lg">
+                    <div className="absolute right-8 top-8 z-10 min-w-[140px] overflow-hidden rounded-xl bg-white py-2 shadow-lg">
                       <button
                         type="button"
                         onClick={() => handleOpenEdit(user)}
@@ -267,6 +270,7 @@ export default function UsersPage({ onBack }: UsersPageProps) {
             })}
           </div>
         )}
+        </div>
 
         {editingUser && (
           <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 px-4">
