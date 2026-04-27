@@ -1,121 +1,147 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useEffect, useState } from 'react';
+import { LoginForm } from './modules/auth/LoginForm';
+import RegisterForm from './modules/auth/RegisterForm';
+import type { AuthSession, AuthUser } from './modules/auth/types/auth.types';
+import { USER_ROLES } from './shared/constants/roles';
+import AdminMenuPage from './modules/admin/AdminMenuPage';
+import MeseroHomePage from './modules/mesero/MeseroHomePage';
+import CocinaHomePage from './modules/cocina/CocinaHomePage';
+import CajeroHomePage from './modules/cajero/CajeroHomePage';
+import ClienteHomePage from './modules/cliente/ClienteHomePage';
+import UsersPage from './modules/users/UsersPage';
 
-function App() {
-  const [count, setCount] = useState(0)
+type AppScreen =
+  | 'login'
+  | 'register'
+  | 'admin-menu'
+  | 'admin-users'
+  | 'mesero-home'
+  | 'cocina-home'
+  | 'cajero-home'
+  | 'cliente-home';
 
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+const AUTH_STORAGE_KEY = 'gestionysabor_auth';
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+function getScreenByRole(role: AuthUser['rol']): AppScreen {
+  switch (role) {
+    case USER_ROLES.ADMIN:
+      return 'admin-menu';
+    case USER_ROLES.MESERO:
+      return 'mesero-home';
+    case USER_ROLES.COCINERO:
+      return 'cocina-home';
+    case USER_ROLES.CAJERO:
+      return 'cajero-home';
+    case USER_ROLES.CLIENTE:
+      return 'cliente-home';
+    default:
+      return 'login';
+  }
 }
 
-export default App
+function App() {
+  const [screen, setScreen] = useState<AppScreen>('login');
+  const [sessionUser, setSessionUser] = useState<AuthUser | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+
+  useEffect(() => {
+    try {
+      const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
+
+      if (!savedAuth) {
+        setIsBootstrapping(false);
+        return;
+      }
+
+      const parsed = JSON.parse(savedAuth) as {
+        accessToken: string;
+        user: AuthUser;
+      };
+
+      if (parsed?.accessToken && parsed?.user) {
+        setAccessToken(parsed.accessToken);
+        setSessionUser(parsed.user);
+        setScreen(getScreenByRole(parsed.user.rol));
+      }
+    } catch {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    } finally {
+      setIsBootstrapping(false);
+    }
+  }, []);
+
+  const handleLoginSuccess = (session: AuthSession) => {
+    setAccessToken(session.accessToken);
+    setSessionUser(session.user);
+    setScreen(getScreenByRole(session.user.rol));
+
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({
+        accessToken: session.accessToken,
+        user: session.user,
+      })
+    );
+  };
+
+  const handleLogout = () => {
+    setAccessToken(null);
+    setSessionUser(null);
+    setScreen('login');
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+  };
+
+  if (isBootstrapping) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background font-sans text-text">
+        <p className="text-content">Cargando sesión...</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-background font-sans text-text antialiased">
+      {screen === 'login' && (
+        <LoginForm
+          onLoginSuccess={handleLoginSuccess}
+          onGoToRegister={() => setScreen('register')}
+        />
+      )}
+
+      {screen === 'register' && (
+        <RegisterForm onGoToLogin={() => setScreen('login')} />
+      )}
+
+      {screen === 'admin-menu' && sessionUser && accessToken && (
+        <AdminMenuPage
+          user={sessionUser}
+          onLogout={handleLogout}
+          onOpenUsers={() => setScreen('admin-users')}
+        />
+      )}
+
+      {screen === 'admin-users' && sessionUser && accessToken && (
+        <UsersPage onBack={() => setScreen('admin-menu')} />
+      )}
+
+      {screen === 'mesero-home' && sessionUser && accessToken && (
+        <MeseroHomePage user={sessionUser} onLogout={handleLogout} />
+      )}
+
+      {screen === 'cocina-home' && sessionUser && accessToken && (
+        <CocinaHomePage user={sessionUser} onLogout={handleLogout} />
+      )}
+
+      {screen === 'cajero-home' && sessionUser && accessToken && (
+        <CajeroHomePage user={sessionUser} onLogout={handleLogout} />
+      )}
+
+      {screen === 'cliente-home' && sessionUser && accessToken && (
+        <ClienteHomePage user={sessionUser} onLogout={handleLogout} />
+      )}
+    </main>
+  );
+}
+
+export default App;

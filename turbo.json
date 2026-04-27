@@ -2,6 +2,7 @@
   "$schema": "https://turbo.build/schema.json",
   "globalPassThroughEnv": [
     "DATABASE_URL",
+    "ENABLE_COREPACK",
     "DIRECT_URL",
     "SUPABASE_URL",
     "SUPABASE_SECRET_KEY",
@@ -18,7 +19,8 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"]
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "env": ["WEB_URL"] 
     },
     "lint": {
       "dependsOn": ["^build"]
