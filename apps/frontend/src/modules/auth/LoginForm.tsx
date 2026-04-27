@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { AuthLayout } from '../../shared/components/AuthLayout';
 import { authApi } from './api/auth.api';
@@ -7,12 +7,14 @@ import type { AuthSession } from './types/auth.types';
 interface LoginFormProps {
   onLoginSuccess: (session: AuthSession) => void;
   onGoToRegister: () => void;
+  onGoToForgotPassword: () => void;
 }
 
-export const LoginForm: React.FC<LoginFormProps> = ({
+export const LoginForm = ({
   onLoginSuccess,
   onGoToRegister,
-}) => {
+  onGoToForgotPassword,
+}: LoginFormProps) => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,15 +65,26 @@ export const LoginForm: React.FC<LoginFormProps> = ({
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               placeholder="juanito123 o juanito@gmail.com"
-              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary"
+              autoComplete="username"
+              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-text outline-none transition-all placeholder:text-gray-400 focus:border-primary"
               required
             />
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-[12px] font-bold uppercase tracking-wide text-text">
-              Contraseña
-            </label>
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-[12px] font-bold uppercase tracking-wide text-text">
+                Contraseña
+              </label>
+
+              <button
+                type="button"
+                onClick={onGoToForgotPassword}
+                className="text-[12px] font-semibold text-text underline transition-colors hover:text-primary"
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            </div>
 
             <div className="relative">
               <input
@@ -79,7 +92,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="******"
-                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 pr-12 text-[14px] text-text outline-none transition-all focus:border-primary"
+                autoComplete="current-password"
+                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 pr-12 text-[14px] text-text outline-none transition-all placeholder:text-gray-400 focus:border-primary"
                 required
               />
 
@@ -87,7 +101,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 transition-colors hover:text-primary"
-                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>

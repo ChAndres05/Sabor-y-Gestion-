@@ -1,9 +1,17 @@
 import { mapBackendAuthUser } from './auth.mapper';
 import type {
   AuthSession,
+  ForgotPasswordPayload,
   LoginPayload,
   RegisterPayload,
+  ResetPasswordPayload,
+  VerifyResetCodePayload,
 } from '../types/auth.types';
+import {
+  requestPasswordResetMock,
+  resetPasswordMock,
+  verifyPasswordResetCodeMock,
+} from '../../../shared/mocks/password-recovery.mock';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -104,5 +112,22 @@ export const authApi = {
       accessToken: data.accessToken,
       user: mapBackendAuthUser(data.user),
     };
+  },
+
+  async requestPasswordReset(payload: ForgotPasswordPayload) {
+    return requestPasswordResetMock(payload.email);
+  },
+
+  async verifyResetCode(payload: VerifyResetCodePayload) {
+    return verifyPasswordResetCodeMock(payload.email, payload.code);
+  },
+
+  async resetPassword(payload: ResetPasswordPayload) {
+    return resetPasswordMock(
+      payload.email,
+      payload.code,
+      payload.newPassword,
+      payload.confirmPassword
+    );
   },
 };

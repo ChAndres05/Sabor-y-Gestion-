@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { LoginForm } from './modules/auth/LoginForm';
 import RegisterForm from './modules/auth/RegisterForm';
+import ForgotPasswordPage from './modules/auth/ForgotPasswordPage';
 import type { AuthSession, AuthUser } from './modules/auth/types/auth.types';
 import { USER_ROLES } from './shared/constants/roles';
 import AdminMenuPage from './modules/admin/AdminMenuPage';
@@ -13,6 +14,7 @@ import UsersPage from './modules/users/UsersPage';
 type AppScreen =
   | 'login'
   | 'register'
+  | 'forgot-password'
   | 'admin-menu'
   | 'admin-users'
   | 'mesero-home'
@@ -106,11 +108,16 @@ function App() {
         <LoginForm
           onLoginSuccess={handleLoginSuccess}
           onGoToRegister={() => setScreen('register')}
+          onGoToForgotPassword={() => setScreen('forgot-password')}
         />
       )}
 
       {screen === 'register' && (
         <RegisterForm onGoToLogin={() => setScreen('login')} />
+      )}
+
+      {screen === 'forgot-password' && (
+        <ForgotPasswordPage onBackToLogin={() => setScreen('login')} />
       )}
 
       {screen === 'admin-menu' && sessionUser && accessToken && (

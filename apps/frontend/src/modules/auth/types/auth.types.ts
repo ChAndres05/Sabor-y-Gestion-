@@ -2,14 +2,14 @@ import type { UserRole } from '../../../shared/constants/roles';
 
 export interface AuthUser {
   id: number;
-  rol: UserRole;
-  activo: boolean;
+  username: string;
   nombre: string;
   apellido: string;
-  username: string;
   correo: string;
   telefono: string;
   ci: number | null;
+  activo: boolean;
+  rol: UserRole;
 }
 
 export interface LoginPayload {
@@ -18,12 +18,12 @@ export interface LoginPayload {
 }
 
 export interface RegisterPayload {
-  ci: string;
   nombre: string;
   apellido: string;
   username: string;
-  telefono: string;
   correo: string;
+  telefono: string;
+  ci: string;
   password: string;
   confirmPassword: string;
 }
@@ -31,4 +31,20 @@ export interface RegisterPayload {
 export interface AuthSession {
   accessToken: string;
   user: AuthUser;
+}
+
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface VerifyResetCodePayload {
+  email: string;
+  code: string;
+}
+
+export interface ResetPasswordPayload {
+  email: string;
+  code: string;
+  newPassword: string;
+  confirmPassword: string;
 }
