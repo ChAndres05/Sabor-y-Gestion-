@@ -10,17 +10,17 @@ datasource db {
 // --- MODELOS ---
 
 model asignaciones_caja_turno {
-  id_asignacion_caja_turno Int            @id @default(autoincrement())
+  id_asignacion_caja_turno Int           @id @default(autoincrement())
   id_caja                  Int
   id_turno                 Int
   id_usuario               Int
-  fecha_operacion          DateTime       @default(now()) @db.Date
-  estado                   String         @default("ASIGNADA")
-  observaciones            String?
+  fecha_operacion          DateTime      @default(now()) @db.Date
+  estado                   String        @default("ASIGNADA") @db.VarChar // ASIGNADA, EN_CURSO, FINALIZADA, CANCELADA
+  observaciones            String?       @db.Text
   
-  caja                     cajas          @relation(fields: [id_caja], references: [id_caja])
-  turno                    turnos         @relation(fields: [id_turno], references: [id_turno])
-  usuario                  usuarios       @relation(fields: [id_usuario], references: [id_usuario])
+  caja                     cajas         @relation(fields: [id_caja], references: [id_caja])
+  turno                    turnos        @relation(fields: [id_turno], references: [id_turno])
+  usuario                  usuarios      @relation(fields: [id_usuario], references: [id_usuario])
   jornada_caja             jornadas_caja?
 
   @@map("asignaciones_caja_turno")
@@ -30,14 +30,14 @@ model asignaciones_cocina_pedido {
   id_asignacion_cocina_pedido   Int       @id @default(autoincrement())
   id_pedido                     Int
   id_usuario_cocinero           Int
-  estado_asignacion             String    @default("ASIGNADO")
-  fecha_hora_asignacion         DateTime  @default(now())
-  fecha_hora_aceptacion         DateTime?
-  fecha_hora_inicio_preparacion DateTime?
-  fecha_hora_listo              DateTime?
-  fecha_hora_finalizacion       DateTime?
+  estado_asignacion             String    @default("ASIGNADO") @db.VarChar // ASIGNADO, ACEPTADO, RECHAZADO, EN_PREPARACION, LISTO, FINALIZADO, REASIGNADO
+  fecha_hora_asignacion         DateTime  @default(now()) @db.Timestamp(6)
+  fecha_hora_aceptacion         DateTime? @db.Timestamp(6)
+  fecha_hora_inicio_preparacion DateTime? @db.Timestamp(6)
+  fecha_hora_listo              DateTime? @db.Timestamp(6)
+  fecha_hora_finalizacion       DateTime? @db.Timestamp(6)
   es_asignacion_actual          Boolean   @default(true)
-  observaciones                 String?
+  observaciones                 String?   @db.Text
 
   pedido                        pedidos   @relation(fields: [id_pedido], references: [id_pedido])
   usuario_cocinero              usuarios  @relation(fields: [id_usuario_cocinero], references: [id_usuario])
@@ -47,7 +47,7 @@ model asignaciones_cocina_pedido {
 
 model cajas {
   id_caja                 Int                       @id @default(autoincrement())
-  nombre                  String                    @unique
+  nombre                  String                    @unique @db.VarChar
   activa                  Boolean                   @default(true)
   asignaciones_caja_turno asignaciones_caja_turno[]
 
@@ -56,8 +56,8 @@ model cajas {
 
 model categorias {
   id_categoria Int         @id @default(autoincrement())
-  nombre       String      @unique
-  descripcion  String?
+  nombre       String      @unique @db.VarChar
+  descripcion  String?     @db.Text
   activo       Boolean     @default(true)
   productos    productos[]
 
@@ -65,18 +65,21 @@ model categorias {
 }
 
 model clientes {
-  id_cliente        Int        @id @default(autoincrement())
-  nombre            String
-  apellido          String?
-  telefono          String?
-  correo_electronico String?
-  tipo_cliente      String     @default("NORMAL")
-  puntos_fidelidad  Int        @default(0)
-  activo            Boolean    @default(true)
-  fecha_registro    DateTime   @default(now())
-  cliente_ci        Int?
-  pedidos           pedidos[]
-  reservas          reservas[]
+  id_cliente              Int        @id @default(autoincrement())
+  nombre                  String     @db.VarChar
+  apellido                String?    @db.VarChar
+  telefono                String?    @db.VarChar
+  correo_electronico      String?    @db.VarChar
+  tipo_cliente            String     @default("NORMAL") @db.VarChar // NORMAL, FRECUENTE, VIP
+  puntos_fidelidad        Int        @default(0)
+  activo                  Boolean    @default(true)
+  fecha_registro          DateTime   @default(now()) @db.Timestamp(6)
+  cliente_ci              Int?
+  codigo_recuperacion     String?    @db.VarChar
+  expiracion_recuperacion DateTime?  @db.Timestamp(6)
+  
+  pedidos                 pedidos[]
+  reservas                reservas[]
 
   @@map("clientes")
 }
@@ -88,7 +91,7 @@ model detalles_pedido {
   cantidad                 Int
   precio_unitario          Decimal                 @db.Decimal
   subtotal                 Decimal                 @db.Decimal
-  observaciones            String?
+  observaciones            String?                 @db.Text
 
   pedido                   pedidos                 @relation(fields: [id_pedido], references: [id_pedido])
   presentacion_producto    presentaciones_producto @relation(fields: [id_presentacion_producto], references: [id_presentacion_producto])
@@ -100,15 +103,15 @@ model facturas {
   id_factura         Int      @id @default(autoincrement())
   id_pedido          Int
   id_usuario_emision Int
-  tipo_documento     String   @default("FACTURA")
-  numero_documento   String   @unique
+  tipo_documento     String   @default("FACTURA") @db.VarChar // PREFACTURA, FACTURA
+  numero_documento   String   @unique @db.VarChar
   subtotal           Decimal  @db.Decimal
   impuesto           Decimal  @default(0) @db.Decimal
   descuento          Decimal  @default(0) @db.Decimal
   total              Decimal  @db.Decimal
-  fecha_emision      DateTime @default(now())
-  estado_documento   String   @default("EMITIDA")
-  observaciones      String?
+  fecha_emision      DateTime @default(now()) @db.Timestamp(6)
+  estado_documento   String   @default("EMITIDA") @db.VarChar // EMITIDA, ANULADA
+  observaciones      String?  @db.Text
 
   pedido             pedidos  @relation(fields: [id_pedido], references: [id_pedido])
   usuario_emision    usuarios @relation(fields: [id_usuario_emision], references: [id_usuario])
@@ -119,10 +122,10 @@ model facturas {
 model historial_estados_pedido {
   id_historial_estado_pedido Int      @id @default(autoincrement())
   id_pedido                  Int
-  estado                     String
+  estado                     String   @db.VarChar // REGISTRADO, EN_PREPARACION, LISTO, EN_CAMINO, ENTREGADO, PAGADO, CANCELADO
   id_usuario                 Int
-  observaciones              String?
-  fecha_hora_cambio          DateTime @default(now())
+  observaciones              String?  @db.Text
+  fecha_hora_cambio          DateTime @default(now()) @db.Timestamp(6)
 
   pedido                     pedidos  @relation(fields: [id_pedido], references: [id_pedido])
   usuario                    usuarios @relation(fields: [id_usuario], references: [id_usuario])
@@ -132,11 +135,12 @@ model historial_estados_pedido {
 
 model insumos {
   id_insumo                       Int                               @id @default(autoincrement())
-  nombre                          String                            @unique
-  unidad_medida                   String
+  nombre                          String                            @unique @db.VarChar
+  unidad_medida                   String                            @db.VarChar // UNIDAD, GRAMO, KILOGRAMO, MILILITRO, LITRO
   stock_actual                    Decimal                           @default(0) @db.Decimal
   stock_minimo                    Decimal                           @default(0) @db.Decimal
   activo                          Boolean                           @default(true)
+  
   movimientos_stock               movimientos_stock[]
   recetas_presentaciones_producto recetas_presentaciones_producto[]
 
@@ -148,13 +152,13 @@ model jornadas_caja {
   id_asignacion_caja_turno Int                     @unique
   id_usuario_apertura      Int
   id_usuario_cierre        Int?
-  fecha_hora_apertura      DateTime                @default(now())
-  fecha_hora_cierre        DateTime?
+  fecha_hora_apertura      DateTime                @default(now()) @db.Timestamp(6)
+  fecha_hora_cierre        DateTime?               @db.Timestamp(6)
   monto_inicial            Decimal                 @db.Decimal
   monto_teorico_cierre     Decimal                 @default(0) @db.Decimal
   monto_contado_cierre     Decimal?                @db.Decimal
   diferencia_cierre        Decimal                 @default(0) @db.Decimal
-  estado                   String                  @default("ABIERTA")
+  estado                   String                  @default("ABIERTA") @db.VarChar // ABIERTA, CERRADA
 
   asignacion_caja_turno    asignaciones_caja_turno @relation(fields: [id_asignacion_caja_turno], references: [id_asignacion_caja_turno])
   usuario_apertura         usuarios                @relation("apertura", fields: [id_usuario_apertura], references: [id_usuario])
@@ -170,11 +174,12 @@ model mesas {
   id_zona    Int?
   numero     Int        @unique
   capacidad  Int
-  estado     String     @default("LIBRE")
+  estado     String     @default("LIBRE") @db.VarChar // LIBRE, OCUPADA, RESERVADA, CUENTA_SOLICITADA, FUERA_DE_SERVICIO
   posicion_x Decimal    @default(0) @db.Decimal
   posicion_y Decimal    @default(0) @db.Decimal
-  forma      String     @default("CUADRADA")
+  forma      String     @default("CUADRADA") @db.VarChar // CUADRADA, RECTANGULAR, REDONDA, OVALADA
   activa     Boolean    @default(true)
+  
   zona       zonas?     @relation(fields: [id_zona], references: [id_zona])
   pedidos    pedidos[]
   reservas   reservas[]
@@ -184,7 +189,7 @@ model mesas {
 
 model metodos_pago {
   id_metodo_pago Int     @id @default(autoincrement())
-  nombre         String  @unique
+  nombre         String  @unique @db.VarChar
   pagos          pagos[]
 
   @@map("metodos_pago")
@@ -194,10 +199,10 @@ model movimientos_caja {
   id_movimiento_caja    Int           @id @default(autoincrement())
   id_jornada_caja       Int
   id_usuario            Int
-  tipo_movimiento       String
+  tipo_movimiento       String        @db.VarChar // APERTURA_FONDO, INGRESO_EXTRA, RETIRO, GASTO_MENOR, AJUSTE_POSITIVO, AJUSTE_NEGATIVO
   monto                 Decimal       @db.Decimal
-  descripcion           String?
-  fecha_hora_movimiento DateTime      @default(now())
+  descripcion           String?       @db.Text
+  fecha_hora_movimiento DateTime      @default(now()) @db.Timestamp(6)
 
   jornada_caja          jornadas_caja @relation(fields: [id_jornada_caja], references: [id_jornada_caja])
   usuario               usuarios      @relation(fields: [id_usuario], references: [id_usuario])
@@ -206,68 +211,68 @@ model movimientos_caja {
 }
 
 model movimientos_stock {
-  id_movimiento_stock Int      @id @default(autoincrement())
+  id_movimiento_stock Int       @id @default(autoincrement())
   id_insumo           Int
   id_usuario          Int?
-  tipo_movimiento     String
-  cantidad            Decimal  @db.Decimal
-  motivo              String?
-  fecha_registro      DateTime @default(now())
+  tipo_movimiento     String    @db.VarChar // ENTRADA, SALIDA, MERMA, AJUSTE_POSITIVO, AJUSTE_NEGATIVO
+  cantidad            Decimal   @db.Decimal
+  motivo              String?   @db.Text
+  fecha_registro      DateTime  @default(now()) @db.Timestamp(6)
 
-  insumo              insumos  @relation(fields: [id_insumo], references: [id_insumo])
+  insumo              insumos   @relation(fields: [id_insumo], references: [id_insumo])
   usuario             usuarios? @relation(fields: [id_usuario], references: [id_usuario])
 
   @@map("movimientos_stock")
 }
 
 model pagos {
-  id_pago           Int           @id @default(autoincrement())
+  id_pago           Int            @id @default(autoincrement())
   id_pedido         Int
   id_metodo_pago    Int
   id_jornada_caja   Int?
   id_usuario_cajero Int
-  monto_pagado      Decimal       @db.Decimal
-  monto_recibido    Decimal?      @db.Decimal
-  monto_cambio      Decimal       @default(0) @db.Decimal
-  referencia_pago   String?
-  estado_pago       String        @default("CONFIRMADO")
-  observacion       String?
-  fecha_hora_pago   DateTime      @default(now())
+  monto_pagado      Decimal        @db.Decimal
+  monto_recibido    Decimal?       @db.Decimal
+  monto_cambio      Decimal        @default(0) @db.Decimal
+  referencia_pago   String?        @db.VarChar
+  estado_pago       String         @default("CONFIRMADO") @db.VarChar // PENDIENTE, CONFIRMADO, ANULADO
+  observacion       String?        @db.Text
+  fecha_hora_pago   DateTime       @default(now()) @db.Timestamp(6)
 
-  pedido            pedidos       @relation(fields: [id_pedido], references: [id_pedido])
-  metodo_pago       metodos_pago  @relation(fields: [id_metodo_pago], references: [id_metodo_pago])
+  pedido            pedidos        @relation(fields: [id_pedido], references: [id_pedido])
+  metodo_pago       metodos_pago   @relation(fields: [id_metodo_pago], references: [id_metodo_pago])
   jornada_caja      jornadas_caja? @relation(fields: [id_jornada_caja], references: [id_jornada_caja])
-  usuario_cajero    usuarios      @relation(fields: [id_usuario_cajero], references: [id_usuario])
+  usuario_cajero    usuarios       @relation(fields: [id_usuario_cajero], references: [id_usuario])
 
   @@map("pagos")
 }
 
 model pedidos {
-  id_pedido                Int                          @id @default(autoincrement())
-  id_tipo_pedido           Int
-  id_cliente               Int?
-  id_mesa                  Int?
-  id_usuario_mesero        Int?
-  estado                   String                       @default("REGISTRADO")
-  tiempo_estimado_minutos  Int                          @default(0)
-  subtotal                 Decimal                      @default(0) @db.Decimal
-  impuesto                 Decimal                      @default(0) @db.Decimal
-  descuento                Decimal                      @default(0) @db.Decimal
-  total                    Decimal                      @default(0) @db.Decimal
-  observaciones            String?
-  fecha_hora_pedido        DateTime                     @default(now())
-  fecha_hora_entrega       DateTime?
+  id_pedido               Int                          @id @default(autoincrement())
+  id_tipo_pedido          Int
+  id_cliente              Int?
+  id_mesa                 Int?
+  id_usuario_mesero       Int?
+  estado                  String                       @default("REGISTRADO") @db.VarChar // REGISTRADO, EN_PREPARACION, LISTO, EN_CAMINO, ENTREGADO, PAGADO, CANCELADO
+  tiempo_estimado_minutos Int                          @default(0)
+  subtotal                Decimal                      @default(0) @db.Decimal
+  impuesto                Decimal                      @default(0) @db.Decimal
+  descuento               Decimal                      @default(0) @db.Decimal
+  total                   Decimal                      @default(0) @db.Decimal
+  observaciones           String?                      @db.Text
+  fecha_hora_pedido       DateTime                     @default(now()) @db.Timestamp(6)
+  fecha_hora_entrega      DateTime?                    @db.Timestamp(6)
 
-  tipo_pedido              tipos_pedido                 @relation(fields: [id_tipo_pedido], references: [id_tipo_pedido])
-  cliente                  clientes?                    @relation(fields: [id_cliente], references: [id_cliente])
-  mesa                     mesas?                       @relation(fields: [id_mesa], references: [id_mesa])
-  usuario_mesero           usuarios?                    @relation(fields: [id_usuario_mesero], references: [id_usuario])
-  asignaciones_cocina      asignaciones_cocina_pedido[]
-  detalles_pedido          detalles_pedido[]
-  facturas                 facturas[]
-  historial_estados        historial_estados_pedido[]
-  pagos                    pagos[]
-  pedido_delivery          pedidos_delivery?
+  tipo_pedido             tipos_pedido                 @relation(fields: [id_tipo_pedido], references: [id_tipo_pedido])
+  cliente                 clientes?                    @relation(fields: [id_cliente], references: [id_cliente])
+  mesa                    mesas?                       @relation(fields: [id_mesa], references: [id_mesa])
+  usuario_mesero          usuarios?                    @relation(fields: [id_usuario_mesero], references: [id_usuario])
+  asignaciones_cocina     asignaciones_cocina_pedido[]
+  detalles_pedido         detalles_pedido[]
+  facturas                facturas[]
+  historial_estados       historial_estados_pedido[]
+  pagos                   pagos[]
+  pedido_delivery         pedidos_delivery?
 
   @@map("pedidos")
 }
@@ -276,15 +281,15 @@ model pedidos_delivery {
   id_pedido_delivery    Int       @id @default(autoincrement())
   id_pedido             Int       @unique
   id_usuario_repartidor Int?
-  nombre_contacto       String
-  telefono_contacto     String
-  direccion_entrega     String
-  referencia_entrega    String?
+  nombre_contacto       String    @db.VarChar
+  telefono_contacto     String    @db.VarChar
+  direccion_entrega     String    @db.Text
+  referencia_entrega    String?   @db.Text
   latitud_entrega       Decimal?  @db.Decimal
   longitud_entrega      Decimal?  @db.Decimal
   costo_entrega         Decimal   @default(0) @db.Decimal
-  estado_delivery       String    @default("PENDIENTE")
-  fecha_hora_salida     DateTime?
+  estado_delivery       String    @default("PENDIENTE") @db.VarChar // PENDIENTE, EN_PREPARACION, EN_CAMINO, ENTREGADO, CANCELADO
+  fecha_hora_salida     DateTime? @db.Timestamp(6)
 
   pedido                pedidos   @relation(fields: [id_pedido], references: [id_pedido])
   usuario_repartidor    usuarios? @relation(fields: [id_usuario_repartidor], references: [id_usuario])
@@ -293,17 +298,18 @@ model pedidos_delivery {
 }
 
 model presentaciones_producto {
-  id_presentacion_producto Int                               @id @default(autoincrement())
-  id_producto               Int
-  nombre                    String
-  precio                    Decimal                           @db.Decimal
+  id_presentacion_producto   Int                               @id @default(autoincrement())
+  id_producto                Int
+  nombre                     String                            @db.VarChar
+  precio                     Decimal                           @db.Decimal
   tiempo_preparacion_minutos Int                               @default(10)
-  disponible                Boolean                           @default(true)
-  activo                    Boolean                           @default(true)
-  es_predeterminada         Boolean                           @default(false)
-  producto                  productos                         @relation(fields: [id_producto], references: [id_producto])
-  detalles_pedido           detalles_pedido[]
-  recetas_presentaciones    recetas_presentaciones_producto[]
+  disponible                 Boolean                           @default(true)
+  activo                     Boolean                           @default(true)
+  es_predeterminada          Boolean                           @default(false)
+  
+  producto                   productos                         @relation(fields: [id_producto], references: [id_producto])
+  detalles_pedido            detalles_pedido[]
+  recetas_presentaciones     recetas_presentaciones_producto[]
 
   @@map("presentaciones_producto")
 }
@@ -311,11 +317,12 @@ model presentaciones_producto {
 model productos {
   id_producto    Int                       @id @default(autoincrement())
   id_categoria   Int
-  nombre         String                    @unique
-  descripcion    String?
-  imagen_url     String?
+  nombre         String                    @unique @db.VarChar
+  descripcion    String?                   @db.Text
+  imagen_url     String?                   @db.Text
   disponible     Boolean                   @default(true)
   activo         Boolean                   @default(true)
+  
   categoria      categorias                @relation(fields: [id_categoria], references: [id_categoria])
   presentaciones presentaciones_producto[]
 
@@ -327,6 +334,7 @@ model recetas_presentaciones_producto {
   id_presentacion_producto        Int
   id_insumo                       Int
   cantidad_insumo                 Decimal                 @db.Decimal
+  
   presentacion_producto           presentaciones_producto @relation(fields: [id_presentacion_producto], references: [id_presentacion_producto])
   insumo                          insumos                 @relation(fields: [id_insumo], references: [id_insumo])
 
@@ -334,26 +342,26 @@ model recetas_presentaciones_producto {
 }
 
 model reservas {
-  id_reserva          Int      @id @default(autoincrement())
-  id_cliente          Int?
-  id_mesa             Int
-  id_usuario          Int
-  fecha_hora_reserva  DateTime
-  cantidad_personas   Int
-  estado              String   @default("CONFIRMADA")
-  observaciones       String?
-  fecha_registro      DateTime @default(now())
+  id_reserva         Int       @id @default(autoincrement())
+  id_cliente         Int?
+  id_mesa            Int
+  id_usuario         Int
+  fecha_hora_reserva DateTime  @db.Timestamp(6)
+  cantidad_personas  Int
+  estado             String    @default("CONFIRMADA") @db.VarChar // CONFIRMADA, CANCELADA, COMPLETADA
+  observaciones      String?   @db.Text
+  fecha_registro     DateTime  @default(now()) @db.Timestamp(6)
 
-  cliente             clientes? @relation(fields: [id_cliente], references: [id_cliente])
-  mesa                mesas    @relation(fields: [id_mesa], references: [id_mesa])
-  usuario             usuarios @relation(fields: [id_usuario], references: [id_usuario])
+  cliente            clientes? @relation(fields: [id_cliente], references: [id_cliente])
+  mesa               mesas     @relation(fields: [id_mesa], references: [id_mesa])
+  usuario            usuarios  @relation(fields: [id_usuario], references: [id_usuario])
 
   @@map("reservas")
 }
 
 model roles {
   id_rol   Int        @id @default(autoincrement())
-  nombre   String     @unique
+  nombre   String     @unique @db.VarChar
   usuarios usuarios[]
 
   @@map("roles")
@@ -361,7 +369,7 @@ model roles {
 
 model tipos_pedido {
   id_tipo_pedido Int       @id @default(autoincrement())
-  nombre         String    @unique
+  nombre         String    @unique @db.VarChar
   pedidos        pedidos[]
 
   @@map("tipos_pedido")
@@ -369,7 +377,7 @@ model tipos_pedido {
 
 model turnos {
   id_turno                Int                       @id @default(autoincrement())
-  nombre                  String                    @unique
+  nombre                  String                    @unique @db.VarChar
   hora_inicio             DateTime                  @db.Time
   hora_fin                DateTime                  @db.Time
   activo                  Boolean                   @default(true)
@@ -379,39 +387,41 @@ model turnos {
 }
 
 model usuarios {
-  id_usuario                 Int                          @id @default(autoincrement())
-  id_rol                     Int
-  usuario_ci                 Int                          @unique
-  nombre                     String
-  apellido                   String?
-  nombre_usuario             String                       @unique
-  contrasena_hash            String
-  telefono                   String?
-  correo_electronico         String?                      @unique
-  activo                     Boolean                      @default(true)
-  fecha_creacion             DateTime                     @default(now())
+  id_usuario              Int                          @id @default(autoincrement())
+  id_rol                  Int
+  usuario_ci              Int                          @unique
+  nombre                  String                       @db.VarChar
+  apellido                String?                      @db.VarChar
+  nombre_usuario          String                       @unique @db.VarChar
+  contrasena_hash         String                       @db.Text
+  telefono                String?                      @db.VarChar
+  correo_electronico      String?                      @unique @db.VarChar
+  activo                  Boolean                      @default(true)
+  fecha_creacion          DateTime                     @default(now()) @db.Timestamp(6)
+  codigo_recuperacion     String?                      @db.VarChar
+  expiracion_recuperacion DateTime?                    @db.Timestamp(6)
 
-  rol                        roles                        @relation(fields: [id_rol], references: [id_rol])
-  asignaciones_caja_turno    asignaciones_caja_turno[]
-  asignaciones_cocina        asignaciones_cocina_pedido[]
-  facturas                   facturas[]
-  historial_estados          historial_estados_pedido[]
-  jornadas_apertura          jornadas_caja[]              @relation("apertura")
-  jornadas_cierre            jornadas_caja[]              @relation("cierre")
-  movimientos_caja           movimientos_caja[]
-  movimientos_stock          movimientos_stock[]
-  pagos                      pagos[]
-  pedidos_mesero             pedidos[]
-  pedidos_repartidor         pedidos_delivery[]
-  reservas                   reservas[]
+  rol                     roles                        @relation(fields: [id_rol], references: [id_rol])
+  asignaciones_caja_turno asignaciones_caja_turno[]
+  asignaciones_cocina     asignaciones_cocina_pedido[]
+  facturas                facturas[]
+  historial_estados       historial_estados_pedido[]
+  jornadas_apertura       jornadas_caja[]              @relation("apertura")
+  jornadas_cierre         jornadas_caja[]              @relation("cierre")
+  movimientos_caja        movimientos_caja[]
+  movimientos_stock       movimientos_stock[]
+  pagos                   pagos[]
+  pedidos_mesero          pedidos[]
+  pedidos_repartidor      pedidos_delivery[]
+  reservas                reservas[]
 
   @@map("usuarios")
 }
 
 model zonas {
   id_zona     Int     @id @default(autoincrement())
-  nombre      String  @unique
-  descripcion String?
+  nombre      String  @unique @db.VarChar
+  descripcion String? @db.Text
   mesas       mesas[]
 
   @@map("zonas")
