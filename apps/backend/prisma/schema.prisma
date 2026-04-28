@@ -8,411 +8,411 @@ datasource db {
 }
 
 // --- MODELOS ---
-
-model asignaciones_caja_turno {
-  id_asignacion_caja_turno Int            @id @default(autoincrement())
-  id_caja                  Int
-  id_turno                 Int
-  id_usuario               Int
-  fecha_operacion          DateTime       @default(now()) @db.Date
-  estado                   String         @default("ASIGNADA")
-  observaciones            String?
-  
-  caja                     cajas          @relation(fields: [id_caja], references: [id_caja])
-  turno                    turnos         @relation(fields: [id_turno], references: [id_turno])
-  usuario                  usuarios       @relation(fields: [id_usuario], references: [id_usuario])
-  jornada_caja             jornadas_caja?
-
-  @@map("asignaciones_caja_turno")
-}
-
-model asignaciones_cocina_pedido {
-  id_asignacion_cocina_pedido   Int       @id @default(autoincrement())
-  id_pedido                     Int
-  id_usuario_cocinero           Int
-  estado_asignacion             String    @default("ASIGNADO")
-  fecha_hora_asignacion         DateTime  @default(now())
-  fecha_hora_aceptacion         DateTime?
-  fecha_hora_inicio_preparacion DateTime?
-  fecha_hora_listo              DateTime?
-  fecha_hora_finalizacion       DateTime?
-  es_asignacion_actual          Boolean   @default(true)
-  observaciones                 String?
-
-  pedido                        pedidos   @relation(fields: [id_pedido], references: [id_pedido])
-  usuario_cocinero              usuarios  @relation(fields: [id_usuario_cocinero], references: [id_usuario])
-
-  @@map("asignaciones_cocina_pedido")
-}
-
-model cajas {
-  id_caja                 Int                       @id @default(autoincrement())
-  nombre                  String                    @unique
-  activa                  Boolean                   @default(true)
-  asignaciones_caja_turno asignaciones_caja_turno[]
-
-  @@map("cajas")
-}
-
-model categorias {
-  id_categoria Int         @id @default(autoincrement())
-  nombre       String      @unique
-  descripcion  String?
-  activo       Boolean     @default(true)
-  productos    productos[]
+model Categoria {
+  id_categoria Int        @id @default(autoincrement())
+  nombre       String     @unique @db.VarChar
+  descripcion  String?    @db.Text
+  activo       Boolean    @default(true)
+  productos    Producto[]
 
   @@map("categorias")
 }
 
-model clientes {
-  id_cliente        Int        @id @default(autoincrement())
-  nombre            String
-  apellido          String?
-  telefono          String?
-  correo_electronico String?
-  tipo_cliente      String     @default("NORMAL")
-  puntos_fidelidad  Int        @default(0)
-  activo            Boolean    @default(true)
-  fecha_registro    DateTime   @default(now())
-  cliente_ci        Int?
-  pedidos           pedidos[]
-  reservas          reservas[]
-
-  @@map("clientes")
-}
-
-model detalles_pedido {
-  id_detalle_pedido        Int                     @id @default(autoincrement())
-  id_pedido                Int
-  id_presentacion_producto Int
-  cantidad                 Int
-  precio_unitario          Decimal                 @db.Decimal
-  subtotal                 Decimal                 @db.Decimal
-  observaciones            String?
-
-  pedido                   pedidos                 @relation(fields: [id_pedido], references: [id_pedido])
-  presentacion_producto    presentaciones_producto @relation(fields: [id_presentacion_producto], references: [id_presentacion_producto])
-
-  @@map("detalles_pedido")
-}
-
-model facturas {
-  id_factura         Int      @id @default(autoincrement())
-  id_pedido          Int
-  id_usuario_emision Int
-  tipo_documento     String   @default("FACTURA")
-  numero_documento   String   @unique
-  subtotal           Decimal  @db.Decimal
-  impuesto           Decimal  @default(0) @db.Decimal
-  descuento          Decimal  @default(0) @db.Decimal
-  total              Decimal  @db.Decimal
-  fecha_emision      DateTime @default(now())
-  estado_documento   String   @default("EMITIDA")
-  observaciones      String?
-
-  pedido             pedidos  @relation(fields: [id_pedido], references: [id_pedido])
-  usuario_emision    usuarios @relation(fields: [id_usuario_emision], references: [id_usuario])
-
-  @@map("facturas")
-}
-
-model historial_estados_pedido {
-  id_historial_estado_pedido Int      @id @default(autoincrement())
-  id_pedido                  Int
-  estado                     String
-  id_usuario                 Int
-  observaciones              String?
-  fecha_hora_cambio          DateTime @default(now())
-
-  pedido                     pedidos  @relation(fields: [id_pedido], references: [id_pedido])
-  usuario                    usuarios @relation(fields: [id_usuario], references: [id_usuario])
-
-  @@map("historial_estados_pedido")
-}
-
-model insumos {
-  id_insumo                       Int                               @id @default(autoincrement())
-  nombre                          String                            @unique
-  unidad_medida                   String
-  stock_actual                    Decimal                           @default(0) @db.Decimal
-  stock_minimo                    Decimal                           @default(0) @db.Decimal
-  activo                          Boolean                           @default(true)
-  movimientos_stock               movimientos_stock[]
-  recetas_presentaciones_producto recetas_presentaciones_producto[]
-
-  @@map("insumos")
-}
-
-model jornadas_caja {
-  id_jornada_caja          Int                     @id @default(autoincrement())
-  id_asignacion_caja_turno Int                     @unique
-  id_usuario_apertura      Int
-  id_usuario_cierre        Int?
-  fecha_hora_apertura      DateTime                @default(now())
-  fecha_hora_cierre        DateTime?
-  monto_inicial            Decimal                 @db.Decimal
-  monto_teorico_cierre     Decimal                 @default(0) @db.Decimal
-  monto_contado_cierre     Decimal?                @db.Decimal
-  diferencia_cierre        Decimal                 @default(0) @db.Decimal
-  estado                   String                  @default("ABIERTA")
-
-  asignacion_caja_turno    asignaciones_caja_turno @relation(fields: [id_asignacion_caja_turno], references: [id_asignacion_caja_turno])
-  usuario_apertura         usuarios                @relation("apertura", fields: [id_usuario_apertura], references: [id_usuario])
-  usuario_cierre           usuarios?               @relation("cierre", fields: [id_usuario_cierre], references: [id_usuario])
-  movimientos_caja         movimientos_caja[]
-  pagos                    pagos[]
-
-  @@map("jornadas_caja")
-}
-
-model mesas {
-  id_mesa    Int        @id @default(autoincrement())
-  id_zona    Int?
-  numero     Int        @unique
-  capacidad  Int
-  estado     String     @default("LIBRE")
-  posicion_x Decimal    @default(0) @db.Decimal
-  posicion_y Decimal    @default(0) @db.Decimal
-  forma      String     @default("CUADRADA")
-  activa     Boolean    @default(true)
-  zona       zonas?     @relation(fields: [id_zona], references: [id_zona])
-  pedidos    pedidos[]
-  reservas   reservas[]
-
-  @@map("mesas")
-}
-
-model metodos_pago {
-  id_metodo_pago Int     @id @default(autoincrement())
-  nombre         String  @unique
-  pagos          pagos[]
-
-  @@map("metodos_pago")
-}
-
-model movimientos_caja {
-  id_movimiento_caja    Int           @id @default(autoincrement())
-  id_jornada_caja       Int
-  id_usuario            Int
-  tipo_movimiento       String
-  monto                 Decimal       @db.Decimal
-  descripcion           String?
-  fecha_hora_movimiento DateTime      @default(now())
-
-  jornada_caja          jornadas_caja @relation(fields: [id_jornada_caja], references: [id_jornada_caja])
-  usuario               usuarios      @relation(fields: [id_usuario], references: [id_usuario])
-
-  @@map("movimientos_caja")
-}
-
-model movimientos_stock {
-  id_movimiento_stock Int      @id @default(autoincrement())
-  id_insumo           Int
-  id_usuario          Int?
-  tipo_movimiento     String
-  cantidad            Decimal  @db.Decimal
-  motivo              String?
-  fecha_registro      DateTime @default(now())
-
-  insumo              insumos  @relation(fields: [id_insumo], references: [id_insumo])
-  usuario             usuarios? @relation(fields: [id_usuario], references: [id_usuario])
-
-  @@map("movimientos_stock")
-}
-
-model pagos {
-  id_pago           Int           @id @default(autoincrement())
-  id_pedido         Int
-  id_metodo_pago    Int
-  id_jornada_caja   Int?
-  id_usuario_cajero Int
-  monto_pagado      Decimal       @db.Decimal
-  monto_recibido    Decimal?      @db.Decimal
-  monto_cambio      Decimal       @default(0) @db.Decimal
-  referencia_pago   String?
-  estado_pago       String        @default("CONFIRMADO")
-  observacion       String?
-  fecha_hora_pago   DateTime      @default(now())
-
-  pedido            pedidos       @relation(fields: [id_pedido], references: [id_pedido])
-  metodo_pago       metodos_pago  @relation(fields: [id_metodo_pago], references: [id_metodo_pago])
-  jornada_caja      jornadas_caja? @relation(fields: [id_jornada_caja], references: [id_jornada_caja])
-  usuario_cajero    usuarios      @relation(fields: [id_usuario_cajero], references: [id_usuario])
-
-  @@map("pagos")
-}
-
-model pedidos {
-  id_pedido                Int                          @id @default(autoincrement())
-  id_tipo_pedido           Int
-  id_cliente               Int?
-  id_mesa                  Int?
-  id_usuario_mesero        Int?
-  estado                   String                       @default("REGISTRADO")
-  tiempo_estimado_minutos  Int                          @default(0)
-  subtotal                 Decimal                      @default(0) @db.Decimal
-  impuesto                 Decimal                      @default(0) @db.Decimal
-  descuento                Decimal                      @default(0) @db.Decimal
-  total                    Decimal                      @default(0) @db.Decimal
-  observaciones            String?
-  fecha_hora_pedido        DateTime                     @default(now())
-  fecha_hora_entrega       DateTime?
-
-  tipo_pedido              tipos_pedido                 @relation(fields: [id_tipo_pedido], references: [id_tipo_pedido])
-  cliente                  clientes?                    @relation(fields: [id_cliente], references: [id_cliente])
-  mesa                     mesas?                       @relation(fields: [id_mesa], references: [id_mesa])
-  usuario_mesero           usuarios?                    @relation(fields: [id_usuario_mesero], references: [id_usuario])
-  asignaciones_cocina      asignaciones_cocina_pedido[]
-  detalles_pedido          detalles_pedido[]
-  facturas                 facturas[]
-  historial_estados        historial_estados_pedido[]
-  pagos                    pagos[]
-  pedido_delivery          pedidos_delivery?
-
-  @@map("pedidos")
-}
-
-model pedidos_delivery {
-  id_pedido_delivery    Int       @id @default(autoincrement())
-  id_pedido             Int       @unique
-  id_usuario_repartidor Int?
-  nombre_contacto       String
-  telefono_contacto     String
-  direccion_entrega     String
-  referencia_entrega    String?
-  latitud_entrega       Decimal?  @db.Decimal
-  longitud_entrega      Decimal?  @db.Decimal
-  costo_entrega         Decimal   @default(0) @db.Decimal
-  estado_delivery       String    @default("PENDIENTE")
-  fecha_hora_salida     DateTime?
-
-  pedido                pedidos   @relation(fields: [id_pedido], references: [id_pedido])
-  usuario_repartidor    usuarios? @relation(fields: [id_usuario_repartidor], references: [id_usuario])
-
-  @@map("pedidos_delivery")
-}
-
-model presentaciones_producto {
-  id_presentacion_producto Int                               @id @default(autoincrement())
-  id_producto               Int
-  nombre                    String
-  precio                    Decimal                           @db.Decimal
-  tiempo_preparacion_minutos Int                               @default(10)
-  disponible                Boolean                           @default(true)
-  activo                    Boolean                           @default(true)
-  es_predeterminada         Boolean                           @default(false)
-  producto                  productos                         @relation(fields: [id_producto], references: [id_producto])
-  detalles_pedido           detalles_pedido[]
-  recetas_presentaciones    recetas_presentaciones_producto[]
-
-  @@map("presentaciones_producto")
-}
-
-model productos {
-  id_producto    Int                       @id @default(autoincrement())
+model Producto {
+  id_producto    Int                     @id @default(autoincrement())
   id_categoria   Int
-  nombre         String                    @unique
-  descripcion    String?
-  imagen_url     String?
-  disponible     Boolean                   @default(true)
-  activo         Boolean                   @default(true)
-  categoria      categorias                @relation(fields: [id_categoria], references: [id_categoria])
-  presentaciones presentaciones_producto[]
+  nombre         String                  @unique @db.VarChar
+  descripcion    String?                 @db.Text
+  imagen_url     String?                 @db.Text
+  disponible     Boolean                 @default(true)
+  activo         Boolean                 @default(true)
+  categoria      Categoria               @relation(fields: [id_categoria], references: [id_categoria])
+  presentaciones PresentacionProducto[]
 
   @@map("productos")
 }
 
-model recetas_presentaciones_producto {
-  id_receta_presentacion_producto Int                     @id @default(autoincrement())
+model PresentacionProducto {
+  id_presentacion_producto Int                               @id @default(autoincrement())
+  id_producto              Int
+  nombre                   String                            @db.VarChar
+  precio                   Decimal                           @db.Decimal
+  tiempo_preparacion_min   Int                               @default(10) @map("tiempo_preparacion_minutos")
+  disponible               Boolean                           @default(true)
+  activo                   Boolean                           @default(true)
+  es_predeterminada        Boolean                           @default(false)
+  producto                 Producto                          @relation(fields: [id_producto], references: [id_producto])
+  detalles_pedido          DetallePedido[]
+  recetas                  RecetaPresentacionProducto[]
+
+  @@map("presentaciones_producto")
+}
+
+model Insumo {
+  id_insumo     Int                          @id @default(autoincrement())
+  nombre        String                       @unique @db.VarChar
+  unidad_medida String                       @db.VarChar // enum: UNIDAD, GRAMO, KILOGRAMO, MILILITRO, LITRO
+  stock_actual  Decimal                      @default(0) @db.Decimal
+  stock_minimo  Decimal                      @default(0) @db.Decimal
+  activo        Boolean                      @default(true)
+  movimientos   MovimientoStock[]
+  recetas       RecetaPresentacionProducto[]
+
+  @@map("insumos")
+}
+
+model RecetaPresentacionProducto {
+  id_receta_presentacion_producto Int                  @id @default(autoincrement())
   id_presentacion_producto        Int
   id_insumo                       Int
-  cantidad_insumo                 Decimal                 @db.Decimal
-  presentacion_producto           presentaciones_producto @relation(fields: [id_presentacion_producto], references: [id_presentacion_producto])
-  insumo                          insumos                 @relation(fields: [id_insumo], references: [id_insumo])
+  cantidad_insumo                 Decimal              @db.Decimal
+  presentacion                    PresentacionProducto @relation(fields: [id_presentacion_producto], references: [id_presentacion_producto])
+  insumo                          Insumo               @relation(fields: [id_insumo], references: [id_insumo])
 
   @@map("recetas_presentaciones_producto")
 }
 
-model reservas {
-  id_reserva          Int      @id @default(autoincrement())
-  id_cliente          Int?
-  id_mesa             Int
-  id_usuario          Int
-  fecha_hora_reserva  DateTime
-  cantidad_personas   Int
-  estado              String   @default("CONFIRMADA")
-  observaciones       String?
-  fecha_registro      DateTime @default(now())
-
-  cliente             clientes? @relation(fields: [id_cliente], references: [id_cliente])
-  mesa                mesas    @relation(fields: [id_mesa], references: [id_mesa])
-  usuario             usuarios @relation(fields: [id_usuario], references: [id_usuario])
-
-  @@map("reservas")
-}
-
-model roles {
-  id_rol   Int        @id @default(autoincrement())
-  nombre   String     @unique
-  usuarios usuarios[]
+model Rol {
+  id_rol   Int       @id @default(autoincrement())
+  nombre   String    @unique @db.VarChar
+  usuarios Usuario[]
 
   @@map("roles")
 }
 
-model tipos_pedido {
-  id_tipo_pedido Int       @id @default(autoincrement())
-  nombre         String    @unique
-  pedidos        pedidos[]
-
-  @@map("tipos_pedido")
-}
-
-model turnos {
-  id_turno                Int                       @id @default(autoincrement())
-  nombre                  String                    @unique
-  hora_inicio             DateTime                  @db.Time
-  hora_fin                DateTime                  @db.Time
-  activo                  Boolean                   @default(true)
-  asignaciones_caja_turno asignaciones_caja_turno[]
-
-  @@map("turnos")
-}
-
-model usuarios {
-  id_usuario                 Int                          @id @default(autoincrement())
-  id_rol                     Int
-  usuario_ci                 Int                          @unique
-  nombre                     String
-  apellido                   String?
-  nombre_usuario             String                       @unique
-  contrasena_hash            String
-  telefono                   String?
-  correo_electronico         String?                      @unique
-  activo                     Boolean                      @default(true)
-  fecha_creacion             DateTime                     @default(now())
-
-  rol                        roles                        @relation(fields: [id_rol], references: [id_rol])
-  asignaciones_caja_turno    asignaciones_caja_turno[]
-  asignaciones_cocina        asignaciones_cocina_pedido[]
-  facturas                   facturas[]
-  historial_estados          historial_estados_pedido[]
-  jornadas_apertura          jornadas_caja[]              @relation("apertura")
-  jornadas_cierre            jornadas_caja[]              @relation("cierre")
-  movimientos_caja           movimientos_caja[]
-  movimientos_stock          movimientos_stock[]
-  pagos                      pagos[]
-  pedidos_mesero             pedidos[]
-  pedidos_repartidor         pedidos_delivery[]
-  reservas                   reservas[]
+model Usuario {
+  id_usuario            Int                      @id @default(autoincrement())
+  id_rol                Int
+  usuario_ci            Int                      @unique
+  nombre                String                   @db.VarChar
+  apellido              String?                  @db.VarChar
+  nombre_usuario        String                   @unique @db.VarChar
+  contrasena_hash       String                   @db.Text
+  telefono              String?                  @db.VarChar
+  correo_electronico    String?                  @unique @db.VarChar
+  activo                Boolean                  @default(true)
+  fecha_creacion        DateTime                 @default(now()) @db.Timestamp
+  codigo_recuperacion   String?                  @db.VarChar
+  expiracion_recuperacion DateTime?              @db.Timestamp
+  
+  rol                   Rol                      @relation(fields: [id_rol], references: [id_rol])
+  asignaciones_caja     AsignacionCajaTurno[]
+  asignaciones_cocina   AsignacionCocinaPedido[]
+  facturas_emitidas     Factura[]
+  historial_pedidos     HistorialEstadoPedido[]
+  jornadas_apertura     JornadaCaja[]            @relation("UsuarioApertura")
+  jornadas_cierre       JornadaCaja[]            @relation("UsuarioCierre")
+  movimientos_caja      MovimientoCaja[]
+  movimientos_stock     MovimientoStock[]
+  pagos_realizados      Pago[]
+  pedidos_mesero        Pedido[]                 @relation("UsuarioMesero")
+  pedidos_repartidos    PedidoDelivery[]
+  reservas_creadas      Reserva[]
 
   @@map("usuarios")
 }
 
-model zonas {
+model Cliente {
+  id_cliente             Int       @id @default(autoincrement())
+  nombre                 String    @db.VarChar
+  apellido               String?   @db.VarChar
+  telefono               String?   @db.VarChar
+  correo_electronico     String?   @db.VarChar
+  tipo_cliente           String    @default("NORMAL") @db.VarChar // enum: NORMAL, FRECUENTE, VIP
+  puntos_fidelidad       Int       @default(0)
+  activo                 Boolean   @default(true)
+  fecha_registro         DateTime  @default(now()) @db.Timestamp
+  cliente_ci             Int?
+  codigo_recuperacion    String?   @db.VarChar
+  expiracion_recuperacion DateTime? @db.Timestamp
+  pedidos                Pedido[]
+  reservas               Reserva[]
+
+  @@map("clientes")
+}
+
+model Mesa {
+  id_mesa     Int       @id @default(autoincrement())
+  id_zona     Int?
+  numero      Int       @unique
+  capacidad   Int
+  estado      String    @default("LIBRE") @db.VarChar // enum: LIBRE, OCUPADA, RESERVADA, etc.
+  posicion_x  Decimal   @default(0) @db.Decimal
+  posicion_y  Decimal   @default(0) @db.Decimal
+  forma       String    @default("CUADRADA") @db.VarChar // enum: CUADRADA, RECTANGULAR, etc.
+  activa      Boolean   @default(true)
+  zona        Zona?     @relation(fields: [id_zona], references: [id_zona])
+  pedidos     Pedido[]
+  reservas    Reserva[]
+
+  @@map("mesas")
+}
+
+model Zona {
   id_zona     Int     @id @default(autoincrement())
-  nombre      String  @unique
-  descripcion String?
-  mesas       mesas[]
+  nombre      String  @unique @db.VarChar
+  descripcion String? @db.Text
+  mesas       Mesa[]
 
   @@map("zonas")
+}
+
+model Pedido {
+  id_pedido                Int                      @id @default(autoincrement())
+  id_tipo_pedido           Int
+  id_cliente               Int?
+  id_mesa                  Int?
+  id_usuario_mesero        Int?
+  estado                   String                   @default("REGISTRADO") @db.VarChar // enum: REGISTRADO, EN_PREPARACION, etc.
+  tiempo_estimado_minutos  Int                      @default(0)
+  subtotal                 Decimal                  @default(0) @db.Decimal
+  impuesto                 Decimal                  @default(0) @db.Decimal
+  descuento                Decimal                  @default(0) @db.Decimal
+  total                    Decimal                  @default(0) @db.Decimal
+  observaciones            String?                  @db.Text
+  fecha_hora_pedido        DateTime                 @default(now()) @db.Timestamp
+  fecha_hora_entrega       DateTime?                @db.Timestamp
+  
+  tipo_pedido              TipoPedido               @relation(fields: [id_tipo_pedido], references: [id_tipo_pedido])
+  cliente                  Cliente?                 @relation(fields: [id_cliente], references: [id_cliente])
+  mesa                     Mesa?                    @relation(fields: [id_mesa], references: [id_mesa])
+  mesero                   Usuario?                 @relation("UsuarioMesero", fields: [id_usuario_mesero], references: [id_usuario])
+  
+  detalles                 DetallePedido[]
+  facturas                 Factura[]
+  historial_estados        HistorialEstadoPedido[]
+  asignaciones_cocina      AsignacionCocinaPedido[]
+  pagos                    Pago[]
+  delivery                 PedidoDelivery?
+
+  @@map("pedidos")
+}
+
+model DetallePedido {
+  id_detalle_pedido        Int                  @id @default(autoincrement())
+  id_pedido                Int
+  id_presentacion_producto Int
+  cantidad                 Int
+  precio_unitario          Decimal              @db.Decimal
+  subtotal                 Decimal              @db.Decimal
+  observaciones            String?              @db.Text
+  pedido                   Pedido               @relation(fields: [id_pedido], references: [id_pedido])
+  presentacion             PresentacionProducto @relation(fields: [id_presentacion_producto], references: [id_presentacion_producto])
+
+  @@map("detalles_pedido")
+}
+
+model Factura {
+  id_factura         Int      @id @default(autoincrement())
+  id_pedido          Int
+  id_usuario_emision Int
+  tipo_documento     String   @default("FACTURA") @db.VarChar // enum: PREFACTURA, FACTURA
+  numero_documento   String   @unique @db.VarChar
+  subtotal           Decimal  @db.Decimal
+  impuesto           Decimal  @default(0) @db.Decimal
+  descuento          Decimal  @default(0) @db.Decimal
+  total              Decimal  @db.Decimal
+  fecha_emision      DateTime @default(now()) @db.Timestamp
+  estado_documento   String   @default("EMITIDA") @db.VarChar // enum: EMITIDA, ANULADA
+  observaciones      String?  @db.Text
+  pedido             Pedido   @relation(fields: [id_pedido], references: [id_pedido])
+  usuario_emision    Usuario  @relation(fields: [id_usuario_emision], references: [id_usuario])
+
+  @@map("facturas")
+}
+
+model Caja {
+  id_caja      Int                   @id @default(autoincrement())
+  nombre       String                @unique @db.VarChar
+  activa       Boolean               @default(true)
+  asignaciones AsignacionCajaTurno[]
+
+  @@map("cajas")
+}
+
+model Turno {
+  id_turno     Int                   @id @default(autoincrement())
+  nombre       String                @unique @db.VarChar
+  hora_inicio  DateTime              @db.Time
+  hora_fin     DateTime              @db.Time
+  activo       Boolean               @default(true)
+  asignaciones AsignacionCajaTurno[]
+
+  @@map("turnos")
+}
+
+model AsignacionCajaTurno {
+  id_asignacion_caja_turno Int           @id @default(autoincrement())
+  id_caja                  Int
+  id_turno                 Int
+  id_usuario               Int
+  fecha_operacion          DateTime      @default(now()) @db.Date
+  estado                   String        @default("ASIGNADA") @db.VarChar // enum: ASIGNADA, EN_CURSO, etc.
+  observaciones            String?       @db.Text
+  caja                     Caja          @relation(fields: [id_caja], references: [id_caja])
+  turno                    Turno         @relation(fields: [id_turno], references: [id_turno])
+  usuario                  Usuario       @relation(fields: [id_usuario], references: [id_usuario])
+  jornada                  JornadaCaja?
+
+  @@map("asignaciones_caja_turno")
+}
+
+model JornadaCaja {
+  id_jornada_caja          Int                 @id @default(autoincrement())
+  id_asignacion_caja_turno Int                 @unique
+  id_usuario_apertura      Int
+  id_usuario_cierre        Int?
+  fecha_hora_apertura      DateTime            @default(now()) @db.Timestamp
+  fecha_hora_cierre        DateTime?           @db.Timestamp
+  monto_inicial            Decimal             @db.Decimal
+  monto_teorico_cierre     Decimal             @default(0) @db.Decimal
+  monto_contado_cierre     Decimal?            @db.Decimal
+  diferencia_cierre        Decimal             @default(0) @db.Decimal
+  estado                   String              @default("ABIERTA") @db.VarChar // enum: ABIERTA, CERRADA
+  
+  asignacion               AsignacionCajaTurno @relation(fields: [id_asignacion_caja_turno], references: [id_asignacion_caja_turno])
+  usuario_apertura         Usuario             @relation("UsuarioApertura", fields: [id_usuario_apertura], references: [id_usuario])
+  usuario_cierre           Usuario?            @relation("UsuarioCierre", fields: [id_usuario_cierre], references: [id_usuario])
+  movimientos              MovimientoCaja[]
+  pagos                    Pago[]
+
+  @@map("jornadas_caja")
+}
+
+model MovimientoCaja {
+  id_movimiento_caja    Int         @id @default(autoincrement())
+  id_jornada_caja       Int
+  id_usuario            Int
+  tipo_movimiento       String      @db.VarChar // enum: APERTURA_FONDO, RETIRO, etc.
+  monto                 Decimal     @db.Decimal
+  descripcion           String?     @db.Text
+  fecha_hora_movimiento DateTime    @default(now()) @db.Timestamp
+  jornada               JornadaCaja @relation(fields: [id_jornada_caja], references: [id_jornada_caja])
+  usuario               Usuario     @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@map("movimientos_caja")
+}
+
+model Pago {
+  id_pago           Int          @id @default(autoincrement())
+  id_pedido         Int
+  id_metodo_pago    Int
+  id_jornada_caja   Int?
+  id_usuario_cajero Int
+  monto_pagado      Decimal      @db.Decimal
+  monto_recibido    Decimal?     @db.Decimal
+  monto_cambio      Decimal      @default(0) @db.Decimal
+  referencia_pago   String?      @db.VarChar
+  estado_pago       String       @default("CONFIRMADO") @db.VarChar // enum: PENDIENTE, CONFIRMADO, ANULADO
+  observacion       String?      @db.Text
+  fecha_hora_pago   DateTime     @default(now()) @db.Timestamp
+  
+  pedido            Pedido       @relation(fields: [id_pedido], references: [id_pedido])
+  metodo_pago       MetodoPago   @relation(fields: [id_metodo_pago], references: [id_metodo_pago])
+  jornada           JornadaCaja? @relation(fields: [id_jornada_caja], references: [id_jornada_caja])
+  usuario_cajero    Usuario      @relation(fields: [id_usuario_cajero], references: [id_usuario])
+
+  @@map("pagos")
+}
+
+model MetodoPago {
+  id_metodo_pago Int    @id @default(autoincrement())
+  nombre         String @unique @db.VarChar
+  pagos          Pago[]
+
+  @@map("metodos_pago")
+}
+
+model AsignacionCocinaPedido {
+  id_asignacion_cocina_pedido Int      @id @default(autoincrement())
+  id_pedido                   Int
+  id_usuario_cocinero         Int
+  estado_asignacion           String   @default("ASIGNADO") @db.VarChar // enum: ASIGNADO, EN_PREPARACION, etc.
+  fecha_hora_asignacion       DateTime @default(now()) @db.Timestamp
+  fecha_hora_aceptacion       DateTime? @db.Timestamp
+  fecha_hora_inicio_preparacion DateTime? @db.Timestamp
+  fecha_hora_listo            DateTime? @db.Timestamp
+  fecha_hora_finalizacion     DateTime? @db.Timestamp
+  es_asignacion_actual        Boolean  @default(true)
+  observaciones               String?  @db.Text
+  
+  pedido                      Pedido   @relation(fields: [id_pedido], references: [id_pedido])
+  usuario_cocinero            Usuario  @relation(fields: [id_usuario_cocinero], references: [id_usuario])
+
+  @@map("asignaciones_cocina_pedido")
+}
+
+model PedidoDelivery {
+  id_pedido_delivery   Int      @id @default(autoincrement())
+  id_pedido            Int      @unique
+  id_usuario_repartidor Int?
+  nombre_contacto      String   @db.VarChar
+  telefono_contacto    String   @db.VarChar
+  direccion_entrega    String   @db.Text
+  referencia_entrega   String?  @db.Text
+  latitud_entrega      Decimal? @db.Decimal
+  longitud_entrega     Decimal? @db.Decimal
+  costo_entrega        Decimal  @default(0) @db.Decimal
+  estado_delivery      String   @default("PENDIENTE") @db.VarChar // enum: PENDIENTE, EN_CAMINO, etc.
+  fecha_hora_salida    DateTime? @db.Timestamp
+  
+  pedido               Pedido   @relation(fields: [id_pedido], references: [id_pedido])
+  usuario_repartidor   Usuario? @relation(fields: [id_usuario_repartidor], references: [id_usuario])
+
+  @@map("pedidos_delivery")
+}
+
+model HistorialEstadoPedido {
+  id_historial_estado_pedido Int      @id @default(autoincrement())
+  id_pedido                  Int
+  estado                     String   @db.VarChar // enum: REGISTRADO, EN_PREPARACION, etc.
+  id_usuario                 Int
+  observaciones              String?  @db.Text
+  fecha_hora_cambio          DateTime @default(now()) @db.Timestamp
+  
+  pedido                     Pedido   @relation(fields: [id_pedido], references: [id_pedido])
+  usuario                    Usuario  @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@map("historial_estados_pedido")
+}
+
+model MovimientoStock {
+  id_movimiento_stock Int      @id @default(autoincrement())
+  id_insumo           Int
+  id_usuario          Int?
+  tipo_movimiento     String   @db.VarChar // enum: ENTRADA, SALIDA, MERMA, etc.
+  cantidad            Decimal  @db.Decimal
+  motivo              String?  @db.Text
+  fecha_registro      DateTime @default(now()) @db.Timestamp
+  
+  insumo              Insumo   @relation(fields: [id_insumo], references: [id_insumo])
+  usuario             Usuario? @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@map("movimientos_stock")
+}
+
+model Reserva {
+  id_reserva          Int      @id @default(autoincrement())
+  id_cliente          Int?
+  id_mesa             Int
+  id_usuario          Int
+  fecha_hora_reserva  DateTime @db.Timestamp
+  cantidad_personas   Int
+  estado              String   @default("CONFIRMADA") @db.VarChar // enum: CONFIRMADA, CANCELADA, COMPLETADA
+  observaciones       String?  @db.Text
+  fecha_registro      DateTime @default(now()) @db.Timestamp
+  
+  cliente             Cliente? @relation(fields: [id_cliente], references: [id_cliente])
+  mesa                Mesa     @relation(fields: [id_mesa], references: [id_mesa])
+  usuario             Usuario  @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@map("reservas")
+}
+
+model TipoPedido {
+  id_tipo_pedido Int      @id @default(autoincrement())
+  nombre         String   @unique @db.VarChar
+  pedidos        Pedido[]
+
+  @@map("tipos_pedido")
 }
