@@ -12,6 +12,7 @@ import ClienteHomePage from './modules/cliente/ClienteHomePage';
 import ClientProductDetailPage from './modules/cliente/ClientProductDetailPage';
 import UsersPage from './modules/users/UsersPage';
 import MenuManagementPage from './modules/menu/MenuManagementPage';
+import TableManagementPage from './modules/tables/TableManagementPage';
 
 type AppScreen =
   | 'login'
@@ -20,6 +21,7 @@ type AppScreen =
   | 'admin-menu'
   | 'admin-users'
   | 'menu-management'
+  | 'table-management'
   | 'mesero-home'
   | 'cocina-home'
   | 'cajero-home'
@@ -134,6 +136,7 @@ function App() {
           onLogout={handleLogout}
           onOpenUsers={() => setScreen('admin-users')}
           onOpenMenuManagement={() => setScreen('menu-management')}
+          onOpenTableManagement={() => setScreen('table-management')}
         />
       )}
 
@@ -143,6 +146,10 @@ function App() {
 
       {screen === 'menu-management' && sessionUser && accessToken && (
         <MenuManagementPage onBack={() => setScreen('admin-menu')} />
+      )}
+
+      {screen === 'table-management' && sessionUser && accessToken && (
+        <TableManagementPage onBack={() => setScreen('admin-menu')} />
       )}
 
       {screen === 'mesero-home' && sessionUser && accessToken && (
