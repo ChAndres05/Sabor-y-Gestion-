@@ -26,6 +26,7 @@ import type {
 
 interface TableManagementPageProps {
   onBack: () => void;
+  onOpenTableOrder: (tableId: number) => void;
 }
 
 type FeedbackState = {
@@ -56,15 +57,12 @@ function getStatusLabel(status: TableStatus) {
       return 'reservada';
     case 'CUENTA_SOLICITADA':
       return 'cuenta solicitada';
-    default: {
-      const exhaustiveCheck: never = status;
-      return exhaustiveCheck;
-    }
   }
 }
 
 export default function TableManagementPage({
   onBack,
+  onOpenTableOrder,
 }: TableManagementPageProps) {
   const [zones, setZones] = useState<Zone[]>([]);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
@@ -366,6 +364,10 @@ export default function TableManagementPage({
                       currentId === table.id ? null : table.id
                     )
                   }
+                  onManageOrder={() => {
+                    setOpenActionMenuId(null);
+                    onOpenTableOrder(table.id);
+                  }}
                   onEdit={() => {
                     setOpenActionMenuId(null);
                     setEditingTable(table);

@@ -219,3 +219,17 @@ export async function deleteTableMock(tableId: number): Promise<void> {
 
   tables = tables.filter((table) => table.id !== tableId);
 }
+
+export async function getTableByIdMock(
+  tableId: number
+): Promise<RestaurantTable> {
+  await delay();
+
+  const foundTable = tables.find((table) => table.id === tableId);
+
+  if (!foundTable) {
+    throw new Error('Mesa no encontrada');
+  }
+
+  return { ...foundTable };
+}

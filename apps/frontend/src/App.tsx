@@ -13,6 +13,7 @@ import ClientProductDetailPage from './modules/cliente/ClientProductDetailPage';
 import UsersPage from './modules/users/UsersPage';
 import MenuManagementPage from './modules/menu/MenuManagementPage';
 import TableManagementPage from './modules/tables/TableManagementPage';
+import TableOrderPage from './modules/tables/TableOrderPage';
 
 type AppScreen =
   | 'login'
@@ -22,6 +23,7 @@ type AppScreen =
   | 'admin-users'
   | 'menu-management'
   | 'table-management'
+  | 'table-order'
   | 'mesero-home'
   | 'cocina-home'
   | 'cajero-home'
@@ -55,6 +57,7 @@ function App() {
   const [selectedClientProductId, setSelectedClientProductId] = useState<
     number | null
   >(null);
+  const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
 
   useEffect(() => {
     try {
@@ -100,6 +103,7 @@ function App() {
     setAccessToken(null);
     setSessionUser(null);
     setSelectedClientProductId(null);
+    setSelectedTableId(null);
     setScreen('login');
     localStorage.removeItem(AUTH_STORAGE_KEY);
   };
@@ -149,8 +153,24 @@ function App() {
       )}
 
       {screen === 'table-management' && sessionUser && accessToken && (
-        <TableManagementPage onBack={() => setScreen('admin-menu')} />
+        <TableManagementPage
+          onBack={() => setScreen('admin-menu')}
+          onOpenTableOrder={(tableId) => {
+            setSelectedTableId(tableId);
+            setScreen('table-order');
+          }}
+        />
       )}
+
+      {screen === 'table-order' &&
+        sessionUser &&
+        accessToken &&
+        selectedTableId !== null && (
+          <TableOrderPage
+            tableId={selectedTableId}
+            onBack={() => setScreen('table-management')}
+          />
+        )}
 
       {screen === 'mesero-home' && sessionUser && accessToken && (
         <MeseroHomePage user={sessionUser} onLogout={handleLogout} />
