@@ -9,6 +9,7 @@ import MeseroHomePage from './modules/mesero/MeseroHomePage';
 import CocinaHomePage from './modules/cocina/CocinaHomePage';
 import CajeroHomePage from './modules/cajero/CajeroHomePage';
 import ClienteHomePage from './modules/cliente/ClienteHomePage';
+import ClientProductDetailPage from './modules/cliente/ClientProductDetailPage';
 import UsersPage from './modules/users/UsersPage';
 import MenuManagementPage from './modules/menu/MenuManagementPage';
 
@@ -22,7 +23,8 @@ type AppScreen =
   | 'mesero-home'
   | 'cocina-home'
   | 'cajero-home'
-  | 'cliente-home';
+  | 'cliente-home'
+  | 'client-product-detail';
 
 const AUTH_STORAGE_KEY = 'gestionysabor_auth';
 
@@ -48,6 +50,9 @@ function App() {
   const [sessionUser, setSessionUser] = useState<AuthUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [selectedClientProductId, setSelectedClientProductId] = useState<
+    number | null
+  >(null);
 
   useEffect(() => {
     try {
@@ -92,6 +97,7 @@ function App() {
   const handleLogout = () => {
     setAccessToken(null);
     setSessionUser(null);
+    setSelectedClientProductId(null);
     setScreen('login');
     localStorage.removeItem(AUTH_STORAGE_KEY);
   };
@@ -152,8 +158,27 @@ function App() {
       )}
 
       {screen === 'cliente-home' && sessionUser && accessToken && (
-        <ClienteHomePage user={sessionUser} onLogout={handleLogout} />
+        <ClienteHomePage
+          user={sessionUser}
+          onLogout={handleLogout}
+          onOpenProductDetail={(productId) => {
+            setSelectedClientProductId(productId);
+            setScreen('client-product-detail');
+          }}
+        />
       )}
+
+      {screen === 'client-product-detail' &&
+        sessionUser &&
+        accessToken &&
+        selectedClientProductId !== null && (
+          <ClientProductDetailPage
+            user={sessionUser}
+            productId={selectedClientProductId}
+            onBack={() => setScreen('cliente-home')}
+            onLogout={handleLogout}
+          />
+        )}
     </main>
   );
 }
