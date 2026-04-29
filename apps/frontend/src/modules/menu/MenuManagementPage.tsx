@@ -2,18 +2,28 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmModal } from '../../shared/components/ConfirmModal';
 import {
   createCategoryMock,
+  createProductMock,
   deleteCategoryMock,
+  deleteProductMock,
   listCategoriesMock,
+  listProductsMock,
   toggleCategoryStatusMock,
+  toggleProductStatusMock,
   updateCategoryMock,
+  updateProductMock,
 } from '../../shared/mocks/menu.mock';
 import { CategoryCard } from './components/CategoryCard';
 import { CategoryFormModal } from './components/CategoryFormModal';
+import { ProductCard } from './components/ProductCard';
+import { ProductFormModal } from './components/ProductFormModal';
 import type {
   CategoryStatusFilter,
   MenuCategory,
   MenuCategoryFormValues,
+  MenuProduct,
+  MenuProductFormValues,
   MenuTab,
+  ProductStatusFilter,
 } from './types/menu.types';
 
 interface MenuManagementPageProps {
@@ -27,12 +37,24 @@ type FeedbackState = {
 
 type ConfirmState =
   | {
+      entity: 'category';
       type: 'toggle';
       category: MenuCategory;
     }
   | {
+      entity: 'category';
       type: 'delete';
       category: MenuCategory;
+    }
+  | {
+      entity: 'product';
+      type: 'toggle';
+      product: MenuProduct;
+    }
+  | {
+      entity: 'product';
+      type: 'delete';
+      product: MenuProduct;
     }
   | null;
 
@@ -40,20 +62,40 @@ export default function MenuManagementPage({
   onBack,
 }: MenuManagementPageProps) {
   const [activeTab, setActiveTab] = useState<MenuTab>('categories');
+
   const [categories, setCategories] = useState<MenuCategory[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [products, setProducts] = useState<MenuProduct[]>([]);
+
+  const [isCategoriesLoading, setIsCategoriesLoading] = useState(true);
+  const [isProductsLoading, setIsProductsLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] =
     useState<CategoryStatusFilter>('ALL');
 
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [productStatusFilter, setProductStatusFilter] =
+    useState<ProductStatusFilter>('ALL');
+
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<MenuCategory | null>(
     null
   );
-  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
+  const [isSubmittingCategoryForm, setIsSubmittingCategoryForm] =
+    useState(false);
+
+  const [isCreateProductOpen, setIsCreateProductOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<MenuProduct | null>(
+    null
+  );
+  const [isSubmittingProductForm, setIsSubmittingProductForm] =
+    useState(false);
 
   const [openActionMenuId, setOpenActionMenuId] = useState<number | null>(null);
+  const [openProductActionMenuId, setOpenProductActionMenuId] = useState<
+    number | null
+  >(null);
+
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const [isConfirming, setIsConfirming] = useState(false);
 
@@ -63,7 +105,7 @@ export default function MenuManagementPage({
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
   const loadCategories = useCallback(async () => {
-    setIsLoading(true);
+    setIsCategoriesLoading(true);
 
     try {
       const data = await listCategoriesMock();
@@ -77,13 +119,33 @@ export default function MenuManagementPage({
             : 'Ocurrió un error al cargar las categorías',
       });
     } finally {
-      setIsLoading(false);
+      setIsCategoriesLoading(false);
+    }
+  }, []);
+
+  const loadProducts = useCallback(async () => {
+    setIsProductsLoading(true);
+
+    try {
+      const data = await listProductsMock();
+      setProducts(data);
+    } catch (error) {
+      setFeedback({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Ocurrió un error al cargar los productos',
+      });
+    } finally {
+      setIsProductsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void loadCategories();
-  }, [loadCategories]);
+    void loadProducts();
+  }, [loadCategories, loadProducts]);
 
   useEffect(() => {
     if (!feedback) return;
@@ -112,12 +174,34 @@ export default function MenuManagementPage({
     });
   }, [categories, searchTerm, statusFilter]);
 
+  const filteredProducts = useMemo(() => {
+    return products.filter((product) => {
+      const matchesSearch = product.nombre
+        .toLowerCase()
+        .includes(productSearchTerm.trim().toLowerCase());
+
+      const matchesStatus =
+        productStatusFilter === 'ALL'
+          ? true
+          : productStatusFilter === 'AVAILABLE'
+            ? product.activo
+            : !product.activo;
+
+      const matchesCategory =
+        selectedCategoryId === null
+          ? true
+          : product.categoryId === selectedCategoryId;
+
+      return matchesSearch && matchesStatus && matchesCategory;
+    });
+  }, [products, productSearchTerm, productStatusFilter, selectedCategoryId]);
+
   const selectedCategory = categories.find(
     (category) => category.id === selectedCategoryId
   );
 
   const handleCreateCategory = async (values: MenuCategoryFormValues) => {
-    setIsSubmittingForm(true);
+    setIsSubmittingCategoryForm(true);
 
     try {
       await createCategoryMock(values);
@@ -136,14 +220,14 @@ export default function MenuManagementPage({
             : 'No se pudo crear la categoría',
       });
     } finally {
-      setIsSubmittingForm(false);
+      setIsSubmittingCategoryForm(false);
     }
   };
 
   const handleEditCategory = async (values: MenuCategoryFormValues) => {
     if (!editingCategory) return;
 
-    setIsSubmittingForm(true);
+    setIsSubmittingCategoryForm(true);
 
     try {
       await updateCategoryMock(editingCategory.id, values);
@@ -162,7 +246,60 @@ export default function MenuManagementPage({
             : 'No se pudo actualizar la categoría',
       });
     } finally {
-      setIsSubmittingForm(false);
+      setIsSubmittingCategoryForm(false);
+    }
+  };
+
+  const handleCreateProduct = async (values: MenuProductFormValues) => {
+    setIsSubmittingProductForm(true);
+
+    try {
+      await createProductMock(values);
+      setIsCreateProductOpen(false);
+      await Promise.all([loadProducts(), loadCategories()]);
+      setFeedback({
+        type: 'success',
+        message: 'Producto creado correctamente',
+      });
+      setActiveTab('products');
+      setSelectedCategoryId(values.categoryId);
+    } catch (error) {
+      setFeedback({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'No se pudo crear el producto',
+      });
+    } finally {
+      setIsSubmittingProductForm(false);
+    }
+  };
+
+  const handleEditProduct = async (values: MenuProductFormValues) => {
+    if (!editingProduct) return;
+
+    setIsSubmittingProductForm(true);
+
+    try {
+      await updateProductMock(editingProduct.id, values);
+      setEditingProduct(null);
+      await Promise.all([loadProducts(), loadCategories()]);
+      setFeedback({
+        type: 'success',
+        message: 'Producto actualizado correctamente',
+      });
+      setSelectedCategoryId(values.categoryId);
+    } catch (error) {
+      setFeedback({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'No se pudo actualizar el producto',
+      });
+    } finally {
+      setIsSubmittingProductForm(false);
     }
   };
 
@@ -172,31 +309,57 @@ export default function MenuManagementPage({
     setIsConfirming(true);
 
     try {
-      if (confirmState.type === 'toggle') {
-        await toggleCategoryStatusMock(confirmState.category.id);
-        setFeedback({
-          type: 'success',
-          message: confirmState.category.activo
-            ? 'Categoría desactivada correctamente'
-            : 'Categoría activada correctamente',
-        });
+      if (confirmState.entity === 'category') {
+        if (confirmState.type === 'toggle') {
+          await toggleCategoryStatusMock(confirmState.category.id);
+          setFeedback({
+            type: 'success',
+            message: confirmState.category.activo
+              ? 'Categoría desactivada correctamente'
+              : 'Categoría activada correctamente',
+          });
+        }
+
+        if (confirmState.type === 'delete') {
+          await deleteCategoryMock(confirmState.category.id);
+          setFeedback({
+            type: 'success',
+            message: 'Categoría eliminada correctamente',
+          });
+
+          if (selectedCategoryId === confirmState.category.id) {
+            setSelectedCategoryId(null);
+          }
+        }
+
+        setOpenActionMenuId(null);
+        await loadCategories();
       }
 
-      if (confirmState.type === 'delete') {
-        await deleteCategoryMock(confirmState.category.id);
-        setFeedback({
-          type: 'success',
-          message: 'Categoría eliminada correctamente',
-        });
-
-        if (selectedCategoryId === confirmState.category.id) {
-          setSelectedCategoryId(null);
+      if (confirmState.entity === 'product') {
+        if (confirmState.type === 'toggle') {
+          await toggleProductStatusMock(confirmState.product.id);
+          setFeedback({
+            type: 'success',
+            message: confirmState.product.activo
+              ? 'Producto desactivado correctamente'
+              : 'Producto activado correctamente',
+          });
         }
+
+        if (confirmState.type === 'delete') {
+          await deleteProductMock(confirmState.product.id);
+          setFeedback({
+            type: 'success',
+            message: 'Producto eliminado correctamente',
+          });
+        }
+
+        setOpenProductActionMenuId(null);
+        await Promise.all([loadProducts(), loadCategories()]);
       }
 
       setConfirmState(null);
-      setOpenActionMenuId(null);
-      await loadCategories();
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -213,6 +376,7 @@ export default function MenuManagementPage({
   const openToggleConfirm = (category: MenuCategory) => {
     setOpenActionMenuId(null);
     setConfirmState({
+      entity: 'category',
       type: 'toggle',
       category,
     });
@@ -221,8 +385,27 @@ export default function MenuManagementPage({
   const openDeleteConfirm = (category: MenuCategory) => {
     setOpenActionMenuId(null);
     setConfirmState({
+      entity: 'category',
       type: 'delete',
       category,
+    });
+  };
+
+  const openToggleProductConfirm = (product: MenuProduct) => {
+    setOpenProductActionMenuId(null);
+    setConfirmState({
+      entity: 'product',
+      type: 'toggle',
+      product,
+    });
+  };
+
+  const openDeleteProductConfirm = (product: MenuProduct) => {
+    setOpenProductActionMenuId(null);
+    setConfirmState({
+      entity: 'product',
+      type: 'delete',
+      product,
     });
   };
 
@@ -337,7 +520,7 @@ export default function MenuManagementPage({
               </div>
 
               <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
-                {isLoading ? (
+                {isCategoriesLoading ? (
                   <div className="rounded-2xl bg-white p-5 text-[14px] text-gray-500 shadow-sm">
                     Cargando categorías...
                   </div>
@@ -379,47 +562,118 @@ export default function MenuManagementPage({
 
           {activeTab === 'products' && (
             <section className="flex h-full flex-col overflow-hidden">
-              <div className="rounded-[1.5rem] bg-white p-5 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
+              <div className="shrink-0">
+                <div className="flex flex-col gap-3">
+                  <input
+                    type="text"
+                    value={productSearchTerm}
+                    onChange={(event) => setProductSearchTerm(event.target.value)}
+                    placeholder="Buscar producto..."
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] outline-none transition-colors focus:border-primary"
+                  />
+
+                  <select
+                    value={selectedCategoryId === null ? 'ALL' : String(selectedCategoryId)}
+                    onChange={(event) =>
+                      setSelectedCategoryId(
+                        event.target.value === 'ALL'
+                          ? null
+                          : Number(event.target.value)
+                      )
+                    }
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] outline-none transition-colors focus:border-primary"
+                  >
+                    <option value="ALL">Todas las categorías</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.nombre}
+                      </option>
+                    ))}
+                  </select>
+
+                  <div className="grid grid-cols-[1fr_auto] gap-3">
+                    <select
+                      value={productStatusFilter}
+                      onChange={(event) =>
+                        setProductStatusFilter(
+                          event.target.value as ProductStatusFilter
+                        )
+                      }
+                      className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] outline-none transition-colors focus:border-primary"
+                    >
+                      <option value="ALL">Todos</option>
+                      <option value="AVAILABLE">Disponibles</option>
+                      <option value="UNAVAILABLE">No disponibles</option>
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsCreateProductOpen(true)}
+                      disabled={categories.length === 0}
+                      className="rounded-2xl bg-primary px-4 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
+                    >
+                      + Nuevo producto
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-subtitle font-bold text-text">
                       Productos
                     </h2>
-                    <p className="mt-1 text-[14px] leading-6 text-gray-500">
-                      Esta pestaña quedará lista en el siguiente paso.
+                    <p className="mt-1 text-[13px] font-medium text-gray-500">
+                      {selectedCategory
+                        ? `Filtrando por ${selectedCategory.nombre}`
+                        : 'Mostrando todas las categorías'}
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('categories')}
-                    className="rounded-2xl border border-gray-300 px-4 py-2 text-[14px] font-semibold text-text transition-colors hover:bg-gray-50"
-                  >
-                    Volver
-                  </button>
+                  <span className="text-[13px] font-medium text-gray-500">
+                    {filteredProducts.length} resultados
+                  </span>
                 </div>
+              </div>
 
-                {selectedCategory ? (
-                  <div className="mt-4 rounded-2xl bg-background px-4 py-3">
-                    <p className="text-[13px] font-medium uppercase tracking-wide text-gray-500">
-                      Categoría seleccionada
+              <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+                {isProductsLoading ? (
+                  <div className="rounded-2xl bg-white p-5 text-[14px] text-gray-500 shadow-sm">
+                    Cargando productos...
+                  </div>
+                ) : filteredProducts.length === 0 ? (
+                  <div className="rounded-2xl bg-white p-5 text-center shadow-sm">
+                    <p className="text-[16px] font-semibold text-text">
+                      No se encontraron productos
                     </p>
-                    <p className="mt-1 text-[16px] font-bold text-text">
-                      {selectedCategory.nombre}
-                    </p>
-
-                    <p className="mt-1 text-[14px] leading-6 text-gray-500">
-                      {selectedCategory.totalProductos > 0
-                        ? `${selectedCategory.totalProductos} productos registrados`
-                        : 'Esta categoría no tiene productos aún'}
+                    <p className="mt-2 text-[14px] leading-6 text-gray-500">
+                      {selectedCategory
+                        ? 'Esta categoría aún no tiene productos registrados o no coincide con los filtros.'
+                        : 'Prueba con otro nombre o cambia los filtros.'}
                     </p>
                   </div>
                 ) : (
-                  <div className="mt-4 rounded-2xl bg-background px-4 py-3">
-                    <p className="text-[14px] leading-6 text-gray-500">
-                      Aquí mostraremos todos los productos y sus filtros en el
-                      siguiente paso.
-                    </p>
+                  <div className="space-y-3">
+                    {filteredProducts.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        category={categories.find(
+                          (category) => category.id === product.categoryId
+                        )}
+                        menuOpen={openProductActionMenuId === product.id}
+                        onToggleMenu={() =>
+                          setOpenProductActionMenuId((currentId) =>
+                            currentId === product.id ? null : product.id
+                          )
+                        }
+                        onEdit={() => {
+                          setOpenProductActionMenuId(null);
+                          setEditingProduct(product);
+                        }}
+                        onToggleStatus={() => openToggleProductConfirm(product)}
+                        onDelete={() => openDeleteProductConfirm(product)}
+                      />
+                    ))}
                   </div>
                 )}
               </div>
@@ -432,7 +686,7 @@ export default function MenuManagementPage({
         key={isCreateOpen ? 'create-open' : 'create-closed'}
         open={isCreateOpen}
         mode="create"
-        isSubmitting={isSubmittingForm}
+        isSubmitting={isSubmittingCategoryForm}
         onClose={() => setIsCreateOpen(false)}
         onSubmit={handleCreateCategory}
       />
@@ -442,32 +696,74 @@ export default function MenuManagementPage({
         open={Boolean(editingCategory)}
         mode="edit"
         initialCategory={editingCategory}
-        isSubmitting={isSubmittingForm}
+        isSubmitting={isSubmittingCategoryForm}
         onClose={() => setEditingCategory(null)}
         onSubmit={handleEditCategory}
+      />
+
+      <ProductFormModal
+        key={
+          isCreateProductOpen
+            ? `product-create-${selectedCategoryId ?? 'all'}`
+            : 'product-create-closed'
+        }
+        open={isCreateProductOpen}
+        mode="create"
+        categories={categories}
+        selectedCategoryId={selectedCategoryId}
+        isSubmitting={isSubmittingProductForm}
+        onClose={() => setIsCreateProductOpen(false)}
+        onSubmit={handleCreateProduct}
+      />
+
+      <ProductFormModal
+        key={editingProduct ? `product-edit-${editingProduct.id}` : 'product-edit-closed'}
+        open={Boolean(editingProduct)}
+        mode="edit"
+        categories={categories}
+        initialProduct={editingProduct}
+        isSubmitting={isSubmittingProductForm}
+        onClose={() => setEditingProduct(null)}
+        onSubmit={handleEditProduct}
       />
 
       <ConfirmModal
         open={Boolean(confirmState)}
         title={
-          confirmState?.type === 'toggle'
-            ? confirmState.category.activo
-              ? '¿Desactivar categoría?'
-              : '¿Activar categoría?'
-            : '¿Eliminar categoría?'
+          confirmState?.entity === 'category'
+            ? confirmState.type === 'toggle'
+              ? confirmState.category.activo
+                ? '¿Desactivar categoría?'
+                : '¿Activar categoría?'
+              : '¿Eliminar categoría?'
+            : confirmState?.type === 'toggle'
+              ? confirmState.product.activo
+                ? '¿Desactivar producto?'
+                : '¿Activar producto?'
+              : '¿Eliminar producto?'
         }
         description={
-          confirmState?.type === 'toggle'
-            ? confirmState.category.activo
-              ? 'La categoría dejará de mostrarse para otros roles.'
-              : 'La categoría volverá a mostrarse para otros roles.'
-            : 'Esta acción no se puede deshacer.'
+          confirmState?.entity === 'category'
+            ? confirmState.type === 'toggle'
+              ? confirmState.category.activo
+                ? 'La categoría dejará de mostrarse para otros roles.'
+                : 'La categoría volverá a mostrarse para otros roles.'
+              : 'Esta acción no se puede deshacer.'
+            : confirmState?.type === 'toggle'
+              ? confirmState.product.activo
+                ? 'El producto dejará de estar disponible para otros roles.'
+                : 'El producto volverá a estar disponible para otros roles.'
+              : 'Esta acción no se puede deshacer.'
         }
         confirmLabel={
           confirmState?.type === 'toggle'
-            ? confirmState.category.activo
-              ? 'Desactivar'
-              : 'Activar'
+            ? confirmState.entity === 'category'
+              ? confirmState.category.activo
+                ? 'Desactivar'
+                : 'Activar'
+              : confirmState.product.activo
+                ? 'Desactivar'
+                : 'Activar'
             : 'Eliminar'
         }
         isLoading={isConfirming}
