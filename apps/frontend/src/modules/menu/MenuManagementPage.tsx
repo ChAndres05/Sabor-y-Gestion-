@@ -1,15 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmModal } from '../../shared/components/ConfirmModal';
 import {
-  createCategoryMock,
   createProductMock,
-  deleteCategoryMock,
   deleteProductMock,
-  listCategoriesMock,
   listProductsMock,
-  toggleCategoryStatusMock,
   toggleProductStatusMock,
-  updateCategoryMock,
   updateProductMock,
 } from '../../shared/mocks/menu.mock';
 import { CategoryCard } from './components/CategoryCard';
@@ -25,6 +20,7 @@ import type {
   MenuTab,
   ProductStatusFilter,
 } from './types/menu.types';
+import { menuApi } from './menu.api';
 
 interface MenuManagementPageProps {
   onBack: () => void;
@@ -104,11 +100,13 @@ export default function MenuManagementPage({
   );
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
-  const loadCategories = useCallback(async () => {
+  const loadCategories = useCallback(async (search = '', status = 'ALL') => {
     setIsCategoriesLoading(true);
 
     try {
-      const data = await listCategoriesMock();
+      // Enviamos la búsqueda y filtros al backend real
+      const estadoApi = status === 'ACTIVE' ? 'activas' : status === 'INACTIVE' ? 'inactivas' : 'todas';
+      const data = await menuApi.getCategories(search, estadoApi);
       setCategories(data);
     } catch (error) {
       setFeedback({
@@ -143,9 +141,16 @@ export default function MenuManagementPage({
   }, []);
 
   useEffect(() => {
-    void loadCategories();
+    // Añadimos un pequeño retraso (debounce) para no saturar la API al escribir
+    const timeout = setTimeout(() => {
+      void loadCategories(searchTerm, statusFilter);
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [loadCategories, searchTerm, statusFilter]);
+
+  useEffect(() => {
     void loadProducts();
-  }, [loadCategories, loadProducts]);
+  }, [loadProducts]);
 
   useEffect(() => {
     if (!feedback) return;
@@ -157,22 +162,8 @@ export default function MenuManagementPage({
     return () => window.clearTimeout(timeout);
   }, [feedback]);
 
-  const filteredCategories = useMemo(() => {
-    return categories.filter((category) => {
-      const matchesSearch = category.nombre
-        .toLowerCase()
-        .includes(searchTerm.trim().toLowerCase());
-
-      const matchesStatus =
-        statusFilter === 'ALL'
-          ? true
-          : statusFilter === 'ACTIVE'
-            ? category.activo
-            : !category.activo;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [categories, searchTerm, statusFilter]);
+  // La lista ya viene filtrada desde el backend, pasamos directo la variable
+  const filteredCategories = categories;
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -204,9 +195,9 @@ export default function MenuManagementPage({
     setIsSubmittingCategoryForm(true);
 
     try {
-      await createCategoryMock(values);
+      await menuApi.createCategory(values);
       setIsCreateOpen(false);
-      await loadCategories();
+      await loadCategories(searchTerm, statusFilter);
       setFeedback({
         type: 'success',
         message: 'Categoría creada correctamente',
@@ -230,9 +221,9 @@ export default function MenuManagementPage({
     setIsSubmittingCategoryForm(true);
 
     try {
-      await updateCategoryMock(editingCategory.id, values);
+      await menuApi.updateCategory(editingCategory.id, values);
       setEditingCategory(null);
-      await loadCategories();
+      await loadCategories(searchTerm, statusFilter);
       setFeedback({
         type: 'success',
         message: 'Categoría actualizada correctamente',
@@ -256,7 +247,7 @@ export default function MenuManagementPage({
     try {
       await createProductMock(values);
       setIsCreateProductOpen(false);
-      await Promise.all([loadProducts(), loadCategories()]);
+      await Promise.all([loadProducts(), loadCategories(searchTerm, statusFilter)]);
       setFeedback({
         type: 'success',
         message: 'Producto creado correctamente',
@@ -284,7 +275,7 @@ export default function MenuManagementPage({
     try {
       await updateProductMock(editingProduct.id, values);
       setEditingProduct(null);
-      await Promise.all([loadProducts(), loadCategories()]);
+      await Promise.all([loadProducts(), loadCategories(searchTerm, statusFilter)]);
       setFeedback({
         type: 'success',
         message: 'Producto actualizado correctamente',
@@ -311,7 +302,7 @@ export default function MenuManagementPage({
     try {
       if (confirmState.entity === 'category') {
         if (confirmState.type === 'toggle') {
-          await toggleCategoryStatusMock(confirmState.category.id);
+          await menuApi.updateCategory(confirmState.category.id, { activo: !confirmState.category.activo });
           setFeedback({
             type: 'success',
             message: confirmState.category.activo
@@ -321,7 +312,7 @@ export default function MenuManagementPage({
         }
 
         if (confirmState.type === 'delete') {
-          await deleteCategoryMock(confirmState.category.id);
+          await menuApi.deleteCategory(confirmState.category.id);
           setFeedback({
             type: 'success',
             message: 'Categoría eliminada correctamente',
@@ -333,7 +324,7 @@ export default function MenuManagementPage({
         }
 
         setOpenActionMenuId(null);
-        await loadCategories();
+        await loadCategories(searchTerm, statusFilter);
       }
 
       if (confirmState.entity === 'product') {
@@ -356,7 +347,7 @@ export default function MenuManagementPage({
         }
 
         setOpenProductActionMenuId(null);
-        await Promise.all([loadProducts(), loadCategories()]);
+        await Promise.all([loadProducts(), loadCategories(searchTerm, statusFilter)]);
       }
 
       setConfirmState(null);
@@ -550,8 +541,9 @@ export default function MenuManagementPage({
                           setEditingCategory(category);
                         }}
                         onViewProducts={() => handleViewProducts(category)}
-                        onToggleStatus={() => openToggleConfirm(category)}
-                        onDelete={() => openDeleteConfirm(category)}
+                    // ¡Devolvemos las aperturas visuales del Modal de Confirmación!
+                    onToggleStatus={() => openToggleConfirm(category)}
+                    onDelete={() => openDeleteConfirm(category)}
                       />
                     ))}
                   </div>
