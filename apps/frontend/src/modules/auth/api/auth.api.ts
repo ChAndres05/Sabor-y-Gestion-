@@ -7,11 +7,6 @@ import type {
   ResetPasswordPayload,
   VerifyResetCodePayload,
 } from '../types/auth.types';
-import {
-  requestPasswordResetMock,
-  resetPasswordMock,
-  verifyPasswordResetCodeMock,
-} from '../../../shared/mocks/password-recovery.mock';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -45,10 +40,15 @@ function normalizeBackendError(code?: string): string {
       return 'Completa todos los campos obligatorios';
     case 'USER_ALREADY_EXISTS':
       return 'El usuario o correo ya está registrado';
+    case 'USER_NOT_FOUND':
+      return 'No existe una cuenta con ese correo electrónico';
+    case 'INVALID_OR_EXPIRED_CODE':
+      return 'El código es incorrecto o ha expirado';
     case 'SERVER_ERROR':
       return 'Ocurrió un error en el servidor';
     default:
-      return 'Ocurrió un error inesperado';
+      // Si el backend envía un mensaje directamente (como "El código es incorrecto o ha expirado")
+      return code || 'Ocurrió un error inesperado';
   }
 }
 
@@ -115,19 +115,50 @@ export const authApi = {
   },
 
   async requestPasswordReset(payload: ForgotPasswordPayload) {
-    return requestPasswordResetMock(payload.email);
+    const response = await fetch(`${API_URL}/api/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        correo_electronico: payload.email,
+      }),
+    });
+
+    if (!response.ok) {
+      await parseError(response);
+    }
+    return response.json();
   },
 
   async verifyResetCode(payload: VerifyResetCodePayload) {
-    return verifyPasswordResetCodeMock(payload.email, payload.code);
+    const response = await fetch(`${API_URL}/api/verify-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        correo_electronico: payload.email,
+        codigo: payload.code,
+      }),
+    });
+
+    if (!response.ok) {
+      await parseError(response);
+    }
+    return response.json();
   },
 
   async resetPassword(payload: ResetPasswordPayload) {
-    return resetPasswordMock(
-      payload.email,
-      payload.code,
-      payload.newPassword,
-      payload.confirmPassword
-    );
+    const response = await fetch(`${API_URL}/api/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        correo_electronico: payload.email,
+        codigo: payload.code,
+        nueva_contrasena: payload.newPassword, // El backend espera 'nueva_contrasena' y el front envía 'newPassword'
+      }),
+    });
+
+    if (!response.ok) {
+      await parseError(response);
+    }
+    return response.json();
   },
 };
