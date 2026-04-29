@@ -21,6 +21,7 @@ import type {
 } from './types/table-order.types';
 
 interface TableOrderPageProps {
+  role: 'ADMIN' | 'MESERO';
   tableId: number;
   onBack: () => void;
 }
@@ -55,6 +56,7 @@ function getOrderStatusLabel(status: TableOrder['estado']) {
 }
 
 export default function TableOrderPage({
+  role,
   tableId,
   onBack,
 }: TableOrderPageProps) {
@@ -300,6 +302,11 @@ export default function TableOrderPage({
               <h1 className="text-title font-bold text-text">Gestión de mesas</h1>
               <p className="mt-1 text-[14px] leading-5 text-gray-500">
                 {table ? `Nuevo pedido · Mesa ${table.numero}` : 'Nuevo pedido'}
+              </p>
+              <p className="mt-1 text-[13px] font-medium text-gray-500">
+                {role === 'ADMIN'
+                  ? 'Modo administrador'
+                  : 'Modo operativo de mesero'}
               </p>
             </div>
 

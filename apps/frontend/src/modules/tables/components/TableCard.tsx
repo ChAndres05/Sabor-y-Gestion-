@@ -1,6 +1,7 @@
 import type { RestaurantTable, TableStatus, Zone } from '../types/table.types';
 
 interface TableCardProps {
+  role: 'ADMIN' | 'MESERO';
   table: RestaurantTable;
   zone?: Zone;
   menuOpen: boolean;
@@ -45,6 +46,7 @@ const ALL_STATUSES: TableStatus[] = [
 ];
 
 export function TableCard({
+  role,
   table,
   zone,
   menuOpen,
@@ -54,6 +56,8 @@ export function TableCard({
   onDelete,
   onChangeStatus,
 }: TableCardProps) {
+  const isAdmin = role === 'ADMIN';
+
   return (
     <article
       className={`relative rounded-[1.5rem] p-4 shadow-sm ${getStatusStyles(
@@ -96,13 +100,15 @@ export function TableCard({
             Gestionar pedido
           </button>
 
-          <button
-            type="button"
-            onClick={onEdit}
-            className="block w-full px-4 py-3 text-left text-[14px] font-medium transition-colors hover:bg-black/5"
-          >
-            Editar mesa
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="block w-full px-4 py-3 text-left text-[14px] font-medium transition-colors hover:bg-black/5"
+            >
+              Editar mesa
+            </button>
+          )}
 
           {ALL_STATUSES.filter((status) => status !== table.estado).map(
             (status) => (
@@ -117,13 +123,15 @@ export function TableCard({
             )
           )}
 
-          <button
-            type="button"
-            onClick={onDelete}
-            className="block w-full px-4 py-3 text-left text-[14px] font-medium text-alert transition-colors hover:bg-alert/5"
-          >
-            Eliminar mesa
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="block w-full px-4 py-3 text-left text-[14px] font-medium text-alert transition-colors hover:bg-alert/5"
+            >
+              Eliminar mesa
+            </button>
+          )}
         </div>
       )}
     </article>

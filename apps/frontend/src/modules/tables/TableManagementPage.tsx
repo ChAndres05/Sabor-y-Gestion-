@@ -25,6 +25,7 @@ import type {
 } from './types/table.types';
 
 interface TableManagementPageProps {
+  role: 'ADMIN' | 'MESERO';
   onBack: () => void;
   onOpenTableOrder: (tableId: number) => void;
 }
@@ -61,9 +62,12 @@ function getStatusLabel(status: TableStatus) {
 }
 
 export default function TableManagementPage({
+  role,
   onBack,
   onOpenTableOrder,
 }: TableManagementPageProps) {
+  const isAdmin = role === 'ADMIN';
+
   const [zones, setZones] = useState<Zone[]>([]);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
 
@@ -278,7 +282,9 @@ export default function TableManagementPage({
 
           <h1 className="text-title font-bold text-text">Gestión de mesas</h1>
           <p className="mt-1 text-[14px] leading-5 text-gray-500">
-            Administra el salón, las zonas y el estado de cada mesa.
+            {isAdmin
+              ? 'Administra el salón, las zonas y el estado de cada mesa.'
+              : 'Consulta el salón y gestiona el estado operativo de cada mesa.'}
           </p>
 
           <div className="mt-4">
@@ -297,22 +303,26 @@ export default function TableManagementPage({
               Actualizar
             </button>
 
-            <button
-              type="button"
-              onClick={() => setIsCreateZoneOpen(true)}
-              className="rounded-2xl bg-white px-4 py-3 text-[14px] font-semibold text-text shadow-sm transition-colors hover:bg-black/5"
-            >
-              + Nueva zona
-            </button>
+            {isAdmin && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateZoneOpen(true)}
+                  className="rounded-2xl bg-white px-4 py-3 text-[14px] font-semibold text-text shadow-sm transition-colors hover:bg-black/5"
+                >
+                  + Nueva zona
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setIsCreateTableOpen(true)}
-              disabled={zones.length === 0}
-              className="rounded-2xl bg-primary px-4 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
-            >
-              + Nueva mesa
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateTableOpen(true)}
+                  disabled={zones.length === 0}
+                  className="rounded-2xl bg-primary px-4 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
+                >
+                  + Nueva mesa
+                </button>
+              </>
+            )}
           </div>
 
           <div className="mt-4">
@@ -356,6 +366,7 @@ export default function TableManagementPage({
               {filteredTables.map((table) => (
                 <TableCard
                   key={table.id}
+                  role={role}
                   table={table}
                   zone={zones.find((zone) => zone.id === table.zoneId)}
                   menuOpen={openActionMenuId === table.id}
@@ -394,34 +405,40 @@ export default function TableManagementPage({
         </div>
       </div>
 
-      <ZoneFormModal
-        key={isCreateZoneOpen ? 'zone-open' : 'zone-closed'}
-        open={isCreateZoneOpen}
-        isSubmitting={isSubmittingZoneForm}
-        onClose={() => setIsCreateZoneOpen(false)}
-        onSubmit={handleCreateZone}
-      />
+      {isAdmin && (
+        <ZoneFormModal
+          key={isCreateZoneOpen ? 'zone-open' : 'zone-closed'}
+          open={isCreateZoneOpen}
+          isSubmitting={isSubmittingZoneForm}
+          onClose={() => setIsCreateZoneOpen(false)}
+          onSubmit={handleCreateZone}
+        />
+      )}
 
-      <TableFormModal
-        key={isCreateTableOpen ? 'table-create-open' : 'table-create-closed'}
-        open={isCreateTableOpen}
-        mode="create"
-        zones={zones}
-        isSubmitting={isSubmittingTableForm}
-        onClose={() => setIsCreateTableOpen(false)}
-        onSubmit={handleCreateTable}
-      />
+      {isAdmin && (
+        <TableFormModal
+          key={isCreateTableOpen ? 'table-create-open' : 'table-create-closed'}
+          open={isCreateTableOpen}
+          mode="create"
+          zones={zones}
+          isSubmitting={isSubmittingTableForm}
+          onClose={() => setIsCreateTableOpen(false)}
+          onSubmit={handleCreateTable}
+        />
+      )}
 
-      <TableFormModal
-        key={editingTable ? `table-edit-${editingTable.id}` : 'table-edit-closed'}
-        open={Boolean(editingTable)}
-        mode="edit"
-        zones={zones}
-        initialTable={editingTable}
-        isSubmitting={isSubmittingTableForm}
-        onClose={() => setEditingTable(null)}
-        onSubmit={handleEditTable}
-      />
+      {isAdmin && (
+        <TableFormModal
+          key={editingTable ? `table-edit-${editingTable.id}` : 'table-edit-closed'}
+          open={Boolean(editingTable)}
+          mode="edit"
+          zones={zones}
+          initialTable={editingTable}
+          isSubmitting={isSubmittingTableForm}
+          onClose={() => setEditingTable(null)}
+          onSubmit={handleEditTable}
+        />
+      )}
 
       <ConfirmModal
         open={Boolean(confirmState)}
