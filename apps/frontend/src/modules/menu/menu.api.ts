@@ -1,10 +1,11 @@
 import type { MenuCategory, MenuCategoryFormValues } from "./types/menu.types";
 
 /**
- * En un monorepo con Turbo, el frontend suele correr en el puerto 3000
- * y el backend en el 3001. Ajustamos la URL para apuntar al servidor real.
+ * Configuramos la URL para que use la variable de entorno.
+ * En Vite se lee con import.meta.env.VITE_API_URL.
  */
-const API_URL = 'http://localhost:3000/api/categorias';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = `${BASE_URL}/api/categorias`;
 
 export const menuApi = {
   /**
