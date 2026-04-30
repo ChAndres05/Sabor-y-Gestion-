@@ -408,7 +408,7 @@ export default function MenuManagementPage({
 
   return (
     <main className="h-screen overflow-hidden bg-background px-4 py-6 text-text">
-      <div className="mx-auto flex h-full w-full max-w-md flex-col overflow-hidden">
+      <div className="mx-auto flex h-full w-full max-w-screen-xl flex-col overflow-hidden">
         <div className="shrink-0">
           <button
             type="button"
@@ -525,7 +525,7 @@ export default function MenuManagementPage({
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3">
                     {filteredCategories.map((category) => (
                       <CategoryCard
                         key={category.id}
@@ -644,7 +644,7 @@ export default function MenuManagementPage({
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3">
                     {filteredProducts.map((product) => (
                       <ProductCard
                         key={product.id}

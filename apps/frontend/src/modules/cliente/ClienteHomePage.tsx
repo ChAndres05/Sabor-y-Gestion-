@@ -78,7 +78,7 @@ export default function ClienteHomePage({
 
   return (
     <main className="h-screen overflow-hidden bg-background px-4 py-6 text-text">
-      <div className="mx-auto flex h-full w-full max-w-md flex-col overflow-hidden">
+      <div className="mx-auto flex h-full w-full max-w-screen-xl flex-col overflow-hidden">
         <div className="shrink-0">
           <div className="flex items-center justify-between gap-3">
             <button
