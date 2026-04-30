@@ -13,6 +13,7 @@ import ClientProductDetailPage from './modules/cliente/ClientProductDetailPage';
 import UsersPage from './modules/users/UsersPage';
 import MenuManagementPage from './modules/menu/MenuManagementPage';
 import TableManagementPage from './modules/tables/TableManagementPage';
+import TableOrderPage from './modules/tables/TableOrderPage';
 
 type AppScreen =
   | 'login'
@@ -22,7 +23,11 @@ type AppScreen =
   | 'admin-users'
   | 'menu-management'
   | 'table-management'
+  | 'table-order'
   | 'mesero-home'
+  | 'mesero-tables'
+  | 'mesero-table-order'
+  | 'mesero-menu'
   | 'cocina-home'
   | 'cajero-home'
   | 'cliente-home'
@@ -35,7 +40,7 @@ function getScreenByRole(role: AuthUser['rol']): AppScreen {
     case USER_ROLES.ADMIN:
       return 'admin-menu';
     case USER_ROLES.MESERO:
-      return 'mesero-home';
+      return 'mesero-tables';
     case USER_ROLES.COCINERO:
       return 'cocina-home';
     case USER_ROLES.CAJERO:
@@ -55,6 +60,7 @@ function App() {
   const [selectedClientProductId, setSelectedClientProductId] = useState<
     number | null
   >(null);
+  const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
 
   useEffect(() => {
     try {
@@ -100,6 +106,7 @@ function App() {
     setAccessToken(null);
     setSessionUser(null);
     setSelectedClientProductId(null);
+    setSelectedTableId(null);
     setScreen('login');
     localStorage.removeItem(AUTH_STORAGE_KEY);
   };
@@ -149,12 +156,56 @@ function App() {
       )}
 
       {screen === 'table-management' && sessionUser && accessToken && (
-        <TableManagementPage onBack={() => setScreen('admin-menu')} />
+        <TableManagementPage
+          role="ADMIN"
+          onBack={() => setScreen('admin-menu')}
+          onOpenTableOrder={(tableId) => {
+            setSelectedTableId(tableId);
+            setScreen('table-order');
+          }}
+        />
       )}
 
-      {screen === 'mesero-home' && sessionUser && accessToken && (
-        <MeseroHomePage user={sessionUser} onLogout={handleLogout} />
+      {screen === 'table-order' &&
+        sessionUser &&
+        accessToken &&
+        selectedTableId !== null && (
+          <TableOrderPage
+            role="ADMIN"
+            tableId={selectedTableId}
+            onBack={() => setScreen('table-management')}
+          />
+        )}
+
+      {screen === 'mesero-menu' && sessionUser && accessToken && (
+        <MeseroHomePage
+          user={sessionUser}
+          onLogout={handleLogout}
+          onOpenTables={() => setScreen('mesero-tables')}
+        />
       )}
+
+      {screen === 'mesero-tables' && sessionUser && accessToken && (
+        <TableManagementPage
+          role="MESERO"
+           onBack={() => setScreen('mesero-menu')}
+          onOpenTableOrder={(tableId) => {
+            setSelectedTableId(tableId);
+            setScreen('mesero-table-order');
+          }}
+        />
+      )}
+
+      {screen === 'mesero-table-order' &&
+        sessionUser &&
+        accessToken &&
+        selectedTableId !== null && (
+          <TableOrderPage
+            role="MESERO"
+            tableId={selectedTableId}
+            onBack={() => setScreen('mesero-tables')}
+          />
+        )}
 
       {screen === 'cocina-home' && sessionUser && accessToken && (
         <CocinaHomePage user={sessionUser} onLogout={handleLogout} />

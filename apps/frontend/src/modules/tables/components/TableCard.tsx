@@ -1,10 +1,12 @@
 import type { RestaurantTable, TableStatus, Zone } from '../types/table.types';
 
 interface TableCardProps {
+  role: 'ADMIN' | 'MESERO';
   table: RestaurantTable;
   zone?: Zone;
   menuOpen: boolean;
   onToggleMenu: () => void;
+  onManageOrder: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onChangeStatus: (status: TableStatus) => void;
@@ -20,8 +22,6 @@ function getStatusStyles(status: TableStatus) {
       return 'bg-process text-white';
     case 'CUENTA_SOLICITADA':
       return 'bg-info text-white';
-    default:
-      return 'bg-gray-200 text-text';
   }
 }
 
@@ -35,8 +35,6 @@ function getStatusLabel(status: TableStatus) {
       return 'Reservada';
     case 'CUENTA_SOLICITADA':
       return 'Cuenta solicitada';
-    default:
-      return status;
   }
 }
 
@@ -48,14 +46,18 @@ const ALL_STATUSES: TableStatus[] = [
 ];
 
 export function TableCard({
+  role,
   table,
   zone,
   menuOpen,
   onToggleMenu,
+  onManageOrder,
   onEdit,
   onDelete,
   onChangeStatus,
 }: TableCardProps) {
+  const isAdmin = role === 'ADMIN';
+
   return (
     <article
       className={`relative rounded-[1.5rem] p-4 shadow-sm ${getStatusStyles(
@@ -92,11 +94,21 @@ export function TableCard({
         <div className="absolute right-3 top-12 z-20 min-w-[200px] overflow-hidden rounded-2xl bg-white text-text shadow-xl">
           <button
             type="button"
-            onClick={onEdit}
+            onClick={onManageOrder}
             className="block w-full px-4 py-3 text-left text-[14px] font-medium transition-colors hover:bg-black/5"
           >
-            Editar mesa
+            Gestionar pedido
           </button>
+
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="block w-full px-4 py-3 text-left text-[14px] font-medium transition-colors hover:bg-black/5"
+            >
+              Editar mesa
+            </button>
+          )}
 
           {ALL_STATUSES.filter((status) => status !== table.estado).map(
             (status) => (
@@ -111,13 +123,15 @@ export function TableCard({
             )
           )}
 
-          <button
-            type="button"
-            onClick={onDelete}
-            className="block w-full px-4 py-3 text-left text-[14px] font-medium text-alert transition-colors hover:bg-alert/5"
-          >
-            Eliminar mesa
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="block w-full px-4 py-3 text-left text-[14px] font-medium text-alert transition-colors hover:bg-alert/5"
+            >
+              Eliminar mesa
+            </button>
+          )}
         </div>
       )}
     </article>

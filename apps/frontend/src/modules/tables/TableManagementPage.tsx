@@ -16,7 +16,9 @@ import type {
 } from './types/table.types';
 
 interface TableManagementPageProps {
+  role: 'ADMIN' | 'MESERO';
   onBack: () => void;
+  onOpenTableOrder: (tableId: number) => void;
 }
 
 type FeedbackState = {
@@ -27,14 +29,14 @@ type FeedbackState = {
 
 type ConfirmState =
   | {
-    type: 'delete';
-    table: RestaurantTable;
-  }
+      type: 'delete';
+      table: RestaurantTable;
+    }
   | {
-    type: 'status';
-    table: RestaurantTable;
-    nextStatus: TableStatus;
-  }
+      type: 'status';
+      table: RestaurantTable;
+      nextStatus: TableStatus;
+    }
   | null;
 
 function getStatusLabel(status: TableStatus) {
@@ -47,39 +49,35 @@ function getStatusLabel(status: TableStatus) {
       return 'reservada';
     case 'CUENTA_SOLICITADA':
       return 'cuenta solicitada';
-    default: {
-      const exhaustiveCheck: never = status;
-      return exhaustiveCheck;
-    }
   }
 }
 
-export default function TableManagementPage({ onBack }: TableManagementPageProps) {
-  // === AGREGAMOS LA URL BASE DEL BACKEND AQUÍ ===
+export default function TableManagementPage({
+  role,
+  onBack,
+  onOpenTableOrder,
+}: TableManagementPageProps) {
+  // === CONFIGURACIÓN ===
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const isAdmin = role === 'ADMIN';
 
+  // === ESTADOS ===
   const [zones, setZones] = useState<Zone[]>([]);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
-
   const [isZonesLoading, setIsZonesLoading] = useState(true);
   const [isTablesLoading, setIsTablesLoading] = useState(true);
-
   const [selectedZoneId, setSelectedZoneId] = useState<ZoneFilter>('ALL');
-
   const [isCreateZoneOpen, setIsCreateZoneOpen] = useState(false);
   const [isCreateTableOpen, setIsCreateTableOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<RestaurantTable | null>(null);
-
   const [isSubmittingZoneForm, setIsSubmittingZoneForm] = useState(false);
   const [isSubmittingTableForm, setIsSubmittingTableForm] = useState(false);
-
   const [openActionMenuId, setOpenActionMenuId] = useState<number | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const [isConfirming, setIsConfirming] = useState(false);
-
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
-  // --- LLAMADAS REALES AL BACKEND ---
+  // --- CARGA DE DATOS ---
 
   const loadZones = useCallback(async () => {
     setIsZonesLoading(true);
@@ -90,7 +88,6 @@ export default function TableManagementPage({ onBack }: TableManagementPageProps
       const data = await response.json();
       if (!Array.isArray(data)) throw new Error('El servidor no devolvió una lista válida de zonas');
 
-      // Se reemplazó el "any" por el tipo explícito de los datos que vienen del backend
       const mappedZones: Zone[] = data.map(
         (z: { id_zona: number; nombre: string; activo?: boolean; activa?: boolean }) => ({
           id: z.id_zona,
@@ -120,7 +117,6 @@ export default function TableManagementPage({ onBack }: TableManagementPageProps
       const data = await response.json();
       if (!Array.isArray(data)) throw new Error('El servidor no devolvió una lista válida de mesas');
 
-      // Se reemplazó el "any" por el tipo explícito de los datos que vienen del backend
       const mappedTables: RestaurantTable[] = data.map(
         (t: {
           id_mesa: number;
@@ -162,15 +158,15 @@ export default function TableManagementPage({ onBack }: TableManagementPageProps
     );
   }, [tables, selectedZoneId]);
 
+  // --- MANEJADORES DE EVENTOS ---
+
   const handleCreateZone = async (values: ZoneFormValues) => {
     setIsSubmittingZoneForm(true);
     try {
       const response = await fetch(`${API_URL}/api/admin/zonas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nombre: values.nombre,
-        }),
+        body: JSON.stringify({ nombre: values.nombre }),
       });
 
       if (!response.ok) {
@@ -236,7 +232,6 @@ export default function TableManagementPage({ onBack }: TableManagementPageProps
   const handleEditTable = async (values: TableFormValues) => {
     if (!editingTable) return;
     setIsSubmittingTableForm(true);
-
     try {
       const response = await fetch(`${API_URL}/api/admin/mesas/${editingTable.id}`, {
         method: 'PUT',
@@ -278,7 +273,6 @@ export default function TableManagementPage({ onBack }: TableManagementPageProps
           method: 'DELETE',
         });
         if (!response.ok) throw new Error('Error al eliminar mesa');
-
         setFeedback({
           type: 'success',
           title: 'Mesa eliminada',
@@ -290,18 +284,14 @@ export default function TableManagementPage({ onBack }: TableManagementPageProps
         const response = await fetch(`${API_URL}/api/admin/mesas/${confirmState.table.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            estado: confirmState.nextStatus,
-          }),
+          body: JSON.stringify({ estado: confirmState.nextStatus }),
         });
         if (!response.ok) throw new Error('Error al actualizar estado');
 
         setFeedback({
           type: 'success',
           title: 'Estado actualizado',
-          message: `La mesa ${confirmState.table.numero} ahora está ${getStatusLabel(
-            confirmState.nextStatus
-          )}.`,
+          message: `La mesa ${confirmState.table.numero} ahora está ${getStatusLabel(confirmState.nextStatus)}.`,
         });
       }
 
@@ -333,7 +323,9 @@ export default function TableManagementPage({ onBack }: TableManagementPageProps
 
           <h1 className="text-title font-bold text-text">Gestión de mesas</h1>
           <p className="mt-1 text-[14px] leading-5 text-gray-500">
-            Administra el salón, las zonas y el estado de cada mesa.
+            {isAdmin
+              ? 'Administra el salón, las zonas y el estado de cada mesa.'
+              : 'Consulta el salón y gestiona el estado operativo de cada mesa.'}
           </p>
 
           <div className="mt-4">
@@ -352,22 +344,26 @@ export default function TableManagementPage({ onBack }: TableManagementPageProps
               Actualizar
             </button>
 
-            <button
-              type="button"
-              onClick={() => setIsCreateZoneOpen(true)}
-              className="rounded-2xl bg-white px-4 py-3 text-[14px] font-semibold text-text shadow-sm transition-colors hover:bg-black/5"
-            >
-              + Nueva zona
-            </button>
+            {isAdmin && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateZoneOpen(true)}
+                  className="rounded-2xl bg-white px-4 py-3 text-[14px] font-semibold text-text shadow-sm transition-colors hover:bg-black/5"
+                >
+                  + Nueva zona
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setIsCreateTableOpen(true)}
-              disabled={zones.length === 0}
-              className="rounded-2xl bg-primary px-4 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
-            >
-              + Nueva mesa
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateTableOpen(true)}
+                  disabled={zones.length === 0}
+                  className="rounded-2xl bg-primary px-4 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
+                >
+                  + Nueva mesa
+                </button>
+              </>
+            )}
           </div>
 
           <div className="mt-4">
@@ -411,6 +407,7 @@ export default function TableManagementPage({ onBack }: TableManagementPageProps
               {filteredTables.map((table) => (
                 <TableCard
                   key={table.id}
+                  role={role}
                   table={table}
                   zone={zones.find((zone) => zone.id === table.zoneId)}
                   menuOpen={openActionMenuId === table.id}
@@ -419,24 +416,21 @@ export default function TableManagementPage({ onBack }: TableManagementPageProps
                       currentId === table.id ? null : table.id
                     )
                   }
+                  onManageOrder={() => {
+                    setOpenActionMenuId(null);
+                    onOpenTableOrder(table.id);
+                  }}
                   onEdit={() => {
                     setOpenActionMenuId(null);
                     setEditingTable(table);
                   }}
                   onDelete={() => {
                     setOpenActionMenuId(null);
-                    setConfirmState({
-                      type: 'delete',
-                      table,
-                    });
+                    setConfirmState({ type: 'delete', table });
                   }}
                   onChangeStatus={(nextStatus) => {
                     setOpenActionMenuId(null);
-                    setConfirmState({
-                      type: 'status',
-                      table,
-                      nextStatus,
-                    });
+                    setConfirmState({ type: 'status', table, nextStatus });
                   }}
                 />
               ))}
@@ -445,54 +439,48 @@ export default function TableManagementPage({ onBack }: TableManagementPageProps
         </div>
       </div>
 
-      <ZoneFormModal
-        key={isCreateZoneOpen ? 'zone-open' : 'zone-closed'}
-        open={isCreateZoneOpen}
-        isSubmitting={isSubmittingZoneForm}
-        onClose={() => setIsCreateZoneOpen(false)}
-        onSubmit={handleCreateZone}
-      />
-
-      <TableFormModal
-        key={isCreateTableOpen ? 'table-create-open' : 'table-create-closed'}
-        open={isCreateTableOpen}
-        mode="create"
-        zones={zones}
-        isSubmitting={isSubmittingTableForm}
-        onClose={() => setIsCreateTableOpen(false)}
-        onSubmit={handleCreateTable}
-      />
-
-      <TableFormModal
-        key={editingTable ? `table-edit-${editingTable.id}` : 'table-edit-closed'}
-        open={Boolean(editingTable)}
-        mode="edit"
-        zones={zones}
-        initialTable={editingTable}
-        isSubmitting={isSubmittingTableForm}
-        onClose={() => setEditingTable(null)}
-        onSubmit={handleEditTable}
-      />
+      {isAdmin && (
+        <>
+          <ZoneFormModal
+            key={isCreateZoneOpen ? 'zone-open' : 'zone-closed'}
+            open={isCreateZoneOpen}
+            isSubmitting={isSubmittingZoneForm}
+            onClose={() => setIsCreateZoneOpen(false)}
+            onSubmit={handleCreateZone}
+          />
+          <TableFormModal
+            key={isCreateTableOpen ? 'table-create-open' : 'table-create-closed'}
+            open={isCreateTableOpen}
+            mode="create"
+            zones={zones}
+            isSubmitting={isSubmittingTableForm}
+            onClose={() => setIsCreateTableOpen(false)}
+            onSubmit={handleCreateTable}
+          />
+          <TableFormModal
+            key={editingTable ? `table-edit-${editingTable.id}` : 'table-edit-closed'}
+            open={Boolean(editingTable)}
+            mode="edit"
+            zones={zones}
+            initialTable={editingTable}
+            isSubmitting={isSubmittingTableForm}
+            onClose={() => setEditingTable(null)}
+            onSubmit={handleEditTable}
+          />
+        </>
+      )}
 
       <ConfirmModal
         open={Boolean(confirmState)}
-        title={
-          confirmState?.type === 'delete'
-            ? '¿Eliminar mesa?'
-            : '¿Cambiar estado de la mesa?'
-        }
+        title={confirmState?.type === 'delete' ? '¿Eliminar mesa?' : '¿Cambiar estado de la mesa?'}
         description={
           confirmState?.type === 'delete'
             ? 'Esta acción no se puede deshacer.'
             : confirmState
-              ? `La mesa ${confirmState.table.numero} cambiará a estado ${getStatusLabel(
-                confirmState.nextStatus
-              )}.`
-              : ''
+            ? `La mesa ${confirmState.table.numero} cambiará a estado ${getStatusLabel(confirmState.nextStatus)}.`
+            : ''
         }
-        confirmLabel={
-          confirmState?.type === 'delete' ? 'Eliminar' : 'Confirmar'
-        }
+        confirmLabel={confirmState?.type === 'delete' ? 'Eliminar' : 'Confirmar'}
         isLoading={isConfirming}
         onClose={() => setConfirmState(null)}
         onConfirm={handleConfirmAction}
