@@ -1,15 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmModal } from '../../shared/components/ConfirmModal';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
-import {
-  createTableMock,
-  createZoneMock,
-  deleteTableMock,
-  listTablesMock,
-  listZonesMock,
-  updateTableMock,
-  updateTableStatusMock,
-} from '../../shared/mocks/tables.mock';
 import { TableCard } from './components/TableCard';
 import { TableFormModal } from './components/TableFormModal';
 import { TableSummaryCards } from './components/TableSummaryCards';
@@ -66,70 +57,95 @@ export default function TableManagementPage({
   onBack,
   onOpenTableOrder,
 }: TableManagementPageProps) {
+  // === CONFIGURACIÓN ===
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const isAdmin = role === 'ADMIN';
 
+  // === ESTADOS ===
   const [zones, setZones] = useState<Zone[]>([]);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
-
   const [isZonesLoading, setIsZonesLoading] = useState(true);
   const [isTablesLoading, setIsTablesLoading] = useState(true);
-
   const [selectedZoneId, setSelectedZoneId] = useState<ZoneFilter>('ALL');
-
   const [isCreateZoneOpen, setIsCreateZoneOpen] = useState(false);
   const [isCreateTableOpen, setIsCreateTableOpen] = useState(false);
-  const [editingTable, setEditingTable] = useState<RestaurantTable | null>(
-    null
-  );
-
+  const [editingTable, setEditingTable] = useState<RestaurantTable | null>(null);
   const [isSubmittingZoneForm, setIsSubmittingZoneForm] = useState(false);
   const [isSubmittingTableForm, setIsSubmittingTableForm] = useState(false);
-
   const [openActionMenuId, setOpenActionMenuId] = useState<number | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const [isConfirming, setIsConfirming] = useState(false);
-
   const [feedback, setFeedback] = useState<FeedbackState>(null);
+
+  // --- CARGA DE DATOS ---
 
   const loadZones = useCallback(async () => {
     setIsZonesLoading(true);
-
     try {
-      const data = await listZonesMock();
-      setZones(data.filter((zone) => zone.activo));
+      const response = await fetch(`${API_URL}/api/admin/zonas`);
+      if (!response.ok) throw new Error('Error al cargar zonas');
+
+      const data = await response.json();
+      if (!Array.isArray(data)) throw new Error('El servidor no devolvió una lista válida de zonas');
+
+      const mappedZones: Zone[] = data.map(
+        (z: { id_zona: number; nombre: string; activo?: boolean; activa?: boolean }) => ({
+          id: z.id_zona,
+          nombre: z.nombre,
+          activo: z.activo ?? z.activa ?? true,
+        })
+      );
+
+      setZones(mappedZones.filter((zone) => zone.activo));
     } catch (error) {
       setFeedback({
         type: 'error',
         title: 'Error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'No se pudieron cargar las zonas',
+        message: error instanceof Error ? error.message : 'No se pudieron cargar las zonas',
       });
     } finally {
       setIsZonesLoading(false);
     }
-  }, []);
+  }, [API_URL]);
 
   const loadTables = useCallback(async () => {
     setIsTablesLoading(true);
-
     try {
-      const data = await listTablesMock();
-      setTables(data.filter((table) => table.activo));
+      const response = await fetch(`${API_URL}/api/admin/mesas`);
+      if (!response.ok) throw new Error('Error al cargar mesas');
+
+      const data = await response.json();
+      if (!Array.isArray(data)) throw new Error('El servidor no devolvió una lista válida de mesas');
+
+      const mappedTables: RestaurantTable[] = data.map(
+        (t: {
+          id_mesa: number;
+          numero: number;
+          capacidad: number;
+          id_zona: number;
+          estado: TableStatus;
+          activa?: boolean;
+        }) => ({
+          id: t.id_mesa,
+          numero: t.numero,
+          capacidad: t.capacidad,
+          zoneId: t.id_zona,
+          estado: t.estado,
+          activo: t.activa ?? true,
+        })
+      );
+
+      setTables(mappedTables.filter((table) => table.activo));
     } catch (error) {
       setFeedback({
         type: 'error',
         title: 'Error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'No se pudieron cargar las mesas',
+        message: error instanceof Error ? error.message : 'No se pudieron cargar las mesas',
       });
     } finally {
       setIsTablesLoading(false);
     }
-  }, []);
+  }, [API_URL]);
 
   useEffect(() => {
     void loadZones();
@@ -142,11 +158,22 @@ export default function TableManagementPage({
     );
   }, [tables, selectedZoneId]);
 
+  // --- MANEJADORES DE EVENTOS ---
+
   const handleCreateZone = async (values: ZoneFormValues) => {
     setIsSubmittingZoneForm(true);
-
     try {
-      await createZoneMock(values);
+      const response = await fetch(`${API_URL}/api/admin/zonas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: values.nombre }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al crear zona');
+      }
+
       setIsCreateZoneOpen(false);
       await loadZones();
       setFeedback({
@@ -158,10 +185,7 @@ export default function TableManagementPage({
       setFeedback({
         type: 'error',
         title: 'No se pudo crear',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Ocurrió un error al crear la zona',
+        message: error instanceof Error ? error.message : 'Ocurrió un error al crear la zona',
       });
     } finally {
       setIsSubmittingZoneForm(false);
@@ -170,9 +194,23 @@ export default function TableManagementPage({
 
   const handleCreateTable = async (values: TableFormValues) => {
     setIsSubmittingTableForm(true);
-
     try {
-      await createTableMock(values);
+      const response = await fetch(`${API_URL}/api/admin/mesas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          numero: values.numero,
+          capacidad: values.capacidad,
+          id_zona: values.zoneId,
+          estado: 'LIBRE',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al crear mesa');
+      }
+
       setIsCreateTableOpen(false);
       await loadTables();
       setFeedback({
@@ -184,10 +222,7 @@ export default function TableManagementPage({
       setFeedback({
         type: 'error',
         title: 'No se pudo crear',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Ocurrió un error al crear la mesa',
+        message: error instanceof Error ? error.message : 'Ocurrió un error al crear la mesa',
       });
     } finally {
       setIsSubmittingTableForm(false);
@@ -196,11 +231,20 @@ export default function TableManagementPage({
 
   const handleEditTable = async (values: TableFormValues) => {
     if (!editingTable) return;
-
     setIsSubmittingTableForm(true);
-
     try {
-      await updateTableMock(editingTable.id, values);
+      const response = await fetch(`${API_URL}/api/admin/mesas/${editingTable.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          numero: values.numero,
+          capacidad: values.capacidad,
+          id_zona: values.zoneId,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Error al actualizar mesa');
+
       setEditingTable(null);
       await loadTables();
       setFeedback({
@@ -212,10 +256,7 @@ export default function TableManagementPage({
       setFeedback({
         type: 'error',
         title: 'No se pudo actualizar',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Ocurrió un error al actualizar la mesa',
+        message: error instanceof Error ? error.message : 'Ocurrió un error al actualizar la mesa',
       });
     } finally {
       setIsSubmittingTableForm(false);
@@ -224,12 +265,14 @@ export default function TableManagementPage({
 
   const handleConfirmAction = async () => {
     if (!confirmState) return;
-
     setIsConfirming(true);
 
     try {
       if (confirmState.type === 'delete') {
-        await deleteTableMock(confirmState.table.id);
+        const response = await fetch(`${API_URL}/api/admin/mesas/${confirmState.table.id}`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) throw new Error('Error al eliminar mesa');
         setFeedback({
           type: 'success',
           title: 'Mesa eliminada',
@@ -238,16 +281,17 @@ export default function TableManagementPage({
       }
 
       if (confirmState.type === 'status') {
-        await updateTableStatusMock(
-          confirmState.table.id,
-          confirmState.nextStatus
-        );
+        const response = await fetch(`${API_URL}/api/admin/mesas/${confirmState.table.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: confirmState.nextStatus }),
+        });
+        if (!response.ok) throw new Error('Error al actualizar estado');
+
         setFeedback({
           type: 'success',
           title: 'Estado actualizado',
-          message: `La mesa ${confirmState.table.numero} ahora está ${getStatusLabel(
-            confirmState.nextStatus
-          )}.`,
+          message: `La mesa ${confirmState.table.numero} ahora está ${getStatusLabel(confirmState.nextStatus)}.`,
         });
       }
 
@@ -258,10 +302,7 @@ export default function TableManagementPage({
       setFeedback({
         type: 'error',
         title: 'No se pudo completar la acción',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Ocurrió un error inesperado',
+        message: error instanceof Error ? error.message : 'Ocurrió un error inesperado',
       });
     } finally {
       setIsConfirming(false);
@@ -385,18 +426,11 @@ export default function TableManagementPage({
                   }}
                   onDelete={() => {
                     setOpenActionMenuId(null);
-                    setConfirmState({
-                      type: 'delete',
-                      table,
-                    });
+                    setConfirmState({ type: 'delete', table });
                   }}
                   onChangeStatus={(nextStatus) => {
                     setOpenActionMenuId(null);
-                    setConfirmState({
-                      type: 'status',
-                      table,
-                      nextStatus,
-                    });
+                    setConfirmState({ type: 'status', table, nextStatus });
                   }}
                 />
               ))}
@@ -406,59 +440,47 @@ export default function TableManagementPage({
       </div>
 
       {isAdmin && (
-        <ZoneFormModal
-          key={isCreateZoneOpen ? 'zone-open' : 'zone-closed'}
-          open={isCreateZoneOpen}
-          isSubmitting={isSubmittingZoneForm}
-          onClose={() => setIsCreateZoneOpen(false)}
-          onSubmit={handleCreateZone}
-        />
-      )}
-
-      {isAdmin && (
-        <TableFormModal
-          key={isCreateTableOpen ? 'table-create-open' : 'table-create-closed'}
-          open={isCreateTableOpen}
-          mode="create"
-          zones={zones}
-          isSubmitting={isSubmittingTableForm}
-          onClose={() => setIsCreateTableOpen(false)}
-          onSubmit={handleCreateTable}
-        />
-      )}
-
-      {isAdmin && (
-        <TableFormModal
-          key={editingTable ? `table-edit-${editingTable.id}` : 'table-edit-closed'}
-          open={Boolean(editingTable)}
-          mode="edit"
-          zones={zones}
-          initialTable={editingTable}
-          isSubmitting={isSubmittingTableForm}
-          onClose={() => setEditingTable(null)}
-          onSubmit={handleEditTable}
-        />
+        <>
+          <ZoneFormModal
+            key={isCreateZoneOpen ? 'zone-open' : 'zone-closed'}
+            open={isCreateZoneOpen}
+            isSubmitting={isSubmittingZoneForm}
+            onClose={() => setIsCreateZoneOpen(false)}
+            onSubmit={handleCreateZone}
+          />
+          <TableFormModal
+            key={isCreateTableOpen ? 'table-create-open' : 'table-create-closed'}
+            open={isCreateTableOpen}
+            mode="create"
+            zones={zones}
+            isSubmitting={isSubmittingTableForm}
+            onClose={() => setIsCreateTableOpen(false)}
+            onSubmit={handleCreateTable}
+          />
+          <TableFormModal
+            key={editingTable ? `table-edit-${editingTable.id}` : 'table-edit-closed'}
+            open={Boolean(editingTable)}
+            mode="edit"
+            zones={zones}
+            initialTable={editingTable}
+            isSubmitting={isSubmittingTableForm}
+            onClose={() => setEditingTable(null)}
+            onSubmit={handleEditTable}
+          />
+        </>
       )}
 
       <ConfirmModal
         open={Boolean(confirmState)}
-        title={
-          confirmState?.type === 'delete'
-            ? '¿Eliminar mesa?'
-            : '¿Cambiar estado de la mesa?'
-        }
+        title={confirmState?.type === 'delete' ? '¿Eliminar mesa?' : '¿Cambiar estado de la mesa?'}
         description={
           confirmState?.type === 'delete'
             ? 'Esta acción no se puede deshacer.'
             : confirmState
-              ? `La mesa ${confirmState.table.numero} cambiará a estado ${getStatusLabel(
-                  confirmState.nextStatus
-                )}.`
-              : ''
+            ? `La mesa ${confirmState.table.numero} cambiará a estado ${getStatusLabel(confirmState.nextStatus)}.`
+            : ''
         }
-        confirmLabel={
-          confirmState?.type === 'delete' ? 'Eliminar' : 'Confirmar'
-        }
+        confirmLabel={confirmState?.type === 'delete' ? 'Eliminar' : 'Confirmar'}
         isLoading={isConfirming}
         onClose={() => setConfirmState(null)}
         onConfirm={handleConfirmAction}

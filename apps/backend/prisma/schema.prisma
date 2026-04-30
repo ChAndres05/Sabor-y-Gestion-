@@ -1,12 +1,13 @@
 generator client {
-  provider        = "prisma-client"
-  output          = "../app/generated/prisma"
-  previewFeatures = ["partialIndexes"]
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
 }
+
+// --- MODELOS ---
 
 model asignaciones_caja_turno {
   id_asignacion_caja_turno Int           @id @default(autoincrement())
@@ -421,6 +422,7 @@ model zonas {
   id_zona     Int     @id @default(autoincrement())
   nombre      String  @unique @db.VarChar
   descripcion String? @db.Text
+  activo      Boolean @default(true)
   mesas       mesas[]
 
   @@map("zonas")
