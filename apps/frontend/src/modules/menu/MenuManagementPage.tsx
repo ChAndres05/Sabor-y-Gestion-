@@ -1,12 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmModal } from '../../shared/components/ConfirmModal';
-import {
-  createProductMock,
-  deleteProductMock,
-  listProductsMock,
-  toggleProductStatusMock,
-  updateProductMock,
-} from '../../shared/mocks/menu.mock';
 import { CategoryCard } from './components/CategoryCard';
 import { CategoryFormModal } from './components/CategoryFormModal';
 import { ProductCard } from './components/ProductCard';
@@ -33,25 +26,25 @@ type FeedbackState = {
 
 type ConfirmState =
   | {
-      entity: 'category';
-      type: 'toggle';
-      category: MenuCategory;
-    }
+    entity: 'category';
+    type: 'toggle';
+    category: MenuCategory;
+  }
   | {
-      entity: 'category';
-      type: 'delete';
-      category: MenuCategory;
-    }
+    entity: 'category';
+    type: 'delete';
+    category: MenuCategory;
+  }
   | {
-      entity: 'product';
-      type: 'toggle';
-      product: MenuProduct;
-    }
+    entity: 'product';
+    type: 'toggle';
+    product: MenuProduct;
+  }
   | {
-      entity: 'product';
-      type: 'delete';
-      product: MenuProduct;
-    }
+    entity: 'product';
+    type: 'delete';
+    product: MenuProduct;
+  }
   | null;
 
 export default function MenuManagementPage({
@@ -125,8 +118,21 @@ export default function MenuManagementPage({
     setIsProductsLoading(true);
 
     try {
-      const data = await listProductsMock();
-      setProducts(data);
+      const data = await menuApi.getProductos();
+      // Mapeamos las propiedades del backend al formato MenuProduct esperado
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mappedProducts: MenuProduct[] = data.map((p: any) => ({
+        id: p.id_producto || p.id,
+        categoryId: p.id_categoria || p.categoryId,
+        nombre: p.nombre,
+        descripcion: p.descripcion || '',
+        precio: Number(p.precio) || 0,
+        tiempoPreparacion: Number(p.tiempo_preparacion) || 0,
+        imagen: p.imagen_url || p.imagen || null,
+        activo: p.activo ?? true,
+        disponible: p.disponible ?? true,
+      }));
+      setProducts(mappedProducts);
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -245,7 +251,16 @@ export default function MenuManagementPage({
     setIsSubmittingProductForm(true);
 
     try {
-      await createProductMock(values);
+      // Adaptamos los datos del formulario al formato esperado por tu backend Prisma
+      await menuApi.createProducto({
+        nombre: values.nombre,
+        descripcion: values.descripcion,
+        id_categoria: values.categoryId,
+        imagen_url: values.imagen,
+        disponible: values.disponible,
+        precio: values.precio,
+        tiempo_preparacion: values.tiempoPreparacion,
+      });
       setIsCreateProductOpen(false);
       await Promise.all([loadProducts(), loadCategories(searchTerm, statusFilter)]);
       setFeedback({
@@ -273,7 +288,16 @@ export default function MenuManagementPage({
     setIsSubmittingProductForm(true);
 
     try {
-      await updateProductMock(editingProduct.id, values);
+      // Adaptamos los datos del formulario al formato esperado por el backend
+      await menuApi.updateProducto(editingProduct.id, {
+        nombre: values.nombre,
+        descripcion: values.descripcion,
+        id_categoria: values.categoryId,
+        imagen_url: values.imagen,
+        disponible: values.disponible,
+        precio: values.precio,
+        tiempo_preparacion: values.tiempoPreparacion,
+      });
       setEditingProduct(null);
       await Promise.all([loadProducts(), loadCategories(searchTerm, statusFilter)]);
       setFeedback({
@@ -329,7 +353,10 @@ export default function MenuManagementPage({
 
       if (confirmState.entity === 'product') {
         if (confirmState.type === 'toggle') {
-          await toggleProductStatusMock(confirmState.product.id);
+          const nuevoEstado = !confirmState.product.activo;
+          await menuApi.updateProducto(confirmState.product.id, {
+            activo: nuevoEstado,
+          });
           setFeedback({
             type: 'success',
             message: confirmState.product.activo
@@ -339,7 +366,7 @@ export default function MenuManagementPage({
         }
 
         if (confirmState.type === 'delete') {
-          await deleteProductMock(confirmState.product.id);
+          await menuApi.deleteProducto(confirmState.product.id);
           setFeedback({
             type: 'success',
             message: 'Producto eliminado correctamente',
@@ -427,11 +454,10 @@ export default function MenuManagementPage({
             <button
               type="button"
               onClick={() => setActiveTab('categories')}
-              className={`flex-1 rounded-xl px-4 py-2 text-[14px] font-semibold transition-colors ${
-                activeTab === 'categories'
-                  ? 'bg-white text-text shadow-sm'
-                  : 'text-gray-500'
-              }`}
+              className={`flex-1 rounded-xl px-4 py-2 text-[14px] font-semibold transition-colors ${activeTab === 'categories'
+                ? 'bg-white text-text shadow-sm'
+                : 'text-gray-500'
+                }`}
             >
               Categorías
             </button>
@@ -439,11 +465,10 @@ export default function MenuManagementPage({
             <button
               type="button"
               onClick={() => setActiveTab('products')}
-              className={`flex-1 rounded-xl px-4 py-2 text-[14px] font-semibold transition-colors ${
-                activeTab === 'products'
-                  ? 'bg-white text-text shadow-sm'
-                  : 'text-gray-500'
-              }`}
+              className={`flex-1 rounded-xl px-4 py-2 text-[14px] font-semibold transition-colors ${activeTab === 'products'
+                ? 'bg-white text-text shadow-sm'
+                : 'text-gray-500'
+                }`}
             >
               Productos
             </button>
@@ -452,11 +477,10 @@ export default function MenuManagementPage({
 
         {feedback && (
           <div
-            className={`mt-4 shrink-0 rounded-2xl px-4 py-3 text-[14px] font-medium ${
-              feedback.type === 'success'
-                ? 'bg-success/10 text-success'
-                : 'bg-alert/10 text-alert'
-            }`}
+            className={`mt-4 shrink-0 rounded-2xl px-4 py-3 text-[14px] font-medium ${feedback.type === 'success'
+              ? 'bg-success/10 text-success'
+              : 'bg-alert/10 text-alert'
+              }`}
           >
             {feedback.message}
           </div>
@@ -541,9 +565,9 @@ export default function MenuManagementPage({
                           setEditingCategory(category);
                         }}
                         onViewProducts={() => handleViewProducts(category)}
-                    // ¡Devolvemos las aperturas visuales del Modal de Confirmación!
-                    onToggleStatus={() => openToggleConfirm(category)}
-                    onDelete={() => openDeleteConfirm(category)}
+                        // ¡Devolvemos las aperturas visuales del Modal de Confirmación!
+                        onToggleStatus={() => openToggleConfirm(category)}
+                        onDelete={() => openDeleteConfirm(category)}
                       />
                     ))}
                   </div>

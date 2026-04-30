@@ -1,13 +1,20 @@
-import type { MenuCategory, MenuCategoryFormValues } from "./types/menu.types";
+import type { MenuCategory, MenuCategoryFormValues, BackendProductPayload } from "./types/menu.types";
 
 /**
  * Configuramos la URL para que use la variable de entorno.
  * En Vite se lee con import.meta.env.VITE_API_URL.
  */
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-const API_URL = `${BASE_URL}/api/categorias`;
+
+// Separamos los endpoints para mantenerlo organizado
+const CATEGORIAS_API_URL = `${BASE_URL}/api/categorias`;
+const PRODUCTOS_API_URL = `${BASE_URL}/api/productos`;
 
 export const menuApi = {
+  // ==========================================
+  //          SECCIÓN DE CATEGORÍAS
+  // ==========================================
+
   /**
    * 1. OBTENER CATEGORÍAS (GET)
    * Permite buscar por nombre y filtrar por estado (activas/inactivas).
@@ -21,7 +28,7 @@ export const menuApi = {
       params.append('activo', estado === 'activas' ? 'true' : 'false');
     }
 
-    const res = await fetch(`${API_URL}?${params.toString()}`, {
+    const res = await fetch(`${CATEGORIAS_API_URL}?${params.toString()}`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -41,7 +48,7 @@ export const menuApi = {
    * Guarda Nombre, Descripción y Estado inicial.
    */
   async createCategory(data: MenuCategoryFormValues) {
-    const res = await fetch(API_URL, {
+    const res = await fetch(CATEGORIAS_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -61,7 +68,7 @@ export const menuApi = {
   async updateCategory(id: number, data: Partial<MenuCategory>) {
     if (!id) throw new Error("ID de categoría no proporcionado");
 
-    const res = await fetch(`${API_URL}/${id}`, {
+    const res = await fetch(`${CATEGORIAS_API_URL}/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -81,7 +88,7 @@ export const menuApi = {
   async deleteCategory(id: number) {
     if (!id) throw new Error("ID de categoría no proporcionado");
 
-    const res = await fetch(`${API_URL}/${id}`, {
+    const res = await fetch(`${CATEGORIAS_API_URL}/${id}`, {
       method: 'DELETE',
     });
 
@@ -90,6 +97,83 @@ export const menuApi = {
     if (!res.ok) {
       // Capturamos el mensaje de error de Prisma (ej. "tiene productos asociados")
       throw new Error(data.error || 'Error al eliminar la categoría');
+    }
+    return data;
+  },
+
+
+  // ==========================================
+  //          SECCIÓN DE PRODUCTOS
+  // ==========================================
+
+  /**
+   * 5. OBTENER PRODUCTOS (GET)
+   * Trae todos los productos activos con su información de categoría.
+   */
+  async getProductos() { // Puedes tipar esto como Promise<MenuProduct[]> si tienes la interfaz
+    const res = await fetch(PRODUCTOS_API_URL, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    
+    if (!res.ok) throw new Error('Error al cargar los productos de la base de datos');
+    
+    return res.json();
+  },
+
+  /**
+   * 6. CREAR PRODUCTO (POST)
+   * Guarda el producto conectándolo con una categoría existente en la BD.
+   */
+  async createProducto(data: BackendProductPayload) {
+    const res = await fetch(PRODUCTOS_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error || 'Error al crear el producto');
+    }
+    
+    return res.json();
+  },
+
+  /**
+   * 7. ACTUALIZAR / DESACTIVAR PRODUCTO (PATCH)
+   * Sirve para editar toda la info o simplemente enviar { activo: false } para desactivar.
+   */
+  async updateProducto(id: number, data: BackendProductPayload) {
+    if (!id) throw new Error("ID de producto no proporcionado");
+
+    const res = await fetch(`${PRODUCTOS_API_URL}/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error || 'Error al actualizar el producto');
+    }
+    return res.json();
+  },
+
+  /**
+   * 8. ELIMINAR PRODUCTO (DELETE)
+   */
+  async deleteProducto(id: number) {
+    if (!id) throw new Error("ID de producto no proporcionado");
+
+    const res = await fetch(`${PRODUCTOS_API_URL}/${id}`, {
+      method: 'DELETE',
+    });
+
+    const data = await res.json();
+    
+    if (!res.ok) {
+      throw new Error(data.error || 'Error al eliminar el producto');
     }
     return data;
   }

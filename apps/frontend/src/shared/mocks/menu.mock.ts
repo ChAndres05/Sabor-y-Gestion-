@@ -71,6 +71,7 @@ let products: MenuProduct[] = [
     tiempoPreparacion: 25,
     imagen: null,
     activo: true,
+    disponible: true,
   },
   {
     id: 2,
@@ -81,6 +82,7 @@ let products: MenuProduct[] = [
     tiempoPreparacion: 30,
     imagen: null,
     activo: true,
+    disponible: true,
   },
   {
     id: 3,
@@ -91,6 +93,7 @@ let products: MenuProduct[] = [
     tiempoPreparacion: 2,
     imagen: null,
     activo: true,
+    disponible: true,
   },
   {
     id: 4,
@@ -101,6 +104,7 @@ let products: MenuProduct[] = [
     tiempoPreparacion: 10,
     imagen: null,
     activo: true,
+    disponible: true,
   },
   {
     id: 5,
@@ -111,6 +115,7 @@ let products: MenuProduct[] = [
     tiempoPreparacion: 15,
     imagen: null,
     activo: true,
+    disponible: true,
   },
   {
     id: 6,
@@ -121,6 +126,7 @@ let products: MenuProduct[] = [
     tiempoPreparacion: 5,
     imagen: null,
     activo: false,
+    disponible: false,
   },
   {
     id: 7,
@@ -131,6 +137,7 @@ let products: MenuProduct[] = [
     tiempoPreparacion: 20,
     imagen: null,
     activo: true,
+    disponible: true,
   },
 ];
 
@@ -333,7 +340,8 @@ export async function createProductMock(
     precio: payload.precio,
     tiempoPreparacion: payload.tiempoPreparacion,
     imagen: normalizeImage(payload.imagen),
-    activo: payload.activo,
+    activo: true,
+    disponible: payload.disponible,
   };
 
   products = [...products, newProduct];
@@ -396,7 +404,7 @@ export async function updateProductMock(
     precio: payload.precio,
     tiempoPreparacion: payload.tiempoPreparacion,
     imagen: normalizeImage(payload.imagen),
-    activo: payload.activo,
+    disponible: payload.disponible,
   };
 
   products = products.map((product) =>

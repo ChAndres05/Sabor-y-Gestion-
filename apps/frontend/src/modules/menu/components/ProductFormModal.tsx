@@ -29,7 +29,7 @@ function getInitialValues(
       precio: initialProduct.precio,
       tiempoPreparacion: initialProduct.tiempoPreparacion,
       imagen: initialProduct.imagen,
-      activo: initialProduct.activo,
+      disponible: initialProduct.disponible,
     };
   }
 
@@ -40,7 +40,7 @@ function getInitialValues(
     precio: 0,
     tiempoPreparacion: 0,
     imagen: null,
-    activo: true,
+    disponible: true,
   };
 }
 
@@ -70,7 +70,7 @@ export function ProductFormModal({
     initialValues.tiempoPreparacion ? String(initialValues.tiempoPreparacion) : ''
   );
   const [imagen, setImagen] = useState(initialValues.imagen ?? '');
-  const [activo, setActivo] = useState(initialValues.activo);
+  const [disponible, setDisponible] = useState(initialValues.disponible);
   const [error, setError] = useState('');
 
   if (!open) return null;
@@ -107,7 +107,7 @@ export function ProductFormModal({
       precio: Number(precio),
       tiempoPreparacion: Number(tiempoPreparacion),
       imagen: imagen.trim() ? imagen.trim() : null,
-      activo,
+      disponible,
     });
   };
 
@@ -227,8 +227,8 @@ export function ProductFormModal({
           <label className="flex items-center gap-3 rounded-2xl bg-background px-4 py-3">
             <input
               type="checkbox"
-              checked={activo}
-              onChange={(event) => setActivo(event.target.checked)}
+              checked={disponible}
+              onChange={(event) => setDisponible(event.target.checked)}
               className="h-4 w-4 accent-primary"
             />
             <span className="text-[14px] font-medium text-text">
