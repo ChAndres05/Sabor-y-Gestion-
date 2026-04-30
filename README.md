@@ -137,22 +137,78 @@ pnpm typecheck
 ## 8. ESTRUCTURA DE CARPETAS
 
 ```
-/ (raíz del proyecto)
-├── apps/
-│   ├── backend/
-│   │   ├── app/        Rutas de la API (Next.js App Router)
-│   │   ├── lib/        Configuración de Prisma y utilidades
-│   │   ├── prisma/     Esquemas y migraciones
-│   │   ├── public/     Archivos estáticos
-│   │   └── .env        Variables de entorno (NO commitear)
-│   └── frontend/
-│       ├── src/        Código fuente
-│       ├── public/     Archivos estáticos
-│       └── .env        Variables de entorno (NO commitear)
-├── .env.example
-├── package.json
-├── pnpm-workspace.yaml
-└── turbo.json
+## 1. RAIZ DEL PROYECTO (Workspace)
+Sabor-y-Gestion/
+├── .github/workflows/           # Pipelines de CI/CD (GitHub Actions)
+├── apps/                        # Directorio de aplicaciones
+├── .env.example                 # Plantilla de variables de entorno
+├── .gitignore                   # Archivos ignorados por Git
+├── package.json                 # Scripts globales y dependencias de raíz
+├── pnpm-lock.yaml               # Bloqueo de versiones de pnpm
+├── pnpm-workspace.yaml          # Configuración de espacios de trabajo
+├── README.md                    # Documentación general
+└── turbo.json                   # Configuración de Turborepo
+
+## 2. BACKEND (API & Servidor)
+Ubicación: apps/backend/
+Tecnología: Next.js + Prisma
+
+Sabor-y-Gestion/apps/backend/
+├── app/api/                     # Endpoints (App Router)
+│   ├── admin/                   # Rutas administrativas
+│   │   ├── mesas/               # CRUD de mesas
+│   │   ├── usuarios/            # Gestión de staff
+│   │   └── zonas/               # Gestión de áreas
+│   ├── auth/                    # Lógica de autenticación
+│   │   ├── login/               # Inicio de sesión
+│   │   ├── register/            # Registro
+│   │   ├── forgot-password/     # Recuperación
+│   │   ├── reset-password/      # Cambio de clave
+│   │   └── verify-code/         # Verificación
+│   ├── busqueda/                # Búsqueda global
+│   ├── categorias/              # CRUD de categorías del menú
+│   ├── health/db/               # Verificación de BD
+│   └── zonas/                   # Detalle de zonas
+├── lib/                         # Librerías (prisma.ts)
+├── prisma/                      # Capa de datos
+│   └── schema.prisma            # Modelo de BD
+├── public/                      # Archivos estáticos
+├── next.config.ts               # Configuración Next
+├── package.json                 # Dependencias backend
+└── tsconfig.json                # Configuración TS
+
+## 3. FRONTEND (Interfaz de Usuario)
+Ubicación: apps/frontend/
+Tecnología: React + Vite + Tailwind
+
+Sabor-y-Gestion/apps/frontend/
+├── public/                      # Assets estáticos
+├── src/
+│   ├── assets/                  # Imágenes y recursos
+│   ├── modules/                 # Lógica por dominio y rol
+│   │   ├── admin/               # Panel admin
+│   │   ├── auth/                # Login, Register, Forgot Password
+│   │   ├── cajero/              # Interfaz de caja
+│   │   ├── cliente/             # Vista cliente/pedido
+│   │   ├── cocina/              # Vista preparación
+│   │   ├── menu/                # Gestión de carta
+│   │   ├── mesero/              # Toma de pedidos
+│   │   ├── profile/             # Perfil
+│   │   ├── tables/              # Salón y mesas
+│   │   └── users/               # Gestión staff
+│   ├── shared/                  # Core reutilizable
+│   │   ├── components/          # Botones, Modales, Inputs base
+│   │   ├── constants/           # Roles y Rutas
+│   │   ├── mocks/               # Datos simulados
+│   │   └── utils/               # Helpers y redirecciones
+│   ├── store/                   # Estado global
+│   ├── styles/                  # Estilos (globals.css)
+│   ├── App.tsx                  # Router
+│   └── main.tsx                 # Entrada React
+├── index.html                   # Entry point HTML
+├── package.json                 # Dependencias frontend
+├── tailwind.config.js           # Estilos Tailwind
+└── vite.config.ts               # Configuración Vite
 ```
 
 ---
