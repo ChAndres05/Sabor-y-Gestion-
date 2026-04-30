@@ -1,15 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmModal } from '../../shared/components/ConfirmModal';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
-import {
-  createTableMock,
-  createZoneMock,
-  deleteTableMock,
-  listTablesMock,
-  listZonesMock,
-  updateTableMock,
-  updateTableStatusMock,
-} from '../../shared/mocks/tables.mock';
 import { TableCard } from './components/TableCard';
 import { TableFormModal } from './components/TableFormModal';
 import { TableSummaryCards } from './components/TableSummaryCards';
@@ -36,14 +27,14 @@ type FeedbackState = {
 
 type ConfirmState =
   | {
-      type: 'delete';
-      table: RestaurantTable;
-    }
+    type: 'delete';
+    table: RestaurantTable;
+  }
   | {
-      type: 'status';
-      table: RestaurantTable;
-      nextStatus: TableStatus;
-    }
+    type: 'status';
+    table: RestaurantTable;
+    nextStatus: TableStatus;
+  }
   | null;
 
 function getStatusLabel(status: TableStatus) {
@@ -63,9 +54,10 @@ function getStatusLabel(status: TableStatus) {
   }
 }
 
-export default function TableManagementPage({
-  onBack,
-}: TableManagementPageProps) {
+export default function TableManagementPage({ onBack }: TableManagementPageProps) {
+  // === AGREGAMOS LA URL BASE DEL BACKEND AQUÍ ===
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
   const [zones, setZones] = useState<Zone[]>([]);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
 
@@ -76,9 +68,7 @@ export default function TableManagementPage({
 
   const [isCreateZoneOpen, setIsCreateZoneOpen] = useState(false);
   const [isCreateTableOpen, setIsCreateTableOpen] = useState(false);
-  const [editingTable, setEditingTable] = useState<RestaurantTable | null>(
-    null
-  );
+  const [editingTable, setEditingTable] = useState<RestaurantTable | null>(null);
 
   const [isSubmittingZoneForm, setIsSubmittingZoneForm] = useState(false);
   const [isSubmittingTableForm, setIsSubmittingTableForm] = useState(false);
@@ -89,45 +79,77 @@ export default function TableManagementPage({
 
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
+  // --- LLAMADAS REALES AL BACKEND ---
+
   const loadZones = useCallback(async () => {
     setIsZonesLoading(true);
-
     try {
-      const data = await listZonesMock();
-      setZones(data.filter((zone) => zone.activo));
+      const response = await fetch(`${API_URL}/api/admin/zonas`);
+      if (!response.ok) throw new Error('Error al cargar zonas');
+
+      const data = await response.json();
+      if (!Array.isArray(data)) throw new Error('El servidor no devolvió una lista válida de zonas');
+
+      // Se reemplazó el "any" por el tipo explícito de los datos que vienen del backend
+      const mappedZones: Zone[] = data.map(
+        (z: { id_zona: number; nombre: string; activo?: boolean; activa?: boolean }) => ({
+          id: z.id_zona,
+          nombre: z.nombre,
+          activo: z.activo ?? z.activa ?? true,
+        })
+      );
+
+      setZones(mappedZones.filter((zone) => zone.activo));
     } catch (error) {
       setFeedback({
         type: 'error',
         title: 'Error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'No se pudieron cargar las zonas',
+        message: error instanceof Error ? error.message : 'No se pudieron cargar las zonas',
       });
     } finally {
       setIsZonesLoading(false);
     }
-  }, []);
+  }, [API_URL]);
 
   const loadTables = useCallback(async () => {
     setIsTablesLoading(true);
-
     try {
-      const data = await listTablesMock();
-      setTables(data.filter((table) => table.activo));
+      const response = await fetch(`${API_URL}/api/admin/mesas`);
+      if (!response.ok) throw new Error('Error al cargar mesas');
+
+      const data = await response.json();
+      if (!Array.isArray(data)) throw new Error('El servidor no devolvió una lista válida de mesas');
+
+      // Se reemplazó el "any" por el tipo explícito de los datos que vienen del backend
+      const mappedTables: RestaurantTable[] = data.map(
+        (t: {
+          id_mesa: number;
+          numero: number;
+          capacidad: number;
+          id_zona: number;
+          estado: TableStatus;
+          activa?: boolean;
+        }) => ({
+          id: t.id_mesa,
+          numero: t.numero,
+          capacidad: t.capacidad,
+          zoneId: t.id_zona,
+          estado: t.estado,
+          activo: t.activa ?? true,
+        })
+      );
+
+      setTables(mappedTables.filter((table) => table.activo));
     } catch (error) {
       setFeedback({
         type: 'error',
         title: 'Error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'No se pudieron cargar las mesas',
+        message: error instanceof Error ? error.message : 'No se pudieron cargar las mesas',
       });
     } finally {
       setIsTablesLoading(false);
     }
-  }, []);
+  }, [API_URL]);
 
   useEffect(() => {
     void loadZones();
@@ -142,9 +164,20 @@ export default function TableManagementPage({
 
   const handleCreateZone = async (values: ZoneFormValues) => {
     setIsSubmittingZoneForm(true);
-
     try {
-      await createZoneMock(values);
+      const response = await fetch(`${API_URL}/api/admin/zonas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: values.nombre,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al crear zona');
+      }
+
       setIsCreateZoneOpen(false);
       await loadZones();
       setFeedback({
@@ -156,10 +189,7 @@ export default function TableManagementPage({
       setFeedback({
         type: 'error',
         title: 'No se pudo crear',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Ocurrió un error al crear la zona',
+        message: error instanceof Error ? error.message : 'Ocurrió un error al crear la zona',
       });
     } finally {
       setIsSubmittingZoneForm(false);
@@ -168,9 +198,23 @@ export default function TableManagementPage({
 
   const handleCreateTable = async (values: TableFormValues) => {
     setIsSubmittingTableForm(true);
-
     try {
-      await createTableMock(values);
+      const response = await fetch(`${API_URL}/api/admin/mesas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          numero: values.numero,
+          capacidad: values.capacidad,
+          id_zona: values.zoneId,
+          estado: 'LIBRE',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al crear mesa');
+      }
+
       setIsCreateTableOpen(false);
       await loadTables();
       setFeedback({
@@ -182,10 +226,7 @@ export default function TableManagementPage({
       setFeedback({
         type: 'error',
         title: 'No se pudo crear',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Ocurrió un error al crear la mesa',
+        message: error instanceof Error ? error.message : 'Ocurrió un error al crear la mesa',
       });
     } finally {
       setIsSubmittingTableForm(false);
@@ -194,11 +235,21 @@ export default function TableManagementPage({
 
   const handleEditTable = async (values: TableFormValues) => {
     if (!editingTable) return;
-
     setIsSubmittingTableForm(true);
 
     try {
-      await updateTableMock(editingTable.id, values);
+      const response = await fetch(`${API_URL}/api/admin/mesas/${editingTable.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          numero: values.numero,
+          capacidad: values.capacidad,
+          id_zona: values.zoneId,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Error al actualizar mesa');
+
       setEditingTable(null);
       await loadTables();
       setFeedback({
@@ -210,10 +261,7 @@ export default function TableManagementPage({
       setFeedback({
         type: 'error',
         title: 'No se pudo actualizar',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Ocurrió un error al actualizar la mesa',
+        message: error instanceof Error ? error.message : 'Ocurrió un error al actualizar la mesa',
       });
     } finally {
       setIsSubmittingTableForm(false);
@@ -222,12 +270,15 @@ export default function TableManagementPage({
 
   const handleConfirmAction = async () => {
     if (!confirmState) return;
-
     setIsConfirming(true);
 
     try {
       if (confirmState.type === 'delete') {
-        await deleteTableMock(confirmState.table.id);
+        const response = await fetch(`${API_URL}/api/admin/mesas/${confirmState.table.id}`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) throw new Error('Error al eliminar mesa');
+
         setFeedback({
           type: 'success',
           title: 'Mesa eliminada',
@@ -236,10 +287,15 @@ export default function TableManagementPage({
       }
 
       if (confirmState.type === 'status') {
-        await updateTableStatusMock(
-          confirmState.table.id,
-          confirmState.nextStatus
-        );
+        const response = await fetch(`${API_URL}/api/admin/mesas/${confirmState.table.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            estado: confirmState.nextStatus,
+          }),
+        });
+        if (!response.ok) throw new Error('Error al actualizar estado');
+
         setFeedback({
           type: 'success',
           title: 'Estado actualizado',
@@ -256,10 +312,7 @@ export default function TableManagementPage({
       setFeedback({
         type: 'error',
         title: 'No se pudo completar la acción',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Ocurrió un error inesperado',
+        message: error instanceof Error ? error.message : 'Ocurrió un error inesperado',
       });
     } finally {
       setIsConfirming(false);
@@ -433,8 +486,8 @@ export default function TableManagementPage({
             ? 'Esta acción no se puede deshacer.'
             : confirmState
               ? `La mesa ${confirmState.table.numero} cambiará a estado ${getStatusLabel(
-                  confirmState.nextStatus
-                )}.`
+                confirmState.nextStatus
+              )}.`
               : ''
         }
         confirmLabel={
