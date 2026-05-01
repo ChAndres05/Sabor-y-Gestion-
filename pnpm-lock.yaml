@@ -33,6 +33,9 @@ importers:
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
       jsonwebtoken:
         specifier: ^9.0.3
         version: 9.0.3
