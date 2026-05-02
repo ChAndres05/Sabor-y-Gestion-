@@ -19,6 +19,16 @@ jobs:
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      
+      # Variables de entorno para Pusher (Backend)
+      PUSHER_APP_ID: ${{ secrets.PUSHER_APP_ID }}
+      PUSHER_KEY: ${{ secrets.PUSHER_KEY }}
+      PUSHER_SECRET: ${{ secrets.PUSHER_SECRET }}
+      PUSHER_CLUSTER: ${{ secrets.PUSHER_CLUSTER }}
+      
+      # Variables de entorno para Pusher (Frontend Vite)
+      VITE_PUSHER_KEY: ${{ secrets.PUSHER_KEY }}
+      VITE_PUSHER_CLUSTER: ${{ secrets.PUSHER_CLUSTER }}
 
     steps:
       - name: Checkout Repo
