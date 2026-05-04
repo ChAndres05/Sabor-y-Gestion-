@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type {
   AddOrderItemPayload,
   OrderCatalogCategory,
@@ -11,7 +12,6 @@ import type {
 } from '../../modules/tables/types/table-order.types';
 
 let nextOrderId = 5;
-let nextOrderItemId = 9;
 
 const delay = (ms = 220) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -59,7 +59,7 @@ async function getMenuFromAPI() {
 
 const SIMULATED_STATUSES_KEY = 'gestionysabor_simulated_statuses';
 
-let simulatedStatuses: Record<number, TableOrderStatus> = readStorage(SIMULATED_STATUSES_KEY, {});
+const simulatedStatuses: Record<number, TableOrderStatus> = readStorage(SIMULATED_STATUSES_KEY, {});
 
 function persistSimulatedStatuses() {
   writeStorage(SIMULATED_STATUSES_KEY, simulatedStatuses);
@@ -467,11 +467,7 @@ let orders: TableOrder[] = [
 
 orders = readStorage(ORDERS_STORAGE_KEY, orders);
 nextOrderId = Math.max(nextOrderId, ...orders.map((order) => order.id + 1));
-nextOrderItemId = Math.max(
-  nextOrderItemId,
-  ...orders.flatMap((order) => order.items.map((item) => item.id + 1)),
-  nextOrderItemId
-);
+
 
 function findOrderIndexByTable(tableId: number) {
   return orders.findIndex(

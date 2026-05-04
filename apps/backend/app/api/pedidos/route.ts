@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     }
 
     // Usar transacción para crear pedido y actualizar estado de la mesa
-    const [nuevoPedido, mesaActualizada] = await prisma.$transaction([
+    const [nuevoPedido] = await prisma.$transaction([
       prisma.pedidos.create({
         data: {
           id_tipo_pedido: tipoPedido.id_tipo_pedido,
