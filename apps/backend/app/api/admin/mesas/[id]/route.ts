@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
+import { pusherServer } from "../../../../../lib/pusher";
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
@@ -19,6 +20,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                 activa,
             },
         });
+
+        // Emitir evento por Pusher para actualizar en tiempo real
+        await pusherServer.trigger('tables-channel', 'table-updated', mesaActualizada);
 
         return NextResponse.json(mesaActualizada, { status: 200 });
     } catch (error) {

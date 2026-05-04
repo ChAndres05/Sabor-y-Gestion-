@@ -7,15 +7,12 @@ import { TableSummaryCards } from './components/TableSummaryCards';
 import { ZoneFilterChips } from './components/ZoneFilterChips';
 import { ZoneFormModal } from './components/ZoneFormModal';
 import {
-  applyWaiterTableStatusOverlayMock,
   createTableMock,
   createZoneMock,
   deleteTableMock,
-  listTablesMock,
-  listZonesMock,
   updateTableMock,
-  updateTableStatusMock,
 } from '../../shared/mocks/tables.mock';
+import { pusherClient } from '../../shared/utils/pusher';
 import type {
   RestaurantTable,
   TableFormValues,
@@ -126,21 +123,15 @@ export default function TableManagementPage({
   const loadZones = useCallback(async () => {
     setIsZonesLoading(true);
     try {
-      if (isAdmin) {
-        const response = await fetch(`${API_URL}/api/admin/zonas`);
-        if (!response.ok) throw new Error('Error al cargar zonas desde backend');
+      const response = await fetch(`${API_URL}/api/admin/zonas`);
+      if (!response.ok) throw new Error('Error al cargar zonas desde backend');
 
-        const data = await response.json();
-        if (!Array.isArray(data)) {
-          throw new Error('El servidor no devolvió una lista válida de zonas');
-        }
-
-        setZones(data.map(mapBackendZone).filter((zone) => zone.activo));
-        return;
+      const data = await response.json();
+      if (!Array.isArray(data)) {
+        throw new Error('El servidor no devolvió una lista válida de zonas');
       }
 
-      const mockedZones = await listZonesMock();
-      setZones(mockedZones.filter((zone) => zone.activo));
+      setZones(data.map(mapBackendZone).filter((zone) => zone.activo));
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -150,30 +141,24 @@ export default function TableManagementPage({
     } finally {
       setIsZonesLoading(false);
     }
-  }, [API_URL, isAdmin]);
+  }, [API_URL]);
 
   const loadTables = useCallback(async () => {
     setIsTablesLoading(true);
     try {
-      if (isAdmin) {
-        const response = await fetch(`${API_URL}/api/admin/mesas`);
-        if (!response.ok) throw new Error('Error al cargar mesas desde backend');
+      const response = await fetch(`${API_URL}/api/admin/mesas`);
+      if (!response.ok) throw new Error('Error al cargar mesas desde backend');
 
-        const data = await response.json();
-        if (!Array.isArray(data)) {
-          throw new Error('El servidor no devolvió una lista válida de mesas');
-        }
-
-        const backendTables = data
-          .map(mapBackendTable)
-          .filter((table) => table.activo);
-
-        setTables(applyWaiterTableStatusOverlayMock(backendTables));
-        return;
+      const data = await response.json();
+      if (!Array.isArray(data)) {
+        throw new Error('El servidor no devolvió una lista válida de mesas');
       }
 
-      const mockedTables = await listTablesMock();
-      setTables(mockedTables.filter((table) => table.activo));
+      const backendTables = data
+        .map(mapBackendTable)
+        .filter((table) => table.activo);
+
+      setTables(backendTables);
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -183,12 +168,36 @@ export default function TableManagementPage({
     } finally {
       setIsTablesLoading(false);
     }
-  }, [API_URL, isAdmin]);
+  }, [API_URL]);
 
   useEffect(() => {
     void loadZones();
     void loadTables();
   }, [loadZones, loadTables]);
+
+  useEffect(() => {
+    const channel = pusherClient.subscribe('tables-channel');
+    
+    channel.bind('table-updated', (updatedBackendTable: BackendTable) => {
+      const mappedTable = mapBackendTable(updatedBackendTable);
+      
+      setTables((currentTables) => {
+        if (mappedTable.activo) {
+          const exists = currentTables.some((t) => t.id === mappedTable.id);
+          if (exists) {
+            return currentTables.map((t) => (t.id === mappedTable.id ? mappedTable : t));
+          }
+          return [...currentTables, mappedTable];
+        } else {
+          return currentTables.filter((t) => t.id !== mappedTable.id);
+        }
+      });
+    });
+
+    return () => {
+      pusherClient.unsubscribe('tables-channel');
+    };
+  }, []);
 
   const filteredTables = useMemo(() => {
     return tables.filter((table) =>
@@ -340,16 +349,12 @@ export default function TableManagementPage({
       }
 
       if (confirmState.type === 'status') {
-        if (isAdmin) {
-          const response = await fetch(`${API_URL}/api/admin/mesas/${confirmState.table.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ estado: confirmState.nextStatus }),
-          });
-          if (!response.ok) throw new Error('Error al actualizar estado');
-        } else {
-          await updateTableStatusMock(confirmState.table.id, confirmState.nextStatus);
-        }
+        const response = await fetch(`${API_URL}/api/admin/mesas/${confirmState.table.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: confirmState.nextStatus }),
+        });
+        if (!response.ok) throw new Error('Error al actualizar estado');
 
         setFeedback({
           type: 'success',
@@ -386,9 +391,7 @@ export default function TableManagementPage({
 
           <h1 className="text-title font-bold text-text">Gestión de mesas</h1>
           <p className="mt-1 text-[14px] leading-5 text-gray-500">
-            {isAdmin
-              ? 'Administra el salón con datos reales del backend. Los cambios mock del mesero se muestran encima solo para probar el flujo.'
-              : 'Consulta el salón y gestiona pedidos con datos mockeados del frontend.'}
+            Administra el salón y gestiona pedidos utilizando los datos del backend.
           </p>
 
           <div className="mt-4">
