@@ -422,7 +422,7 @@ export default function MeseroOrderFlowPage({
         categoriaId: selectedCategoryId,
         productoId: selectedProductId,
         cantidad: Number(quantity),
-        observacion,
+        observacion: observation,
         ingredientes: ingredientSelections.map((ingredient) => ({
           nombre: ingredient.nombre,
           incluido: ingredient.incluido,
@@ -557,8 +557,8 @@ export default function MeseroOrderFlowPage({
   };
 
   return (
-    <main className="min-h-screen bg-background px-3 py-5 text-text">
-      <div className="mx-auto w-full max-w-[430px]">
+    <main className="min-h-screen bg-background px-3 py-5 text-text md:px-6 md:py-8">
+      <div className="mx-auto w-full max-w-[430px] md:max-w-5xl">
         <div className="mb-4 flex items-center justify-between">
           <button
             type="button"
@@ -593,14 +593,14 @@ export default function MeseroOrderFlowPage({
           </div>
         ) : (
           <>
-            <div className="mb-4 rounded-2xl bg-white/60 p-1 shadow-sm">
-              <div className="grid grid-cols-3 gap-1">
+            <div className="mb-4 rounded-2xl bg-white/60 p-1 shadow-sm md:w-max">
+              <div className="grid grid-cols-3 gap-1 md:flex md:gap-2">
                 {(['cliente', 'menu', 'pedido'] as const).map((step) => (
                   <button
                     key={step}
                     type="button"
                     onClick={() => setActiveStep(step)}
-                    className={`rounded-xl px-3 py-2 text-[12px] font-bold capitalize transition-colors ${
+                    className={`rounded-xl px-3 py-2 text-[12px] font-bold capitalize transition-colors md:px-6 ${
                       activeStep === step
                         ? 'bg-white text-text shadow-sm'
                         : 'text-gray-500 hover:bg-white/60'
@@ -613,7 +613,7 @@ export default function MeseroOrderFlowPage({
             </div>
 
             {activeStep === 'cliente' && (
-              <section className="rounded-[1.5rem] bg-white p-5 shadow-sm">
+              <section className="rounded-[1.5rem] bg-white p-5 shadow-sm md:max-w-xl">
                 <h2 className="text-[20px] font-bold text-text">Cliente del pedido</h2>
                 <p className="mt-1 text-[13px] leading-5 text-gray-500">
                   Busca por CI para autocompletar datos. Si no está registrado, continúa con una referencia manual.
@@ -750,9 +750,9 @@ export default function MeseroOrderFlowPage({
                       </div>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                       {products.map((product) => (
-                        <article key={product.id} className="rounded-2xl bg-white p-4 shadow-sm">
+                        <article key={product.id} className="rounded-2xl bg-white p-4 shadow-sm flex flex-col justify-between">
                           <div className="grid grid-cols-[48px_1fr_auto] gap-3">
                             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-background text-[22px]">
                               {getItemIcon(product.categoryId)}
@@ -841,7 +841,7 @@ export default function MeseroOrderFlowPage({
                   </div>
                 ) : (
                   <>
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                       {order.items.map((item) => {
                         const removedIngredients = getRemovedIngredients(item);
 
@@ -908,13 +908,13 @@ export default function MeseroOrderFlowPage({
                     </div>
 
                     {!isBillRequested && (
-                      <div className="space-y-3">
+                      <div className="flex flex-col gap-3 md:flex-row md:flex-wrap">
                         {order.estado === 'REGISTRADO' && (
                           <button
                             type="button"
                             onClick={() => void handleChangeOrderStatus('EN_PREPARACION')}
                             disabled={isChangingStatus || !hasItems}
-                            className="w-full rounded-xl bg-primary px-5 py-3 text-[14px] font-bold text-white disabled:opacity-60"
+                            className="w-full md:w-auto flex-1 rounded-xl bg-primary px-5 py-3 text-[14px] font-bold text-white disabled:opacity-60"
                           >
                             Enviar a cocina
                           </button>
@@ -925,7 +925,7 @@ export default function MeseroOrderFlowPage({
                             type="button"
                             onClick={() => void handleChangeOrderStatus('LISTO')}
                             disabled={isChangingStatus}
-                            className="w-full rounded-xl bg-info px-5 py-3 text-[14px] font-bold text-white disabled:opacity-60"
+                            className="w-full md:w-auto flex-1 rounded-xl bg-info px-5 py-3 text-[14px] font-bold text-white disabled:opacity-60"
                           >
                             Simular cocina: listo para entregar
                           </button>
@@ -936,7 +936,7 @@ export default function MeseroOrderFlowPage({
                             type="button"
                             onClick={() => void handleChangeOrderStatus('ENTREGADO')}
                             disabled={isChangingStatus}
-                            className="w-full rounded-xl bg-success px-5 py-3 text-[14px] font-bold text-white disabled:opacity-60"
+                            className="w-full md:w-auto flex-1 rounded-xl bg-success px-5 py-3 text-[14px] font-bold text-white disabled:opacity-60"
                           >
                             Marcar entregado en mesa
                           </button>
@@ -947,7 +947,7 @@ export default function MeseroOrderFlowPage({
                             type="button"
                             onClick={() => void handleRequestBill()}
                             disabled={isRequestingBill}
-                            className="w-full rounded-xl bg-primary px-5 py-3 text-[14px] font-bold text-white disabled:opacity-60"
+                            className="w-full md:w-auto flex-1 rounded-xl bg-primary px-5 py-3 text-[14px] font-bold text-white disabled:opacity-60"
                           >
                             {isRequestingBill ? 'Solicitando...' : 'Solicitar cuenta'}
                           </button>

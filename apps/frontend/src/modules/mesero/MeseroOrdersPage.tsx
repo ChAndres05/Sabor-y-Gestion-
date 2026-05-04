@@ -175,8 +175,8 @@ export default function MeseroOrdersPage({
   };
 
   return (
-    <main className="min-h-screen bg-background px-3 py-5 text-text">
-      <div className="mx-auto w-full max-w-[430px]">
+    <main className="min-h-screen bg-background px-3 py-5 text-text md:px-6 md:py-8">
+      <div className="mx-auto w-full max-w-[430px] md:max-w-5xl">
         <button
           type="button"
           onClick={onBack}
@@ -208,16 +208,15 @@ export default function MeseroOrdersPage({
           </div>
         </div>
 
-        <div className="mb-4 rounded-2xl bg-white/60 p-1 shadow-sm">
-          <div className="grid grid-cols-2 gap-1">
+        <div className="mb-4 rounded-2xl bg-white/60 p-1 shadow-sm md:w-max">
+          <div className="grid grid-cols-2 gap-1 md:flex md:gap-2">
             {(['activos', 'completados'] as const).map((tab) => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => setActiveTab(tab)}
-                className={`rounded-xl px-3 py-2 text-[12px] font-bold capitalize ${
-                  activeTab === tab ? 'bg-white text-text shadow-sm' : 'text-gray-500'
-                }`}
+                className={`rounded-xl px-3 py-2 md:px-6 text-[12px] font-bold capitalize transition-colors ${activeTab === tab ? 'bg-white text-text shadow-sm' : 'text-gray-500 hover:bg-white/40'
+                  }`}
               >
                 {tab}
               </button>
@@ -237,7 +236,7 @@ export default function MeseroOrdersPage({
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {visibleOrders.map((order) => {
               const table = tableById[order.tableId];
               const billRequested = table?.estado === 'CUENTA_SOLICITADA';

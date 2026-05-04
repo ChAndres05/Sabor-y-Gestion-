@@ -9,7 +9,7 @@ export async function GET() {
       include: { categoria: true } // Incluimos los datos de la categoría para mostrar el nombre
     });
     return NextResponse.json(productos);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Error al obtener los productos' }, { status: 500 });
   }
 }
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       }
     });
     return NextResponse.json(nuevoProducto);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Error al crear el producto' }, { status: 500 });
   }
 }
