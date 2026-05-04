@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { LoginForm } from './modules/auth/LoginForm';
 import RegisterForm from './modules/auth/RegisterForm';
 import ForgotPasswordPage from './modules/auth/ForgotPasswordPage';
@@ -15,7 +15,6 @@ import ClientProductDetailPage from './modules/cliente/ClientProductDetailPage';
 import UsersPage from './modules/users/UsersPage';
 import MenuManagementPage from './modules/menu/MenuManagementPage';
 import TableManagementPage from './modules/tables/TableManagementPage';
-import TableOrderPage from './modules/tables/TableOrderPage';
 
 type AppScreen =
   | 'login'
@@ -56,20 +55,63 @@ function getScreenByRole(role: AuthUser['rol']): AppScreen {
 }
 
 function App() {
-  const [screen, setScreen] = useState<AppScreen>('login');
+  const [screenState, setScreenState] = useState<AppScreen>('login');
   const [sessionUser, setSessionUser] = useState<AuthUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
-  const [selectedClientProductId, setSelectedClientProductId] = useState<
-    number | null
-  >(null);
+  const [selectedClientProductId, setSelectedClientProductId] = useState<number | null>(null);
   const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
+
+  const setScreen = useCallback((
+    newScreen: AppScreen, 
+    options?: { tableId?: number | null; productId?: number | null; replace?: boolean }
+  ) => {
+    // Avoid re-pushing the exact same state sequentially if it's already current
+    const nextTableId = options && options.tableId !== undefined ? options.tableId : selectedTableId;
+    const nextProductId = options && options.productId !== undefined ? options.productId : selectedClientProductId;
+    
+    const newState = {
+      screen: newScreen,
+      selectedTableId: nextTableId,
+      selectedClientProductId: nextProductId,
+    };
+    
+    if (options?.replace) {
+      window.history.replaceState(newState, '', '#' + newScreen);
+    } else {
+      window.history.pushState(newState, '', '#' + newScreen);
+    }
+    
+    setScreenState(newScreen);
+    if (options && options.tableId !== undefined) setSelectedTableId(nextTableId);
+    if (options && options.productId !== undefined) setSelectedClientProductId(nextProductId);
+  }, [selectedTableId, selectedClientProductId]);
+
+  // Manejar el botón de atrás / adelante del navegador
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const state = event.state as { screen?: AppScreen; selectedTableId?: number | null; selectedClientProductId?: number | null } | null;
+      if (state && state.screen) {
+        setScreenState(state.screen);
+        if (state.selectedTableId !== undefined) setSelectedTableId(state.selectedTableId);
+        if (state.selectedClientProductId !== undefined) setSelectedClientProductId(state.selectedClientProductId);
+      } else {
+        // Fallback
+        const hash = window.location.hash.replace('#', '') as AppScreen;
+        if (hash) setScreenState(hash);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     try {
       const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
 
       if (!savedAuth) {
+        setScreen('login', { replace: true });
         setIsBootstrapping(false);
         return;
       }
@@ -82,13 +124,24 @@ function App() {
       if (parsed?.accessToken && parsed?.user) {
         setAccessToken(parsed.accessToken);
         setSessionUser(parsed.user);
-        setScreen(getScreenByRole(parsed.user.rol));
+        
+        // Si hay una sesión válida y es la primera carga, 
+        // reemplazamos el hash actual con la pantalla que le corresponde
+        const hash = window.location.hash.replace('#', '') as AppScreen;
+        if (hash && hash !== 'login' && hash !== 'register' && hash !== 'forgot-password') {
+          // Si el usuario intentó acceder a una ruta específica, lo dejamos pasar si tiene permisos (simplificado)
+          setScreen(hash, { replace: true });
+        } else {
+          setScreen(getScreenByRole(parsed.user.rol), { replace: true });
+        }
       }
     } catch {
       localStorage.removeItem(AUTH_STORAGE_KEY);
+      setScreen('login', { replace: true });
     } finally {
       setIsBootstrapping(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleLoginSuccess = (session: AuthSession) => {
@@ -108,9 +161,7 @@ function App() {
   const handleLogout = () => {
     setAccessToken(null);
     setSessionUser(null);
-    setSelectedClientProductId(null);
-    setSelectedTableId(null);
-    setScreen('login');
+    setScreen('login', { tableId: null, productId: null, replace: true });
     localStorage.removeItem(AUTH_STORAGE_KEY);
   };
 
@@ -121,6 +172,8 @@ function App() {
       </main>
     );
   }
+
+  const screen = screenState;
 
   return (
     <main className="min-h-screen bg-background font-sans text-text antialiased">
@@ -163,8 +216,7 @@ function App() {
           role="ADMIN"
           onBack={() => setScreen('admin-menu')}
           onOpenTableOrder={(tableId) => {
-            setSelectedTableId(tableId);
-            setScreen('table-order');
+            setScreen('table-order', { tableId });
           }}
         />
       )}
@@ -173,8 +225,8 @@ function App() {
         sessionUser &&
         accessToken &&
         selectedTableId !== null && (
-          <TableOrderPage
-            role="ADMIN"
+          <MeseroOrderFlowPage
+            user={sessionUser}
             tableId={selectedTableId}
             onBack={() => setScreen('table-management')}
           />
@@ -194,8 +246,7 @@ function App() {
           role="MESERO"
           onBack={() => setScreen('mesero-menu')}
           onOpenTableOrder={(tableId) => {
-            setSelectedTableId(tableId);
-            setScreen('mesero-table-order');
+            setScreen('mesero-table-order', { tableId });
           }}
         />
       )}
@@ -217,8 +268,7 @@ function App() {
           user={sessionUser}
           onBack={() => setScreen('mesero-menu')}
           onOpenOrder={(tableId) => {
-            setSelectedTableId(tableId);
-            setScreen('mesero-table-order');
+            setScreen('mesero-table-order', { tableId });
           }}
         />
       )}
@@ -236,8 +286,7 @@ function App() {
           user={sessionUser}
           onLogout={handleLogout}
           onOpenProductDetail={(productId) => {
-            setSelectedClientProductId(productId);
-            setScreen('client-product-detail');
+            setScreen('client-product-detail', { productId });
           }}
         />
       )}

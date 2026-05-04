@@ -42,7 +42,7 @@ interface MeseroOrderFlowPageProps {
   user: AuthUser;
   tableId: number;
   onBack: () => void;
-  onOpenOrders: () => void;
+  onOpenOrders?: () => void;
 }
 
 function formatCurrency(value: number) {
@@ -569,13 +569,15 @@ export default function MeseroOrderFlowPage({
             ☰
           </button>
 
-          <button
-            type="button"
-            onClick={onOpenOrders}
-            className="rounded-full bg-white px-4 py-2 text-[12px] font-bold text-primary shadow-sm"
-          >
-            Mis pedidos
-          </button>
+          {onOpenOrders && (
+            <button
+              type="button"
+              onClick={onOpenOrders}
+              className="rounded-full bg-white px-4 py-2 text-[12px] font-bold text-primary shadow-sm"
+            >
+              Mis pedidos
+            </button>
+          )}
         </div>
 
         <header className="mb-4">
