@@ -149,6 +149,23 @@ export async function createZoneMock(payload: ZoneFormValues): Promise<Zone> {
 }
 
 export async function listTablesMock(): Promise<RestaurantTable[]> {
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/mesas`);
+    if (res.ok) {
+      const data = await res.json();
+      return data.map((t: any) => ({
+        id: t.id_mesa,
+        numero: t.numero,
+        capacidad: t.capacidad,
+        zoneId: t.id_zona,
+        estado: t.estado,
+        activo: t.activa,
+      }));
+    }
+  } catch (error) {
+    console.error('API fail, using mock data for tables', error);
+  }
+
   await delay();
   return applyWaiterTableStatusOverlayMock(tables)
     .sort((a, b) => a.numero - b.numero)
@@ -158,6 +175,33 @@ export async function listTablesMock(): Promise<RestaurantTable[]> {
 export async function createTableMock(
   payload: TableFormValues
 ): Promise<RestaurantTable> {
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/mesas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        numero: payload.numero,
+        capacidad: payload.capacidad,
+        id_zona: payload.zoneId,
+        activa: payload.activo,
+        estado: 'LIBRE'
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        id: data.id_mesa,
+        numero: data.numero,
+        capacidad: data.capacidad,
+        zoneId: data.id_zona,
+        estado: data.estado,
+        activo: data.activa
+      };
+    }
+  } catch (error) {
+    console.error('API fail for createTable', error);
+  }
+
   await delay();
 
   if (!payload.numero || payload.numero <= 0) {
@@ -202,6 +246,32 @@ export async function updateTableMock(
   tableId: number,
   payload: TableFormValues
 ): Promise<RestaurantTable> {
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/mesas/${tableId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        numero: payload.numero,
+        capacidad: payload.capacidad,
+        id_zona: payload.zoneId,
+        activa: payload.activo
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        id: data.id_mesa,
+        numero: data.numero,
+        capacidad: data.capacidad,
+        zoneId: data.id_zona,
+        estado: data.estado,
+        activo: data.activa
+      };
+    }
+  } catch (error) {
+    console.error('API fail for updateTable', error);
+  }
+
   await delay();
 
   const foundTable = tables.find((table) => table.id === tableId);
@@ -254,6 +324,27 @@ export async function updateTableStatusMock(
   tableId: number,
   status: TableStatus
 ): Promise<RestaurantTable> {
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/mesas/${tableId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estado: status })
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      return {
+        id: updated.id_mesa,
+        numero: updated.numero,
+        capacidad: updated.capacidad,
+        zoneId: updated.id_zona,
+        estado: updated.estado,
+        activo: updated.activa,
+      };
+    }
+  } catch (error) {
+    console.error('API fail, using mock data for updateTableStatus', error);
+  }
+
   await delay();
 
   const foundTable = tables.find((table) => table.id === tableId);
@@ -285,6 +376,15 @@ export async function updateTableStatusMock(
 }
 
 export async function deleteTableMock(tableId: number): Promise<void> {
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/mesas/${tableId}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) return;
+  } catch (error) {
+    console.error('API fail for deleteTable', error);
+  }
+
   await delay();
 
   const foundTable = tables.find((table) => table.id === tableId);
