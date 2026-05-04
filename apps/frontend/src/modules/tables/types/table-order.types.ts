@@ -1,9 +1,9 @@
 export type TableOrderStatus =
-  | 'ABIERTO'
+  | 'REGISTRADO'
   | 'EN_PREPARACION'
   | 'LISTO'
+  | 'EN_CAMINO'
   | 'ENTREGADO'
-  | 'CUENTA_SOLICITADA'
   | 'PAGADO'
   | 'CANCELADO';
 
@@ -11,6 +11,18 @@ export interface TableOrderCustomer {
   nombre: string;
   telefono: string;
   ci: string;
+  idUsuario?: number | null;
+}
+
+export interface OrderProductIngredient {
+  id: number;
+  nombre: string;
+  incluidoPorDefecto: boolean;
+}
+
+export interface TableOrderItemIngredient {
+  nombre: string;
+  incluido: boolean;
 }
 
 export interface TableOrderItem {
@@ -21,6 +33,7 @@ export interface TableOrderItem {
   categoriaNombre: string;
   cantidad: number;
   observacion: string;
+  ingredientes: TableOrderItemIngredient[];
   precioUnitario: number;
   tiempoPreparacion: number;
   subtotal: number;
@@ -29,11 +42,19 @@ export interface TableOrderItem {
 export interface TableOrder {
   id: number;
   tableId: number;
+  tipoPedido: 'MESA';
   estado: TableOrderStatus;
+  waiterName: string;
   customer: TableOrderCustomer;
   items: TableOrderItem[];
+  subtotal: number;
+  impuesto: number;
+  descuento: number;
   total: number;
+  tiempoEstimadoMinutos: number;
+  observaciones: string;
   fechaCreacion: string;
+  fechaEntrega?: string;
 }
 
 export interface OrderCatalogCategory {
@@ -49,6 +70,7 @@ export interface OrderCatalogProduct {
   precio: number;
   tiempoPreparacion: number;
   disponible: boolean;
+  ingredientes: OrderProductIngredient[];
 }
 
 export interface AddOrderItemPayload {
@@ -56,4 +78,7 @@ export interface AddOrderItemPayload {
   productoId: number;
   cantidad: number;
   observacion: string;
+  ingredientes: TableOrderItemIngredient[];
 }
+
+export type UpdateOrderItemPayload = AddOrderItemPayload;

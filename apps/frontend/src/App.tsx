@@ -6,6 +6,8 @@ import type { AuthSession, AuthUser } from './modules/auth/types/auth.types';
 import { USER_ROLES } from './shared/constants/roles';
 import AdminMenuPage from './modules/admin/AdminMenuPage';
 import MeseroHomePage from './modules/mesero/MeseroHomePage';
+import MeseroOrderFlowPage from './modules/mesero/MeseroOrderFlowPage';
+import MeseroOrdersPage from './modules/mesero/MeseroOrdersPage';
 import CocinaHomePage from './modules/cocina/CocinaHomePage';
 import CajeroHomePage from './modules/cajero/CajeroHomePage';
 import ClienteHomePage from './modules/cliente/ClienteHomePage';
@@ -27,6 +29,7 @@ type AppScreen =
   | 'mesero-home'
   | 'mesero-tables'
   | 'mesero-table-order'
+  | 'mesero-orders'
   | 'mesero-menu'
   | 'cocina-home'
   | 'cajero-home'
@@ -40,7 +43,7 @@ function getScreenByRole(role: AuthUser['rol']): AppScreen {
     case USER_ROLES.ADMIN:
       return 'admin-menu';
     case USER_ROLES.MESERO:
-      return 'mesero-tables';
+      return 'mesero-menu';
     case USER_ROLES.COCINERO:
       return 'cocina-home';
     case USER_ROLES.CAJERO:
@@ -182,13 +185,14 @@ function App() {
           user={sessionUser}
           onLogout={handleLogout}
           onOpenTables={() => setScreen('mesero-tables')}
+          onOpenOrders={() => setScreen('mesero-orders')}
         />
       )}
 
       {screen === 'mesero-tables' && sessionUser && accessToken && (
         <TableManagementPage
           role="MESERO"
-           onBack={() => setScreen('mesero-menu')}
+          onBack={() => setScreen('mesero-menu')}
           onOpenTableOrder={(tableId) => {
             setSelectedTableId(tableId);
             setScreen('mesero-table-order');
@@ -200,12 +204,24 @@ function App() {
         sessionUser &&
         accessToken &&
         selectedTableId !== null && (
-          <TableOrderPage
-            role="MESERO"
+          <MeseroOrderFlowPage
+            user={sessionUser}
             tableId={selectedTableId}
             onBack={() => setScreen('mesero-tables')}
+            onOpenOrders={() => setScreen('mesero-orders')}
           />
         )}
+
+      {screen === 'mesero-orders' && sessionUser && accessToken && (
+        <MeseroOrdersPage
+          user={sessionUser}
+          onBack={() => setScreen('mesero-menu')}
+          onOpenOrder={(tableId) => {
+            setSelectedTableId(tableId);
+            setScreen('mesero-table-order');
+          }}
+        />
+      )}
 
       {screen === 'cocina-home' && sessionUser && accessToken && (
         <CocinaHomePage user={sessionUser} onLogout={handleLogout} />

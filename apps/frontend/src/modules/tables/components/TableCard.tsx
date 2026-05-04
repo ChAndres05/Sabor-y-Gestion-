@@ -22,6 +22,8 @@ function getStatusStyles(status: TableStatus) {
       return 'bg-process text-white';
     case 'CUENTA_SOLICITADA':
       return 'bg-info text-white';
+    case 'FUERA_DE_SERVICIO':
+      return 'bg-gray-500 text-white';
   }
 }
 
@@ -35,15 +37,20 @@ function getStatusLabel(status: TableStatus) {
       return 'Reservada';
     case 'CUENTA_SOLICITADA':
       return 'Cuenta solicitada';
+    case 'FUERA_DE_SERVICIO':
+      return 'Fuera de servicio';
   }
 }
 
-const ALL_STATUSES: TableStatus[] = [
+const ADMIN_STATUSES: TableStatus[] = [
   'LIBRE',
   'OCUPADA',
   'RESERVADA',
   'CUENTA_SOLICITADA',
+  'FUERA_DE_SERVICIO',
 ];
+
+const WAITER_STATUSES: TableStatus[] = ['LIBRE', 'OCUPADA', 'CUENTA_SOLICITADA'];
 
 export function TableCard({
   role,
@@ -57,6 +64,8 @@ export function TableCard({
   onChangeStatus,
 }: TableCardProps) {
   const isAdmin = role === 'ADMIN';
+  const availableStatuses = isAdmin ? ADMIN_STATUSES : WAITER_STATUSES;
+  const canManageOrder = table.estado !== 'FUERA_DE_SERVICIO';
 
   return (
     <article
@@ -91,14 +100,16 @@ export function TableCard({
       </div>
 
       {menuOpen && (
-        <div className="absolute right-3 top-12 z-20 min-w-[200px] overflow-hidden rounded-2xl bg-white text-text shadow-xl">
-          <button
-            type="button"
-            onClick={onManageOrder}
-            className="block w-full px-4 py-3 text-left text-[14px] font-medium transition-colors hover:bg-black/5"
-          >
-            Gestionar pedido
-          </button>
+        <div className="absolute right-3 top-12 z-20 min-w-[210px] overflow-hidden rounded-2xl bg-white text-text shadow-xl">
+          {canManageOrder && (
+            <button
+              type="button"
+              onClick={onManageOrder}
+              className="block w-full px-4 py-3 text-left text-[14px] font-medium transition-colors hover:bg-black/5"
+            >
+              Gestionar pedido
+            </button>
+          )}
 
           {isAdmin && (
             <button
@@ -110,8 +121,9 @@ export function TableCard({
             </button>
           )}
 
-          {ALL_STATUSES.filter((status) => status !== table.estado).map(
-            (status) => (
+          {availableStatuses
+            .filter((status) => status !== table.estado)
+            .map((status) => (
               <button
                 key={status}
                 type="button"
@@ -120,8 +132,7 @@ export function TableCard({
               >
                 Marcar {getStatusLabel(status).toLowerCase()}
               </button>
-            )
-          )}
+            ))}
 
           {isAdmin && (
             <button
