@@ -14,6 +14,7 @@ import UsersPage from './modules/users/UsersPage';
 import MenuManagementPage from './modules/menu/MenuManagementPage';
 import TableManagementPage from './modules/tables/TableManagementPage';
 import TableOrderPage from './modules/tables/TableOrderPage';
+import MonitorCocinaPage from './modules/cocina/MonitorCocinaPage';
 
 type AppScreen =
   | 'login'
@@ -31,7 +32,8 @@ type AppScreen =
   | 'cocina-home'
   | 'cajero-home'
   | 'cliente-home'
-  | 'client-product-detail';
+  | 'client-product-detail'
+  | 'admin-kitchen-monitor';
 
 const AUTH_STORAGE_KEY = 'gestionysabor_auth';
 
@@ -144,6 +146,7 @@ function App() {
           onOpenUsers={() => setScreen('admin-users')}
           onOpenMenuManagement={() => setScreen('menu-management')}
           onOpenTableManagement={() => setScreen('table-management')}
+          onOpenKitchenMonitor={() => setScreen('admin-kitchen-monitor')}
         />
       )}
 
@@ -153,6 +156,10 @@ function App() {
 
       {screen === 'menu-management' && sessionUser && accessToken && (
         <MenuManagementPage onBack={() => setScreen('admin-menu')} />
+      )}
+
+      {screen === 'admin-kitchen-monitor' && sessionUser && accessToken && (
+        <MonitorCocinaPage onBack={() => setScreen('admin-menu')} />
       )}
 
       {screen === 'table-management' && sessionUser && accessToken && (
