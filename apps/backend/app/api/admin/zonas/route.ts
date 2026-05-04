@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
+import { pusherServer } from '../../../../lib/pusher';
 
 // GET: Listar todas las zonas (Azotea, Terraza, etc.)
 export async function GET() {
@@ -27,6 +28,8 @@ export async function POST(request: Request) {
         const nuevaZona = await prisma.zonas.create({
             data: { nombre, descripcion },
         });
+
+        await pusherServer.trigger('tables-channel', 'zone-updated', nuevaZona);
 
         return NextResponse.json(nuevaZona, { status: 201 });
     } catch (error: unknown) {

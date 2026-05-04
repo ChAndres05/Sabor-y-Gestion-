@@ -37,9 +37,11 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         const resolvedParams = await params;
         const mesaId = parseInt(resolvedParams.id);
 
-        await prisma.mesas.delete({
+        const mesaBorrada = await prisma.mesas.delete({
             where: { id_mesa: mesaId },
         });
+
+        await pusherServer.trigger('tables-channel', 'table-updated', { ...mesaBorrada, activa: false });
 
         return NextResponse.json({ message: "MESA_ELIMINADA" }, { status: 200 });
     } catch (error) {

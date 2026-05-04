@@ -50,7 +50,7 @@ const ADMIN_STATUSES: TableStatus[] = [
   'FUERA_DE_SERVICIO',
 ];
 
-const WAITER_STATUSES: TableStatus[] = ['LIBRE', 'OCUPADA', 'CUENTA_SOLICITADA'];
+const WAITER_STATUSES: TableStatus[] = ['LIBRE', 'OCUPADA', 'CUENTA_SOLICITADA', 'FUERA_DE_SERVICIO'];
 
 export function TableCard({
   role,

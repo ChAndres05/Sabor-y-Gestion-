@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
+import { pusherServer } from "../../../../lib/pusher";
 
 export async function GET(req: Request) {
     try {
@@ -38,6 +39,8 @@ export async function POST(req: Request) {
                 forma: forma || "CUADRADA",
             },
         });
+
+        await pusherServer.trigger('tables-channel', 'table-updated', nuevaMesa);
 
         return NextResponse.json(nuevaMesa, { status: 201 });
     } catch (error) {

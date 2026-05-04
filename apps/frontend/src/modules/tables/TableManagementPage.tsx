@@ -194,6 +194,22 @@ export default function TableManagementPage({
       });
     });
 
+    channel.bind('zone-updated', (updatedBackendZone: BackendZone) => {
+      const mappedZone = mapBackendZone(updatedBackendZone);
+      
+      setZones((currentZones) => {
+        if (mappedZone.activo) {
+          const exists = currentZones.some((z) => z.id === mappedZone.id);
+          if (exists) {
+            return currentZones.map((z) => (z.id === mappedZone.id ? mappedZone : z));
+          }
+          return [...currentZones, mappedZone];
+        } else {
+          return currentZones.filter((z) => z.id !== mappedZone.id);
+        }
+      });
+    });
+
     return () => {
       pusherClient.unsubscribe('tables-channel');
     };
