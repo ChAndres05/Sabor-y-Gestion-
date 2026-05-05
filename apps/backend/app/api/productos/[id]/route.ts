@@ -25,7 +25,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
     });
     return NextResponse.json(productoActualizado);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Error al actualizar el producto' }, { status: 500 });
   }
 }
@@ -41,7 +41,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       await prisma.productos.delete({
         where: { id_producto: id }
       });
-    } catch (dbError) {
+    } catch {
       // Si falla (probablemente por Foreign Key constraints en ventas), hacemos borrado lógico
       await prisma.productos.update({
         where: { id_producto: id },
@@ -50,7 +50,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     }
 
     return NextResponse.json({ message: 'Producto eliminado correctamente' });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Error al eliminar el producto' }, { status: 500 });
   }
 }

@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AuthUser } from '../auth/types/auth.types';
-import {
-  listCategoriesMock,
-  listProductsMock,
-} from '../../shared/mocks/menu.mock';
+import { menuApi } from '../menu/menu.api';
 import type { MenuCategory, MenuProduct } from '../menu/types/menu.types';
 
 interface ClientProductDetailPageProps {
@@ -34,13 +31,26 @@ export default function ClientProductDetailPage({
       setErrorMessage('');
 
       try {
-        const [categoriesData, productsData] = await Promise.all([
-          listCategoriesMock(),
-          listProductsMock(),
+        const [categoriesData, productsDataRaw] = await Promise.all([
+          menuApi.getCategories('', 'activas'),
+          menuApi.getProductos(),
         ]);
 
-        setCategories(categoriesData.filter((category) => category.activo));
-        setProducts(productsData);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mappedProducts: MenuProduct[] = productsDataRaw.map((p: any) => ({
+          id: p.id_producto || p.id,
+          categoryId: p.id_categoria || p.categoryId,
+          nombre: p.nombre,
+          descripcion: p.descripcion || '',
+          precio: Number(p.precio) || 0,
+          tiempoPreparacion: Number(p.tiempo_preparacion) || 0,
+          imagen: p.imagen_url || p.imagen || null,
+          activo: p.activo ?? true,
+          disponible: p.disponible ?? true,
+        }));
+
+        setCategories(categoriesData);
+        setProducts(mappedProducts);
       } catch (error) {
         setErrorMessage(
           error instanceof Error

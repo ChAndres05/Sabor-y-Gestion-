@@ -33,10 +33,15 @@ export function TableSummaryCards({ tables }: TableSummaryCardsProps) {
       value: countByStatus(tables, 'CUENTA_SOLICITADA'),
       className: 'bg-info/10 text-info',
     },
+    {
+      label: 'Fuera de servicio',
+      value: countByStatus(tables, 'FUERA_DE_SERVICIO'),
+      className: 'bg-gray-500/10 text-gray-500',
+    },
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
       {items.map((item) => (
         <div
           key={item.label}

@@ -4,18 +4,20 @@ interface MeseroHomePageProps {
   user: AuthUser;
   onLogout: () => void;
   onOpenTables: () => void;
+  onOpenOrders: () => void;
 }
 
 const menuItems = [
-  { key: 'mesas', label: 'Gestión de Mesas', enabled: true },
-  { key: 'pedidos', label: 'Pedidos', enabled: false },
-  { key: 'historial', label: 'Historial', enabled: false },
+  { key: 'mesas', label: 'Gestionar mesas', description: 'Cambiar estado y tomar pedido por mesa', enabled: true },
+  { key: 'pedidos', label: 'Gestionar pedidos', description: 'Ver pedidos listos, entregados y cuenta', enabled: true },
+  { key: 'historial', label: 'Historial', description: 'Disponible cuando backend exponga reportes', enabled: false },
 ];
 
 export default function MeseroHomePage({
   user,
   onLogout,
   onOpenTables,
+  onOpenOrders,
 }: MeseroHomePageProps) {
   return (
     <div className="min-h-screen bg-primary px-4 py-8 font-sans text-white">
@@ -27,6 +29,10 @@ export default function MeseroHomePage({
 
               if (item.key === 'mesas') {
                 onOpenTables();
+              }
+
+              if (item.key === 'pedidos') {
+                onOpenOrders();
               }
             };
 
@@ -42,7 +48,12 @@ export default function MeseroHomePage({
                     : 'cursor-default opacity-50'
                 }`}
               >
-                <span>{item.label}</span>
+                <span>
+                  <span className="block">{item.label}</span>
+                  <span className="mt-1 block text-[12px] font-medium opacity-75">
+                    {item.description}
+                  </span>
+                </span>
                 <span className="text-subtitle font-bold">{'>'}</span>
               </button>
             );
