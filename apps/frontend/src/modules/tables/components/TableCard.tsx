@@ -50,7 +50,7 @@ const ADMIN_STATUSES: TableStatus[] = [
   'FUERA_DE_SERVICIO',
 ];
 
-const WAITER_STATUSES: TableStatus[] = ['LIBRE', 'OCUPADA', 'CUENTA_SOLICITADA', 'FUERA_DE_SERVICIO'];
+const WAITER_STATUSES: TableStatus[] = ['LIBRE', 'OCUPADA', 'RESERVADA', 'CUENTA_SOLICITADA', 'FUERA_DE_SERVICIO'];
 
 export function TableCard({
   role,
@@ -121,6 +121,16 @@ export function TableCard({
             </button>
           )}
 
+          {table.estado === 'RESERVADA' && availableStatuses.includes('RESERVADA') && (
+            <button
+              type="button"
+              onClick={() => onChangeStatus('RESERVADA')}
+              className="block w-full px-4 py-3 text-left text-[14px] font-medium transition-colors hover:bg-black/5"
+            >
+              Editar reserva
+            </button>
+          )}
+
           {availableStatuses
             .filter((status) => status !== table.estado)
             .map((status) => (
@@ -130,7 +140,7 @@ export function TableCard({
                 onClick={() => onChangeStatus(status)}
                 className="block w-full px-4 py-3 text-left text-[14px] font-medium transition-colors hover:bg-black/5"
               >
-                Marcar {getStatusLabel(status).toLowerCase()}
+                {status === 'RESERVADA' ? 'Hacer una reserva' : `Marcar ${getStatusLabel(status).toLowerCase()}`}
               </button>
             ))}
 

@@ -3,6 +3,7 @@ import { ConfirmModal } from '../../shared/components/ConfirmModal';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import { TableCard } from './components/TableCard';
 import { TableFormModal } from './components/TableFormModal';
+import { ReservationModal } from './components/ReservationModal';
 import { TableSummaryCards } from './components/TableSummaryCards';
 import { ZoneFilterChips } from './components/ZoneFilterChips';
 import { ZoneFormModal } from './components/ZoneFormModal';
@@ -117,6 +118,7 @@ export default function TableManagementPage({
   const [isSubmittingTableForm, setIsSubmittingTableForm] = useState(false);
   const [openActionMenuId, setOpenActionMenuId] = useState<number | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
+  const [reservingTable, setReservingTable] = useState<RestaurantTable | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
@@ -393,6 +395,36 @@ export default function TableManagementPage({
     }
   };
 
+  const handleReservationConfirm = async () => {
+    if (!reservingTable) return;
+    setIsConfirming(true);
+
+    try {
+      const response = await fetch(`${API_URL}/api/admin/mesas/${reservingTable.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'RESERVADA' }),
+      });
+      if (!response.ok) throw new Error('Error al actualizar estado');
+
+      setFeedback({
+        type: 'success',
+        title: 'Mesa reservada',
+        message: `La mesa ${reservingTable.numero} ha sido reservada con éxito.`,
+      });
+      setReservingTable(null);
+      await loadTables();
+    } catch (error) {
+      setFeedback({
+        type: 'error',
+        title: 'No se pudo completar la acción',
+        message: error instanceof Error ? error.message : 'Ocurrió un error inesperado',
+      });
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
   return (
     <main className="h-screen overflow-hidden bg-background px-4 py-6 text-text">
       <div className="mx-auto flex h-full w-full max-w-screen-xl flex-col overflow-hidden">
@@ -512,7 +544,11 @@ export default function TableManagementPage({
                   }}
                   onChangeStatus={(nextStatus) => {
                     setOpenActionMenuId(null);
-                    setConfirmState({ type: 'status', table, nextStatus });
+                    if (nextStatus === 'RESERVADA') {
+                      setReservingTable(table);
+                    } else {
+                      setConfirmState({ type: 'status', table, nextStatus });
+                    }
                   }}
                 />
               ))}
@@ -566,6 +602,13 @@ export default function TableManagementPage({
         isLoading={isConfirming}
         onClose={() => setConfirmState(null)}
         onConfirm={handleConfirmAction}
+      />
+
+      <ReservationModal
+        open={Boolean(reservingTable)}
+        onClose={() => setReservingTable(null)}
+        onConfirm={handleReservationConfirm}
+        isLoading={isConfirming}
       />
 
       <FeedbackModal
