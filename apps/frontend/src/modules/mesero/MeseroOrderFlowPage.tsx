@@ -146,6 +146,7 @@ export default function MeseroOrderFlowPage({
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerFound, setCustomerFound] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<number>(0);
   const [selectedProductId, setSelectedProductId] = useState<number>(0);
@@ -220,6 +221,7 @@ export default function MeseroOrderFlowPage({
       setCustomerPhone(latestOrder.customer.telefono);
       setCustomerCi(latestOrder.customer.ci === '0' ? '' : latestOrder.customer.ci);
       setCustomerFound(Boolean(latestOrder.customer.idUsuario));
+      setSelectedCustomerId(latestOrder.customer.idUsuario ?? null);
     }
   };
 
@@ -253,11 +255,13 @@ export default function MeseroOrderFlowPage({
           setCustomerPhone(orderData.customer.telefono);
           setCustomerCi(orderData.customer.ci === '0' ? '' : orderData.customer.ci);
           setCustomerFound(Boolean(orderData.customer.idUsuario));
+          setSelectedCustomerId(orderData.customer.idUsuario ?? null);
           setActiveStep(orderData.items.length > 0 ? 'pedido' : 'menu');
         } else {
           setCustomerName('');
           setCustomerPhone('');
           setCustomerCi('');
+          setSelectedCustomerId(null);
           setActiveStep('cliente');
         }
       } catch (error) {
@@ -348,6 +352,7 @@ export default function MeseroOrderFlowPage({
 
       if (!foundCustomer) {
         setCustomerFound(false);
+        setSelectedCustomerId(null);
         setFeedback({
           type: 'info',
           title: 'Cliente no encontrado',
@@ -360,6 +365,7 @@ export default function MeseroOrderFlowPage({
       setCustomerPhone(foundCustomer.telefono);
       setCustomerCi(foundCustomer.ci);
       setCustomerFound(true);
+      setSelectedCustomerId(foundCustomer.idUsuario ?? null);
       setFeedback({
         type: 'success',
         title: 'Cliente encontrado',
@@ -378,6 +384,7 @@ export default function MeseroOrderFlowPage({
 
   const handleUseUnregisteredCustomer = () => {
     setCustomerFound(false);
+    setSelectedCustomerId(null);
     setCustomerCi('');
     setCustomerPhone('00000000');
     setCustomerName(table ? `Cliente no registrado - mesa ${table.numero}` : 'Cliente no registrado');
@@ -391,8 +398,8 @@ export default function MeseroOrderFlowPage({
         nombre: customerName,
         telefono: customerPhone,
         ci: customerCi,
-        idUsuario: customerFound ? undefined : null,
-      });
+        idUsuario: customerFound ? selectedCustomerId : null,
+      }, user.id);
       await updateTableStatusMock(tableId, 'OCUPADA');
       await refreshPageState();
       setActiveStep('menu');

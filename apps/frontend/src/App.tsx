@@ -10,12 +10,16 @@ import MeseroOrderFlowPage from './modules/mesero/MeseroOrderFlowPage';
 import MeseroOrdersPage from './modules/mesero/MeseroOrdersPage';
 import CajeroHomePage from './modules/cajero/CajeroHomePage';
 import ClienteHomePage from './modules/cliente/ClienteHomePage';
+import ClientMenuPage from './modules/cliente/ClientMenuPage';
 import ClientProductDetailPage from './modules/cliente/ClientProductDetailPage';
+import ClientReserveTablePage from './modules/cliente/ClientReserveTablePage';
+import ClientReservationsPage from './modules/cliente/ClientReservationsPage';
+import ClientOrdersPage from './modules/cliente/ClientOrdersPage';
 import UsersPage from './modules/users/UsersPage';
 import MenuManagementPage from './modules/menu/MenuManagementPage';
 import TableManagementPage from './modules/tables/TableManagementPage';
-// Importaciones resueltas de la rama kitchen-admin
 import MonitorCocinaPage from './modules/cocina/MonitorCocinaPage';
+import type { ClientNavigationKey } from './modules/cliente/types/client-flow.types';
 
 type AppScreen =
   | 'login'
@@ -34,7 +38,11 @@ type AppScreen =
   | 'cocina-home'
   | 'cajero-home'
   | 'cliente-home'
+  | 'client-menu'
   | 'client-product-detail'
+  | 'client-reserve-table'
+  | 'client-reservations'
+  | 'client-orders'
   | 'admin-kitchen-monitor';
 
 const AUTH_STORAGE_KEY = 'gestionysabor_auth';
@@ -56,6 +64,19 @@ function getScreenByRole(role: AuthUser['rol']): AppScreen {
   }
 }
 
+function getClientScreen(screen: ClientNavigationKey): AppScreen {
+  switch (screen) {
+    case 'menu':
+      return 'client-menu';
+    case 'reserve-table':
+      return 'client-reserve-table';
+    case 'reservations':
+      return 'client-reservations';
+    case 'orders':
+      return 'client-orders';
+  }
+}
+
 function App() {
   const [screenState, setScreenState] = useState<AppScreen>('login');
   const [sessionUser, setSessionUser] = useState<AuthUser | null>(null);
@@ -65,37 +86,50 @@ function App() {
   const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
 
   const setScreen = useCallback((
-    newScreen: AppScreen, 
+    newScreen: AppScreen,
     options?: { tableId?: number | null; productId?: number | null; replace?: boolean }
   ) => {
     const nextTableId = options?.tableId !== undefined ? options.tableId : selectedTableId;
     const nextProductId = options?.productId !== undefined ? options.productId : selectedClientProductId;
-    
+
     const newState = {
       screen: newScreen,
       selectedTableId: nextTableId,
       selectedClientProductId: nextProductId,
     };
-    
+
     if (options?.replace) {
       window.history.replaceState(newState, '', '#' + newScreen);
     } else {
       window.history.pushState(newState, '', '#' + newScreen);
     }
-    
+
     setScreenState(newScreen);
     if (options?.tableId !== undefined) setSelectedTableId(nextTableId);
     if (options?.productId !== undefined) setSelectedClientProductId(nextProductId);
   }, [selectedTableId, selectedClientProductId]);
 
-  // Manejar el botón de atrás / adelante del navegador
+  const navigateClient = useCallback(
+    (screen: ClientNavigationKey) => {
+      setScreen(getClientScreen(screen), { productId: null });
+    },
+    [setScreen]
+  );
+
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
-      const state = event.state as { screen?: AppScreen; selectedTableId?: number | null; selectedClientProductId?: number | null } | null;
+      const state = event.state as {
+        screen?: AppScreen;
+        selectedTableId?: number | null;
+        selectedClientProductId?: number | null;
+      } | null;
+
       if (state?.screen) {
         setScreenState(state.screen);
         if (state.selectedTableId !== undefined) setSelectedTableId(state.selectedTableId);
-        if (state.selectedClientProductId !== undefined) setSelectedClientProductId(state.selectedClientProductId);
+        if (state.selectedClientProductId !== undefined) {
+          setSelectedClientProductId(state.selectedClientProductId);
+        }
       } else {
         const hash = window.location.hash.replace('#', '') as AppScreen;
         if (hash) setScreenState(hash);
@@ -163,8 +197,7 @@ function App() {
       )}
       {screenState === 'register' && <RegisterForm onGoToLogin={() => setScreen('login')} />}
       {screenState === 'forgot-password' && <ForgotPasswordPage onBackToLogin={() => setScreen('login')} />}
-      
-      {/* Admin screens */}
+
       {screenState === 'admin-menu' && sessionUser && accessToken && (
         <AdminMenuPage
           user={sessionUser}
@@ -185,7 +218,6 @@ function App() {
         <MeseroOrderFlowPage user={sessionUser} tableId={selectedTableId} onBack={() => setScreen('table-management')} />
       )}
 
-      {/* Mesero screens */}
       {screenState === 'mesero-menu' && sessionUser && accessToken && (
         <MeseroHomePage user={sessionUser} onLogout={handleLogout} onOpenTables={() => setScreen('mesero-tables')} onOpenOrders={() => setScreen('mesero-orders')} />
       )}
@@ -199,14 +231,41 @@ function App() {
         <MeseroOrdersPage user={sessionUser} onBack={() => setScreen('mesero-menu')} onOpenOrder={(tableId) => setScreen('mesero-table-order', { tableId })} />
       )}
 
-      {/* Other roles */}
       {screenState === 'cocina-home' && sessionUser && accessToken && <MonitorCocinaPage onBack={handleLogout} />}
       {screenState === 'cajero-home' && sessionUser && accessToken && <CajeroHomePage user={sessionUser} onLogout={handleLogout} />}
       {screenState === 'cliente-home' && sessionUser && accessToken && (
-        <ClienteHomePage user={sessionUser} onLogout={handleLogout} onOpenProductDetail={(productId) => setScreen('client-product-detail', { productId })} />
+        <ClienteHomePage
+          user={sessionUser}
+          onLogout={handleLogout}
+          onNavigate={navigateClient}
+        />
+      )}
+      {screenState === 'client-menu' && sessionUser && accessToken && (
+        <ClientMenuPage
+          user={sessionUser}
+          onLogout={handleLogout}
+          onNavigate={navigateClient}
+          onOpenProductDetail={(productId) => setScreen('client-product-detail', { productId })}
+          onBack={() => setScreen('cliente-home')}
+        />
       )}
       {screenState === 'client-product-detail' && sessionUser && accessToken && selectedClientProductId !== null && (
-        <ClientProductDetailPage user={sessionUser} productId={selectedClientProductId} onBack={() => setScreen('cliente-home')} onLogout={handleLogout} />
+        <ClientProductDetailPage
+          user={sessionUser}
+          productId={selectedClientProductId}
+          onBack={() => setScreen('client-menu')}
+          onLogout={handleLogout}
+          onNavigate={navigateClient}
+        />
+      )}
+      {screenState === 'client-reserve-table' && sessionUser && accessToken && (
+        <ClientReserveTablePage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onBack={() => setScreen('cliente-home')} />
+      )}
+      {screenState === 'client-reservations' && sessionUser && accessToken && (
+        <ClientReservationsPage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onBack={() => setScreen('cliente-home')} />
+      )}
+      {screenState === 'client-orders' && sessionUser && accessToken && (
+        <ClientOrdersPage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onBack={() => setScreen('cliente-home')} />
       )}
     </main>
   );

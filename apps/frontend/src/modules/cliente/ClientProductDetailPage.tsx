@@ -1,17 +1,35 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AuthUser } from '../auth/types/auth.types';
+import ClientLayout from './components/ClientLayout';
 import { menuApi } from '../menu/menu.api';
 import type { MenuCategory, MenuProduct } from '../menu/types/menu.types';
+import type { ClientNavigationKey } from './types/client-flow.types';
 
 interface ClientProductDetailPageProps {
   user: AuthUser;
   productId: number;
   onBack: () => void;
   onLogout: () => void;
+  onNavigate: (screen: ClientNavigationKey) => void;
 }
 
 function formatPrice(value: number) {
   return `${value.toFixed(2)} Bs`;
+}
+
+function mapProductFromBackend(product: any): MenuProduct {
+  return {
+    id: product.id_producto || product.id,
+    categoryId: product.id_categoria || product.categoryId,
+    nombre: product.nombre,
+    descripcion: product.descripcion || '',
+    precio: Number(product.precio) || 0,
+    tiempoPreparacion:
+      Number(product.tiempo_preparacion) || Number(product.tiempoPreparacion) || 0,
+    imagen: product.imagen_url || product.imagen || null,
+    activo: product.activo ?? true,
+    disponible: product.disponible ?? true,
+  };
 }
 
 export default function ClientProductDetailPage({
@@ -19,6 +37,7 @@ export default function ClientProductDetailPage({
   productId,
   onBack,
   onLogout,
+  onNavigate,
 }: ClientProductDetailPageProps) {
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [products, setProducts] = useState<MenuProduct[]>([]);
@@ -36,26 +55,11 @@ export default function ClientProductDetailPage({
           menuApi.getProductos(),
         ]);
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mappedProducts: MenuProduct[] = productsDataRaw.map((p: any) => ({
-          id: p.id_producto || p.id,
-          categoryId: p.id_categoria || p.categoryId,
-          nombre: p.nombre,
-          descripcion: p.descripcion || '',
-          precio: Number(p.precio) || 0,
-          tiempoPreparacion: Number(p.tiempo_preparacion) || 0,
-          imagen: p.imagen_url || p.imagen || null,
-          activo: p.activo ?? true,
-          disponible: p.disponible ?? true,
-        }));
-
         setCategories(categoriesData);
-        setProducts(mappedProducts);
+        setProducts(productsDataRaw.map(mapProductFromBackend));
       } catch (error) {
         setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : 'No se pudo cargar el detalle del producto'
+          error instanceof Error ? error.message : 'No se pudo cargar el detalle del producto'
         );
       } finally {
         setIsLoading(false);
@@ -75,65 +79,38 @@ export default function ClientProductDetailPage({
     [categories, product]
   );
 
-  if (isLoading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-4 text-text">
-        <p className="text-content">Cargando detalle del plato...</p>
-      </main>
-    );
-  }
-
-  if (errorMessage || !product || !category) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="w-full max-w-md rounded-[1.75rem] bg-white p-6 text-center shadow-sm">
-          <p className="text-[18px] font-bold text-text">
-            No se pudo mostrar el plato
-          </p>
-          <p className="mt-2 text-[14px] leading-6 text-gray-500">
-            {errorMessage || 'El producto no está disponible en este momento.'}
-          </p>
-
-          <button
-            type="button"
-            onClick={onBack}
-            className="mt-5 rounded-2xl bg-primary px-5 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-primary-hover"
-          >
-            Volver al menú
-          </button>
-        </div>
-      </main>
-    );
-  }
-
   return (
-    <main className="h-screen overflow-hidden bg-background px-4 py-6 text-text">
-      <div className="mx-auto flex h-full w-full max-w-md flex-col overflow-hidden">
-        <div className="shrink-0">
-          <div className="flex items-center justify-between gap-3">
+    <ClientLayout
+      user={user}
+      active="menu"
+      title="Detalle del plato"
+      subtitle="Información lista para conectar con carrito, reserva o pedido futuro."
+      onNavigate={onNavigate}
+      onLogout={onLogout}
+      onBack={onBack}
+      maxWidthClassName="max-w-md"
+    >
+      <div className="h-full overflow-y-auto pr-1">
+        {isLoading ? (
+          <div className="rounded-2xl bg-white p-5 text-[14px] text-gray-500 shadow-sm">
+            Cargando detalle del plato...
+          </div>
+        ) : errorMessage || !product || !category ? (
+          <div className="rounded-[1.75rem] bg-white p-6 text-center shadow-sm">
+            <p className="text-[18px] font-bold text-text">No se pudo mostrar el plato</p>
+            <p className="mt-2 text-[14px] leading-6 text-gray-500">
+              {errorMessage || 'El producto no está disponible en este momento.'}
+            </p>
+
             <button
               type="button"
               onClick={onBack}
-              className="text-[28px] leading-none text-text"
+              className="mt-5 rounded-2xl bg-primary px-5 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-primary-hover"
             >
-              ←
-            </button>
-
-            <button
-              type="button"
-              onClick={onLogout}
-              className="rounded-2xl bg-white px-4 py-2 text-[14px] font-semibold text-text shadow-sm transition-colors hover:bg-black/5"
-            >
-              Salir
+              Volver al menú
             </button>
           </div>
-
-          <p className="mt-4 text-[14px] font-medium text-gray-500">
-            Hola, {user.nombre}
-          </p>
-        </div>
-
-        <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+        ) : (
           <article className="rounded-[1.75rem] bg-white p-5 shadow-sm">
             <div className="flex h-64 w-full items-center justify-center overflow-hidden rounded-[1.5rem] bg-background">
               {product.imagen ? (
@@ -152,9 +129,7 @@ export default function ClientProductDetailPage({
                 {category.nombre}
               </p>
 
-              <h1 className="mt-2 text-[24px] font-bold text-text">
-                {product.nombre}
-              </h1>
+              <h1 className="mt-2 text-[24px] font-bold text-text">{product.nombre}</h1>
 
               <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
                 <span className="text-[20px] font-bold text-primary">
@@ -162,15 +137,15 @@ export default function ClientProductDetailPage({
                 </span>
 
                 <span className="text-[14px] font-medium text-gray-500">
-                  Tiempo de preparación: {product.tiempoPreparacion} min
+                  Tiempo estimado: {product.tiempoPreparacion} min
                 </span>
 
                 <span
                   className={`text-[14px] font-semibold ${
-                    product.activo ? 'text-success' : 'text-alert'
+                    product.disponible && product.activo ? 'text-success' : 'text-alert'
                   }`}
                 >
-                  {product.activo ? 'Disponible' : 'No disponible'}
+                  {product.disponible && product.activo ? 'Disponible' : 'No disponible'}
                 </span>
               </div>
 
@@ -179,6 +154,10 @@ export default function ClientProductDetailPage({
                 <p className="mt-2 text-[14px] leading-7 text-gray-600">
                   {product.descripcion || 'Sin descripción registrada'}
                 </p>
+              </div>
+
+              <div className="mt-5 rounded-2xl bg-background p-4 text-[13px] leading-5 text-gray-600">
+                Flujo preparado: el cliente puede añadir este plato a un carrito, a una reserva o a un pedido cuando backend exponga ese endpoint.
               </div>
 
               <button
@@ -190,8 +169,8 @@ export default function ClientProductDetailPage({
               </button>
             </div>
           </article>
-        </div>
+        )}
       </div>
-    </main>
+    </ClientLayout>
   );
 }
