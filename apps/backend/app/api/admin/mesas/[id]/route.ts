@@ -16,42 +16,29 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                 where: { id_mesa: mesaId }
             });
 
-            // 2. SINCRONIZACIÓN MÁGICA: Si la mesa pasa a CUENTA_SOLICITADA, el pedido también.
-            if (estado === 'CUENTA_SOLICITADA') {
-                const pedidoActivo = await tx.pedidos.findFirst({
-                    where: { id_mesa: mesaId, estado: { notIn: ['PAGADO', 'CANCELADO'] } }
-                });
-
-                if (pedidoActivo && pedidoActivo.estado !== 'CUENTA_SOLICITADA') {
-                    await tx.pedidos.update({
-                        where: { id_pedido: pedidoActivo.id_pedido },
-                        data: { estado: 'CUENTA_SOLICITADA' }
-                    });
-                }
+            if (!mesaActual) {
+                throw new Error("MESA_NO_ENCONTRADA");
             }
 
-            // 3. RESTRICCIÓN AL LIBERAR: Validamos que haya pedido la cuenta
+            // 2. RESTRICCIÓN AL LIBERAR: Validamos que la MESA haya pedido la cuenta
             if (estado === 'LIBRE') {
                 const pedidoActivo = await tx.pedidos.findFirst({
                     where: {
                         id_mesa: mesaId,
                         estado: {
-                            notIn: ['PAGADO', 'CANCELADO'], // Solo buscamos pedidos en curso
+                            notIn: ['PAGADO', 'CANCELADO'], // Buscamos si hay pedido en curso
                         },
                     },
                 });
 
                 if (pedidoActivo) {
-                    // Nos fijamos si el pedido o la mesa estaban en CUENTA_SOLICITADA
-                    const cuentaSolicitada =
-                        pedidoActivo.estado === 'CUENTA_SOLICITADA' ||
-                        mesaActual?.estado === 'CUENTA_SOLICITADA';
-
-                    if (!cuentaSolicitada) {
+                    // Validamos que el estado ANTERIOR de la mesa haya sido CUENTA_SOLICITADA
+                    if (mesaActual.estado !== 'CUENTA_SOLICITADA') {
                         throw new Error("RESTRICCION_ESTADO_PEDIDO");
                     }
 
                     // Si pasó la validación, cerramos el pedido mandándolo al historial (PAGADO)
+                    // (PAGADO sí es un estado válido en tu base de datos)
                     await tx.pedidos.update({
                         where: { id_pedido: pedidoActivo.id_pedido },
                         data: { estado: 'PAGADO' },
@@ -59,7 +46,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                 }
             }
 
-            // 4. Actualizamos la mesa finalmente
+            // 3. Actualizamos la mesa finalmente
             const mesa = await tx.mesas.update({
                 where: { id_mesa: mesaId },
                 data: {
@@ -75,19 +62,22 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             return mesa;
         });
 
-        // Emitir evento por Pusher para actualizar en tiempo real
         await pusherServer.trigger('tables-channel', 'table-updated', mesaActualizada);
 
         return NextResponse.json(mesaActualizada, { status: 200 });
     } catch (error) {
         console.error("Error al actualizar mesa:", error);
 
-        // Manejo del error para devolverlo bonito al Frontend
-        if (error instanceof Error && error.message === "RESTRICCION_ESTADO_PEDIDO") {
-            return NextResponse.json(
-                { error: "No puedes liberar la mesa. Primero debes solicitar la cuenta del pedido." },
-                { status: 400 }
-            );
+        if (error instanceof Error) {
+            if (error.message === "MESA_NO_ENCONTRADA") {
+                return NextResponse.json({ error: "La mesa especificada no existe." }, { status: 404 });
+            }
+            if (error.message === "RESTRICCION_ESTADO_PEDIDO") {
+                return NextResponse.json(
+                    { error: "No puedes liberar la mesa. Primero debes solicitar la cuenta." },
+                    { status: 400 }
+                );
+            }
         }
 
         const errorMessage = error instanceof Error ? error.message : "Error desconocido";
