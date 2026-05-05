@@ -3,6 +3,7 @@ import { ConfirmModal } from '../../shared/components/ConfirmModal';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import { TableCard } from './components/TableCard';
 import { TableFormModal } from './components/TableFormModal';
+import { ReservationModal } from './components/ReservationModal';
 import { TableSummaryCards } from './components/TableSummaryCards';
 import { ZoneFilterChips } from './components/ZoneFilterChips';
 import { ZoneFormModal } from './components/ZoneFormModal';
@@ -38,6 +39,10 @@ type ConfirmState =
   | {
       type: 'delete';
       table: RestaurantTable;
+    }
+  | {
+      type: 'deleteZone';
+      zone: Zone;
     }
   | {
       type: 'status';
@@ -117,6 +122,7 @@ export default function TableManagementPage({
   const [isSubmittingTableForm, setIsSubmittingTableForm] = useState(false);
   const [openActionMenuId, setOpenActionMenuId] = useState<number | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
+  const [reservingTable, setReservingTable] = useState<RestaurantTable | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
@@ -364,6 +370,30 @@ export default function TableManagementPage({
         });
       }
 
+      if (confirmState.type === 'deleteZone') {
+        if (isAdmin) {
+          const response = await fetch(`${API_URL}/api/zonas/${confirmState.zone.id}`, {
+            method: 'DELETE',
+          });
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Error al eliminar zona');
+          }
+        } else {
+          throw new Error('Solo los administradores pueden eliminar zonas.');
+        }
+
+        setFeedback({
+          type: 'success',
+          title: 'Zona eliminada',
+          message: `La zona "${confirmState.zone.nombre}" y todas sus mesas fueron eliminadas.`,
+        });
+        
+        if (selectedZoneId === confirmState.zone.id) {
+          setSelectedZoneId('ALL');
+        }
+      }
+
       if (confirmState.type === 'status') {
         const response = await fetch(`${API_URL}/api/admin/mesas/${confirmState.table.id}`, {
           method: 'PUT',
@@ -381,6 +411,37 @@ export default function TableManagementPage({
 
       setConfirmState(null);
       setOpenActionMenuId(null);
+      await loadZones();
+      await loadTables();
+    } catch (error) {
+      setFeedback({
+        type: 'error',
+        title: 'No se pudo completar la acción',
+        message: error instanceof Error ? error.message : 'Ocurrió un error inesperado',
+      });
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  const handleReservationConfirm = async () => {
+    if (!reservingTable) return;
+    setIsConfirming(true);
+
+    try {
+      const response = await fetch(`${API_URL}/api/admin/mesas/${reservingTable.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'RESERVADA' }),
+      });
+      if (!response.ok) throw new Error('Error al actualizar estado');
+
+      setFeedback({
+        type: 'success',
+        title: 'Mesa reservada',
+        message: `La mesa ${reservingTable.numero} ha sido reservada con éxito.`,
+      });
+      setReservingTable(null);
       await loadTables();
     } catch (error) {
       setFeedback({
@@ -458,6 +519,7 @@ export default function TableManagementPage({
                 zones={zones}
                 selectedZoneId={selectedZoneId}
                 onSelectZone={setSelectedZoneId}
+                onDeleteZone={isAdmin ? (zone) => setConfirmState({ type: 'deleteZone', zone }) : undefined}
               />
             )}
           </div>
@@ -512,7 +574,11 @@ export default function TableManagementPage({
                   }}
                   onChangeStatus={(nextStatus) => {
                     setOpenActionMenuId(null);
-                    setConfirmState({ type: 'status', table, nextStatus });
+                    if (nextStatus === 'RESERVADA') {
+                      setReservingTable(table);
+                    } else {
+                      setConfirmState({ type: 'status', table, nextStatus });
+                    }
                   }}
                 />
               ))}
@@ -554,18 +620,33 @@ export default function TableManagementPage({
 
       <ConfirmModal
         open={Boolean(confirmState)}
-        title={confirmState?.type === 'delete' ? '¿Eliminar mesa?' : '¿Cambiar estado de la mesa?'}
+        title={
+          confirmState?.type === 'delete'
+            ? '¿Eliminar mesa?'
+            : confirmState?.type === 'deleteZone'
+            ? '¿Eliminar zona?'
+            : '¿Cambiar estado de la mesa?'
+        }
         description={
           confirmState?.type === 'delete'
             ? 'Esta acción no se puede deshacer.'
+            : confirmState?.type === 'deleteZone'
+            ? 'Esta acción eliminará la zona y todas las mesas asociadas a ella. No se puede deshacer.'
             : confirmState
             ? `La mesa ${confirmState.table.numero} cambiará a estado ${getStatusLabel(confirmState.nextStatus)}.`
             : ''
         }
-        confirmLabel={confirmState?.type === 'delete' ? 'Eliminar' : 'Confirmar'}
+        confirmLabel={confirmState?.type === 'delete' || confirmState?.type === 'deleteZone' ? 'Eliminar' : 'Confirmar'}
         isLoading={isConfirming}
         onClose={() => setConfirmState(null)}
         onConfirm={handleConfirmAction}
+      />
+
+      <ReservationModal
+        open={Boolean(reservingTable)}
+        onClose={() => setReservingTable(null)}
+        onConfirm={handleReservationConfirm}
+        isLoading={isConfirming}
       />
 
       <FeedbackModal

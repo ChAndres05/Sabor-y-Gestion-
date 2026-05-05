@@ -12,6 +12,11 @@ interface Order {
   items: OrderItem[];
   status: 'pending' | 'preparing' | 'ready';
   isToggled: boolean;
+  source?: 'mesa' | 'reserva';
+  tableNumber?: number;
+  customerName?: string;
+  reservationTime?: string;
+  prepareFrom?: string;
 }
 
 const initialOrders: Order[] = [
@@ -75,6 +80,21 @@ const initialOrders: Order[] = [
     status: 'pending',
     isToggled: false,
   },
+  {
+    id: 7,
+    orderNumber: 21,
+    source: 'reserva',
+    tableNumber: 5,
+    customerName: 'Juan Pérez',
+    reservationTime: '20:00',
+    prepareFrom: '19:30',
+    items: [
+      { name: 'pique macho especial', quantity: 2, checked: false },
+      { name: 'jugo natural', quantity: 2, checked: false },
+    ],
+    status: 'pending',
+    isToggled: false,
+  },
 ];
 
 interface MonitorCocinaPageProps {
@@ -96,6 +116,7 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
     setOrders(
       orders.map((order) => {
         if (order.id !== orderId) return order;
+        if (order.status === 'ready') return order;
 
         const updatedItems = order.items.map((item, idx) =>
           idx === itemIndex ? { ...item, checked: !item.checked } : item
@@ -127,9 +148,10 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
     );
   };
 
-  const pendingCount = 3;
-  const preparingCount = 2;
-  const readyCount = 4;
+  const pendingCount = orders.filter((order) => order.status === 'pending').length;
+  const preparingCount = orders.filter((order) => order.status === 'preparing').length;
+  const readyCount = orders.filter((order) => order.status === 'ready').length;
+  const reservationCount = orders.filter((order) => order.source === 'reserva').length;
 
   return (
     <div className="min-h-screen font-sans p-4 sm:p-6 md:p-8 text-[#1c1c1c] bg-[#F2E9DC]">
@@ -171,6 +193,10 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
             <div className="w-[6px] h-[6px] rounded-full bg-[#22c55e]"></div>
             <span>{readyCount} LISTOS</span>
           </div>
+          <div className="flex items-center gap-2">
+            <div className="w-[6px] h-[6px] rounded-full bg-[#4A7DA8]"></div>
+            <span>{reservationCount} DE RESERVA</span>
+          </div>
         </div>
         <div className="flex items-center justify-between w-full sm:w-auto gap-4 text-[#9ca3af] text-sm font-medium">
           <span className="hidden sm:inline">09:44 p. m.</span>
@@ -185,7 +211,7 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
             className="border-2 border-black bg-[#F2E9DC] rounded-[20px] p-5 flex flex-col justify-between min-h-[240px] shadow-sm hover:shadow-md transition-shadow"
           >
             <div>
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex justify-between items-center mb-4">
                 <span className="text-[10px] font-black w-14 leading-[1.1] tracking-wide text-[#1c1c1c]">
                   NUMERO DE ORDEN
                 </span>
@@ -204,12 +230,20 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
                 </div>
               </div>
 
+              {order.source === 'reserva' && (
+                <div className="mb-4 rounded-[12px] border-2 border-[#4A7DA8] bg-white p-3 text-[11px] font-bold leading-4 text-[#1c1c1c]">
+                  <p>PEDIDO DE RESERVA</p>
+                  <p>Mesa: {order.tableNumber} · Cliente: {order.customerName}</p>
+                  <p>Hora reserva: {order.reservationTime} · Preparar desde: {order.prepareFrom}</p>
+                </div>
+              )}
+
               <ul className="space-y-3 mb-6">
                 {order.items.map((item, idx) => (
                   <li 
                     key={idx} 
-                    className="flex justify-between items-center cursor-pointer group"
-                    onClick={() => toggleItemChecked(order.id, idx)}
+                    className={`flex justify-between items-center group ${order.status === 'ready' ? 'cursor-default' : 'cursor-pointer'}`}
+                    onClick={() => order.status !== 'ready' && toggleItemChecked(order.id, idx)}
                   >
                     <span className={`text-[15px] font-bold transition-colors ${item.checked ? 'text-[#8c8c8c] line-through' : 'text-[#1c1c1c]'}`}>
                       {item.quantity} {item.name}
@@ -244,12 +278,12 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
 
               <button
                 onClick={() => setReady(order.id)}
-                disabled={order.status === 'ready' || !order.items.every((item) => item.checked)}
+                disabled={order.status === 'ready' || !order.items.every((item) => item.checked) || !order.isToggled}
                 className={`text-[11px] font-bold px-4 py-1.5 rounded-[8px] transition-colors border-2 ${
                   order.isToggled
                     ? 'bg-[#c25134] border-[#c25134] text-white shadow-sm'
                     : 'bg-white border-white text-[#c25134] shadow-sm'
-                } ${(order.status === 'ready' || !order.items.every((item) => item.checked)) ? 'opacity-50 cursor-not-allowed hover:bg-transparent hover:text-inherit' : ''}`}
+                } ${(order.status === 'ready' || !order.items.every((item) => item.checked) || !order.isToggled) ? 'opacity-50 cursor-not-allowed hover:bg-transparent hover:text-inherit' : ''}`}
               >
                 LISTO
               </button>

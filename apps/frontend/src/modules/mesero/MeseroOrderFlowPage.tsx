@@ -146,6 +146,7 @@ export default function MeseroOrderFlowPage({
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerFound, setCustomerFound] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<number>(0);
   const [selectedProductId, setSelectedProductId] = useState<number>(0);
@@ -220,6 +221,7 @@ export default function MeseroOrderFlowPage({
       setCustomerPhone(latestOrder.customer.telefono);
       setCustomerCi(latestOrder.customer.ci === '0' ? '' : latestOrder.customer.ci);
       setCustomerFound(Boolean(latestOrder.customer.idUsuario));
+      setSelectedCustomerId(latestOrder.customer.idUsuario ?? null);
     }
   };
 
@@ -253,11 +255,13 @@ export default function MeseroOrderFlowPage({
           setCustomerPhone(orderData.customer.telefono);
           setCustomerCi(orderData.customer.ci === '0' ? '' : orderData.customer.ci);
           setCustomerFound(Boolean(orderData.customer.idUsuario));
+          setSelectedCustomerId(orderData.customer.idUsuario ?? null);
           setActiveStep(orderData.items.length > 0 ? 'pedido' : 'menu');
         } else {
           setCustomerName('');
           setCustomerPhone('');
           setCustomerCi('');
+          setSelectedCustomerId(null);
           setActiveStep('cliente');
         }
       } catch (error) {
@@ -348,6 +352,7 @@ export default function MeseroOrderFlowPage({
 
       if (!foundCustomer) {
         setCustomerFound(false);
+        setSelectedCustomerId(null);
         setFeedback({
           type: 'info',
           title: 'Cliente no encontrado',
@@ -360,6 +365,7 @@ export default function MeseroOrderFlowPage({
       setCustomerPhone(foundCustomer.telefono);
       setCustomerCi(foundCustomer.ci);
       setCustomerFound(true);
+      setSelectedCustomerId(foundCustomer.idUsuario ?? null);
       setFeedback({
         type: 'success',
         title: 'Cliente encontrado',
@@ -378,6 +384,7 @@ export default function MeseroOrderFlowPage({
 
   const handleUseUnregisteredCustomer = () => {
     setCustomerFound(false);
+    setSelectedCustomerId(null);
     setCustomerCi('');
     setCustomerPhone('00000000');
     setCustomerName(table ? `Cliente no registrado - mesa ${table.numero}` : 'Cliente no registrado');
@@ -391,8 +398,8 @@ export default function MeseroOrderFlowPage({
         nombre: customerName,
         telefono: customerPhone,
         ci: customerCi,
-        idUsuario: customerFound ? undefined : null,
-      });
+        idUsuario: customerFound ? selectedCustomerId : null,
+      }, user.id);
       await updateTableStatusMock(tableId, 'OCUPADA');
       await refreshPageState();
       setActiveStep('menu');
@@ -1043,7 +1050,17 @@ export default function MeseroOrderFlowPage({
                     type="number"
                     min="1"
                     value={quantity}
-                    onChange={(event) => setQuantity(event.target.value)}
+                    onChange={(event) => {
+                      const val = event.target.value;
+                      if (val === '' || Number(val) > 0) {
+                        setQuantity(val);
+                      }
+                    }}
+                    onBlur={(event) => {
+                      if (!event.target.value || Number(event.target.value) < 1) {
+                        setQuantity('1');
+                      }
+                    }}
                     className="rounded-xl border border-gray-300 bg-white px-3 py-3 text-center text-[14px] outline-none focus:border-primary"
                   />
                 </div>
@@ -1052,11 +1069,11 @@ export default function MeseroOrderFlowPage({
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl bg-background p-3">
                   <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Precio</p>
-                  <p className="text-[16px] font-bold text-text">{selectedProduct ? formatCurrency(selectedProduct.precio) : 'Bs 0.00'}</p>
+                  <p className="text-[16px] font-bold text-text">{selectedProduct ? formatCurrency(selectedProduct.precio * (Number(quantity) || 1)) : 'Bs 0.00'}</p>
                 </div>
                 <div className="rounded-xl bg-background p-3">
                   <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Tiempo</p>
-                  <p className="text-[16px] font-bold text-text">{selectedProduct ? `${selectedProduct.tiempoPreparacion} min` : '0 min'}</p>
+                  <p className="text-[16px] font-bold text-text">{selectedProduct ? `${selectedProduct.tiempoPreparacion * (Number(quantity) || 1)} min` : '0 min'}</p>
                 </div>
               </div>
 
@@ -1113,7 +1130,7 @@ export default function MeseroOrderFlowPage({
                 <button
                   type="button"
                   onClick={() => void handleSaveItem()}
-                  disabled={isSavingItem || !selectedProductId}
+                  disabled={isSavingItem || !selectedProductId || !quantity || Number(quantity) < 1}
                   className="rounded-xl bg-primary px-4 py-3 text-[13px] font-bold text-white disabled:opacity-60"
                 >
                   {isSavingItem ? 'Guardando...' : editingItemId ? 'Listo' : 'Crear'}
