@@ -201,7 +201,7 @@ function App() {
       )}
 
       {/* Other roles */}
-      {screenState === 'cocina-home' && sessionUser && accessToken && <CocinaHomePage user={sessionUser} onLogout={handleLogout} />}
+      {screenState === 'cocina-home' && sessionUser && accessToken && <MonitorCocinaPage onBack={handleLogout} />}
       {screenState === 'cajero-home' && sessionUser && accessToken && <CajeroHomePage user={sessionUser} onLogout={handleLogout} />}
       {screenState === 'cliente-home' && sessionUser && accessToken && (
         <ClienteHomePage user={sessionUser} onLogout={handleLogout} onOpenProductDetail={(productId) => setScreen('client-product-detail', { productId })} />
