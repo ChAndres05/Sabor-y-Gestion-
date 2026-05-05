@@ -6,8 +6,12 @@ export async function POST(req: Request) {
     try {
         const { correo_electronico } = await req.json();
 
-        const usuario = await prisma.usuarios.findUnique({
-            where: { correo_electronico }
+        // FIX QA: Verificamos que el usuario no solo exista, sino que esté ACTIVO
+        const usuario = await prisma.usuarios.findFirst({
+            where: {
+                correo_electronico: correo_electronico,
+                activo: true
+            }
         });
 
         if (!usuario) {
@@ -18,7 +22,7 @@ export async function POST(req: Request) {
         const expiracion = new Date(Date.now() + 15 * 60000);
 
         await prisma.usuarios.update({
-            where: { correo_electronico },
+            where: { id_usuario: usuario.id_usuario }, // Actualizamos por ID para evitar conflictos
             data: {
                 codigo_recuperacion: codigo,
                 expiracion_recuperacion: expiracion
