@@ -17,10 +17,26 @@ function formatPrice(value: number) {
   return `${value.toFixed(2)} Bs`;
 }
 
-function mapProductFromBackend(product: any): MenuProduct {
+interface BackendProduct {
+  id?: number;
+  id_producto?: number;
+  categoryId?: number;
+  id_categoria?: number;
+  nombre: string;
+  descripcion?: string;
+  precio?: string | number;
+  tiempo_preparacion?: string | number;
+  tiempoPreparacion?: string | number;
+  imagen_url?: string;
+  imagen?: string;
+  activo?: boolean;
+  disponible?: boolean;
+}
+
+function mapProductFromBackend(product: BackendProduct): MenuProduct {
   return {
-    id: product.id_producto || product.id,
-    categoryId: product.id_categoria || product.categoryId,
+    id: Number(product.id_producto || product.id || 0),
+    categoryId: Number(product.id_categoria || product.categoryId || 0),
     nombre: product.nombre,
     descripcion: product.descripcion || '',
     precio: Number(product.precio) || 0,

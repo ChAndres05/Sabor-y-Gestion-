@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { TableOrderStatus } from '../tables/types/table-order.types';
@@ -94,7 +94,7 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack }:
   const [selectedOrder, setSelectedOrder] = useState<ClientOrder | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await clientFlowApi.listOrders(user.id);
@@ -108,11 +108,11 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack }:
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user.id]);
 
   useEffect(() => {
     void loadOrders();
-  }, [user.id]);
+  }, [loadOrders]);
 
   const activeOrders = useMemo(
     () => orders.filter((order) => !['PAGADO', 'CANCELADO'].includes(order.status)),

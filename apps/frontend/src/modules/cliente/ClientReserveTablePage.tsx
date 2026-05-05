@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import { listTablesMock, listZonesMock } from '../../shared/mocks/tables.mock';
 import type { AuthUser } from '../auth/types/auth.types';
@@ -113,7 +113,7 @@ export default function ClientReserveTablePage({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       const [zonesResponse, tablesResponse] = await Promise.all([
@@ -144,11 +144,11 @@ export default function ClientReserveTablePage({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [API_URL]);
 
   useEffect(() => {
     void loadData();
-  }, []);
+  }, [loadData]);
 
   const filteredTables = useMemo(() => {
     return tables.filter((table) => {

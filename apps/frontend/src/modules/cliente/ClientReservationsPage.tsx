@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import type { AuthUser } from '../auth/types/auth.types';
 import ClientLayout from './components/ClientLayout';
@@ -97,7 +97,7 @@ export default function ClientReservationsPage({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
-  const loadReservations = async () => {
+  const loadReservations = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await clientFlowApi.listReservations(user.id);
@@ -111,11 +111,11 @@ export default function ClientReservationsPage({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user.id]);
 
   useEffect(() => {
     void loadReservations();
-  }, [user.id]);
+  }, [loadReservations]);
 
   const activeReservations = useMemo(
     () => reservations.filter((reservation) => reservation.status === 'CONFIRMADA'),
