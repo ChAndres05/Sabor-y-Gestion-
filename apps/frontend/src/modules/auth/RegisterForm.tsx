@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AuthLayout } from '../../shared/components/AuthLayout';
 import { authApi } from './api/auth.api';
+import { Check, X } from 'lucide-react';
 
 interface RegisterFormProps {
   onGoToLogin: () => void;
@@ -21,6 +22,17 @@ export default function RegisterForm({ onGoToLogin }: RegisterFormProps) {
   const [errorMessage, setErrorMessage] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
+  const passwordRequirements = useMemo(() => ({
+    length: password.length >= 8,
+    hasUpper: /[A-Z]/.test(password),
+    hasLower: /[a-z]/.test(password),
+    hasNumber: /[0-9]/.test(password),
+    hasSpecial: /[@$!%*?&]/.test(password),
+  }), [password]);
+
+  const isPasswordValid = Object.values(passwordRequirements).every(Boolean);
+  const isUsernameValid = /^[a-zA-Z0-9]+$/.test(username) && username.length >= 4 && username.length <= 15;
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -29,13 +41,23 @@ export default function RegisterForm({ onGoToLogin }: RegisterFormProps) {
       return;
     }
 
-    if (!acceptedTerms) {
-      setErrorMessage('Debes aceptar los términos del acuerdo');
+    if (!isUsernameValid) {
+      setErrorMessage('El nombre de usuario debe ser alfanumérico y tener entre 4 y 15 caracteres');
+      return;
+    }
+
+    if (!isPasswordValid) {
+      setErrorMessage('La contraseña no cumple con los requisitos de seguridad');
       return;
     }
 
     if (password !== confirmPassword) {
       setErrorMessage('Las contraseñas no coinciden');
+      return;
+    }
+
+    if (!acceptedTerms) {
+      setErrorMessage('Debes aceptar los términos del acuerdo');
       return;
     }
 
@@ -53,91 +75,84 @@ export default function RegisterForm({ onGoToLogin }: RegisterFormProps) {
         password,
         confirmPassword,
       });
-
       setShowSuccessModal(true);
     } catch (error) {
-      if (error instanceof Error) {
-        setErrorMessage(error.message);
-      } else {
-        setErrorMessage('Ocurrió un error inesperado');
-      }
+      setErrorMessage(error instanceof Error ? error.message : 'Ocurrió un error inesperado');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const RequirementItem = ({ met, text }: { met: boolean; text: string }) => (
+    <div className={`flex items-center gap-2 text-[11px] transition-colors ${met ? 'text-success' : 'text-gray-400'}`}>
+      {met ? <Check size={12} /> : <X size={12} />}
+      <span>{text}</span>
+    </div>
+  );
+
   return (
     <div className="relative">
       <AuthLayout onBack={onGoToLogin}>
-        <h3 className="mb-2 text-subtitle font-semibold text-text">
-          Registrarse
-        </h3>
-
-        <p className="mb-6 text-content text-gray-500">
-          Por favor, introduzca su información personal
-        </p>
+        <h3 className="mb-2 text-subtitle font-semibold text-text">Registrarse</h3>
+        <p className="mb-6 text-content text-gray-500">Por favor, introduzca su información personal</p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <label className="text-[12px] font-bold uppercase tracking-wide text-text">
-              CI
-            </label>
+            <label className="text-[12px] font-bold uppercase tracking-wide text-text">CI</label>
             <input
               type="text"
               value={ci}
-              onChange={(e) => setCi(e.target.value)}
+              onChange={(e) => setCi(e.target.value.replace(/\D/g, '').slice(0, 10))}
               className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary"
               placeholder="1234567"
               required
             />
           </div>
 
-          <div className="flex flex-col gap-2">
-            <label className="text-[12px] font-bold uppercase tracking-wide text-text">
-              Nombres
-            </label>
-            <input
-              type="text"
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary"
-              placeholder="Juan"
-              required
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-[12px] font-bold uppercase tracking-wide text-text">Nombres</label>
+              <input
+                type="text"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary"
+                placeholder="Juan"
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-[12px] font-bold uppercase tracking-wide text-text">Apellidos</label>
+              <input
+                type="text"
+                value={apellido}
+                onChange={(e) => setApellido(e.target.value)}
+                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary"
+                placeholder="Gomez"
+                required
+              />
+            </div>
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-[12px] font-bold uppercase tracking-wide text-text">
-              Apellidos
-            </label>
-            <input
-              type="text"
-              value={apellido}
-              onChange={(e) => setApellido(e.target.value)}
-              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary"
-              placeholder="Gomez"
-              required
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <label className="text-[12px] font-bold uppercase tracking-wide text-text">
-              Nombre de usuario
-            </label>
+            <label className="text-[12px] font-bold uppercase tracking-wide text-text">Nombre de usuario</label>
             <input
               type="text"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary"
+              onChange={(e) => setUsername(e.target.value.toLowerCase().trim())}
+              className={`w-full rounded-2xl border bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary ${
+                username && !isUsernameValid ? 'border-alert' : 'border-gray-200'
+              }`}
               placeholder="juan_gomez"
               required
             />
+            {username && !isUsernameValid && (
+              <span className="text-[10px] text-alert font-medium italic">Solo letras y números (4-15 carac.)</span>
+            )}
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-[12px] font-bold uppercase tracking-wide text-text">
-              Correo electrónico
-            </label>
+            <label className="text-[12px] font-bold uppercase tracking-wide text-text">Correo electrónico</label>
             <input
               type="email"
               value={correo}
@@ -149,47 +164,52 @@ export default function RegisterForm({ onGoToLogin }: RegisterFormProps) {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-[12px] font-bold uppercase tracking-wide text-text">
-              Número de teléfono
-            </label>
+            <label className="text-[12px] font-bold uppercase tracking-wide text-text">Número de teléfono</label>
             <input
               type="text"
               value={telefono}
-              onChange={(e) => setTelefono(e.target.value)}
+              onChange={(e) => setTelefono(e.target.value.replace(/\D/g, '').slice(0, 8))}
               className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary"
               placeholder="70011223"
             />
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-[12px] font-bold uppercase tracking-wide text-text">
-              Contraseña
-            </label>
+            <label className="text-[12px] font-bold uppercase tracking-wide text-text">Contraseña</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary"
+              className={`w-full rounded-2xl border bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary ${
+                password && !isPasswordValid ? 'border-process' : 'border-gray-200'
+              }`}
               placeholder="******"
               required
             />
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-1 bg-gray-50 p-2 rounded-xl border border-gray-100">
+              <RequirementItem met={passwordRequirements.length} text="Mín. 8 caracteres" />
+              <RequirementItem met={passwordRequirements.hasUpper} text="1 Mayúscula" />
+              <RequirementItem met={passwordRequirements.hasLower} text="1 Minúscula" />
+              <RequirementItem met={passwordRequirements.hasNumber} text="1 Número" />
+              <RequirementItem met={passwordRequirements.hasSpecial} text="1 Carácter (@$!%*?&)" />
+            </div>
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-[12px] font-bold uppercase tracking-wide text-text">
-              Confirmar contraseña
-            </label>
+            <label className="text-[12px] font-bold uppercase tracking-wide text-text">Confirmar contraseña</label>
             <input
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary"
+              className={`w-full rounded-2xl border bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary ${
+                confirmPassword && password !== confirmPassword ? 'border-alert' : 'border-gray-200'
+              }`}
               placeholder="******"
               required
             />
           </div>
 
-          <label className="mt-2 flex items-center gap-3 text-[14px] text-text">
+          <label className="mt-2 flex items-center gap-3 text-[14px] text-text cursor-pointer">
             <input
               type="checkbox"
               checked={acceptedTerms}
@@ -224,15 +244,10 @@ export default function RegisterForm({ onGoToLogin }: RegisterFormProps) {
               type="button"
               onClick={() => setErrorMessage('')}
               className="absolute right-4 top-4 text-[18px] font-bold text-text transition-colors hover:text-primary"
-              aria-label="Cerrar modal"
             >
               ✕
             </button>
-
-            <p className="mb-6 text-[18px] font-semibold text-text">
-              {errorMessage}
-            </p>
-
+            <p className="mb-6 text-[18px] font-semibold text-text">{errorMessage}</p>
             <button
               type="button"
               onClick={() => setErrorMessage('')}
@@ -247,19 +262,7 @@ export default function RegisterForm({ onGoToLogin }: RegisterFormProps) {
       {showSuccessModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
           <div className="relative w-full max-w-[340px] rounded-[2rem] bg-white px-6 pb-6 pt-10 text-center shadow-2xl">
-            <button
-              type="button"
-              onClick={() => setShowSuccessModal(false)}
-              className="absolute right-4 top-4 text-[18px] font-bold text-text transition-colors hover:text-primary"
-              aria-label="Cerrar modal"
-            >
-              ✕
-            </button>
-
-            <p className="mb-6 text-[18px] font-semibold text-text">
-              Registro exitoso
-            </p>
-
+            <p className="mb-6 text-[18px] font-semibold text-text">Registro exitoso</p>
             <button
               type="button"
               onClick={onGoToLogin}

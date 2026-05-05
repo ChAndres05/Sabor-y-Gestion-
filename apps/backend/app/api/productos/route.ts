@@ -29,7 +29,17 @@ export async function POST(request: Request) {
         tiempo_preparacion: tiempo_preparacion ? Number(tiempo_preparacion) : null,
         imagen_url,
         disponible: disponible ?? true,
-        activo: true
+        activo: true,
+        presentaciones: {
+          create: {
+            nombre: 'Normal',
+            precio: precio ? Number(precio) : 0,
+            tiempo_preparacion_minutos: tiempo_preparacion ? Number(tiempo_preparacion) : 10,
+            disponible: disponible ?? true,
+            activo: true,
+            es_predeterminada: true
+          }
+        }
       }
     });
     return NextResponse.json(nuevoProducto);

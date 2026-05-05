@@ -6,12 +6,13 @@ interface AdminMenuPageProps {
   onOpenUsers: () => void;
   onOpenMenuManagement: () => void;
   onOpenTableManagement: () => void;
+  onOpenKitchenMonitor: () => void;
 }
 
 const menuItems = [
   { key: 'productos', label: 'Administración de productos', enabled: true },
   { key: 'mesas', label: 'Gestión de Mesas', enabled: true },
-  { key: 'cocina', label: 'Monitor de cocina', enabled: false },
+  { key: 'cocina', label: 'Monitor de cocina', enabled: true },
   { key: 'delivery', label: 'Atención Delivery', enabled: false },
   { key: 'facturacion', label: 'Facturación', enabled: false },
   { key: 'cierre', label: 'Cierre de Caja', enabled: false },
@@ -25,6 +26,7 @@ export default function AdminMenuPage({
   onOpenUsers,
   onOpenMenuManagement,
   onOpenTableManagement,
+  onOpenKitchenMonitor,
 }: AdminMenuPageProps) {
   return (
     <div className="min-h-screen bg-primary px-4 py-8 text-white font-sans">
@@ -44,6 +46,10 @@ export default function AdminMenuPage({
 
               if (item.key === 'mesas') {
                 onOpenTableManagement();
+              }
+              
+              if (item.key === 'cocina') {
+                onOpenKitchenMonitor();
               }
             };
 
