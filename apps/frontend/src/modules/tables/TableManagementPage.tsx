@@ -6,6 +6,13 @@ import { TableFormModal } from './components/TableFormModal';
 import { TableSummaryCards } from './components/TableSummaryCards';
 import { ZoneFilterChips } from './components/ZoneFilterChips';
 import { ZoneFormModal } from './components/ZoneFormModal';
+import {
+  createTableMock,
+  createZoneMock,
+  deleteTableMock,
+  updateTableMock,
+} from '../../shared/mocks/tables.mock';
+import { pusherClient } from '../../shared/utils/pusher';
 import type {
   RestaurantTable,
   TableFormValues,
@@ -39,6 +46,23 @@ type ConfirmState =
     }
   | null;
 
+type BackendZone = {
+  id_zona: number;
+  nombre: string;
+  activo?: boolean;
+  activa?: boolean;
+};
+
+type BackendTable = {
+  id_mesa: number;
+  numero: number;
+  capacidad: number;
+  id_zona?: number | null;
+  estado: TableStatus;
+  activa?: boolean;
+  activo?: boolean;
+};
+
 function getStatusLabel(status: TableStatus) {
   switch (status) {
     case 'LIBRE':
@@ -49,7 +73,28 @@ function getStatusLabel(status: TableStatus) {
       return 'reservada';
     case 'CUENTA_SOLICITADA':
       return 'cuenta solicitada';
+    case 'FUERA_DE_SERVICIO':
+      return 'fuera de servicio';
   }
+}
+
+function mapBackendZone(zone: BackendZone): Zone {
+  return {
+    id: zone.id_zona,
+    nombre: zone.nombre,
+    activo: zone.activo ?? zone.activa ?? true,
+  };
+}
+
+function mapBackendTable(table: BackendTable): RestaurantTable {
+  return {
+    id: table.id_mesa,
+    numero: table.numero,
+    capacidad: table.capacidad,
+    zoneId: table.id_zona ?? 0,
+    estado: table.estado,
+    activo: table.activa ?? table.activo ?? true,
+  };
 }
 
 export default function TableManagementPage({
@@ -57,11 +102,9 @@ export default function TableManagementPage({
   onBack,
   onOpenTableOrder,
 }: TableManagementPageProps) {
-  // === CONFIGURACIÓN ===
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const isAdmin = role === 'ADMIN';
 
-  // === ESTADOS ===
   const [zones, setZones] = useState<Zone[]>([]);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [isZonesLoading, setIsZonesLoading] = useState(true);
@@ -77,26 +120,18 @@ export default function TableManagementPage({
   const [isConfirming, setIsConfirming] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
-  // --- CARGA DE DATOS ---
-
   const loadZones = useCallback(async () => {
     setIsZonesLoading(true);
     try {
       const response = await fetch(`${API_URL}/api/admin/zonas`);
-      if (!response.ok) throw new Error('Error al cargar zonas');
+      if (!response.ok) throw new Error('Error al cargar zonas desde backend');
 
       const data = await response.json();
-      if (!Array.isArray(data)) throw new Error('El servidor no devolvió una lista válida de zonas');
+      if (!Array.isArray(data)) {
+        throw new Error('El servidor no devolvió una lista válida de zonas');
+      }
 
-      const mappedZones: Zone[] = data.map(
-        (z: { id_zona: number; nombre: string; activo?: boolean; activa?: boolean }) => ({
-          id: z.id_zona,
-          nombre: z.nombre,
-          activo: z.activo ?? z.activa ?? true,
-        })
-      );
-
-      setZones(mappedZones.filter((zone) => zone.activo));
+      setZones(data.map(mapBackendZone).filter((zone) => zone.activo));
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -112,30 +147,18 @@ export default function TableManagementPage({
     setIsTablesLoading(true);
     try {
       const response = await fetch(`${API_URL}/api/admin/mesas`);
-      if (!response.ok) throw new Error('Error al cargar mesas');
+      if (!response.ok) throw new Error('Error al cargar mesas desde backend');
 
       const data = await response.json();
-      if (!Array.isArray(data)) throw new Error('El servidor no devolvió una lista válida de mesas');
+      if (!Array.isArray(data)) {
+        throw new Error('El servidor no devolvió una lista válida de mesas');
+      }
 
-      const mappedTables: RestaurantTable[] = data.map(
-        (t: {
-          id_mesa: number;
-          numero: number;
-          capacidad: number;
-          id_zona: number;
-          estado: TableStatus;
-          activa?: boolean;
-        }) => ({
-          id: t.id_mesa,
-          numero: t.numero,
-          capacidad: t.capacidad,
-          zoneId: t.id_zona,
-          estado: t.estado,
-          activo: t.activa ?? true,
-        })
-      );
+      const backendTables = data
+        .map(mapBackendTable)
+        .filter((table) => table.activo);
 
-      setTables(mappedTables.filter((table) => table.activo));
+      setTables(backendTables);
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -152,26 +175,52 @@ export default function TableManagementPage({
     void loadTables();
   }, [loadZones, loadTables]);
 
+  useEffect(() => {
+    const channel = pusherClient.subscribe('tables-channel');
+    
+    channel.bind('table-updated', (updatedBackendTable: BackendTable) => {
+      const mappedTable = mapBackendTable(updatedBackendTable);
+      
+      setTables((currentTables) => {
+        if (mappedTable.activo) {
+          const exists = currentTables.some((t) => t.id === mappedTable.id);
+          if (exists) {
+            return currentTables.map((t) => (t.id === mappedTable.id ? mappedTable : t));
+          }
+          return [...currentTables, mappedTable];
+        } else {
+          return currentTables.filter((t) => t.id !== mappedTable.id);
+        }
+      });
+    });
+
+    return () => {
+      pusherClient.unsubscribe('tables-channel');
+    };
+  }, []);
+
   const filteredTables = useMemo(() => {
     return tables.filter((table) =>
       selectedZoneId === 'ALL' ? true : table.zoneId === selectedZoneId
     );
   }, [tables, selectedZoneId]);
 
-  // --- MANEJADORES DE EVENTOS ---
-
   const handleCreateZone = async (values: ZoneFormValues) => {
     setIsSubmittingZoneForm(true);
     try {
-      const response = await fetch(`${API_URL}/api/admin/zonas`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre: values.nombre }),
-      });
+      if (isAdmin) {
+        const response = await fetch(`${API_URL}/api/admin/zonas`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nombre: values.nombre }),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error al crear zona');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Error al crear zona');
+        }
+      } else {
+        await createZoneMock(values);
       }
 
       setIsCreateZoneOpen(false);
@@ -179,7 +228,9 @@ export default function TableManagementPage({
       setFeedback({
         type: 'success',
         title: 'Zona creada',
-        message: 'La zona se creó correctamente.',
+        message: isAdmin
+          ? 'La zona se creó correctamente en backend.'
+          : 'La zona se creó correctamente con datos mockeados.',
       });
     } catch (error) {
       setFeedback({
@@ -195,20 +246,24 @@ export default function TableManagementPage({
   const handleCreateTable = async (values: TableFormValues) => {
     setIsSubmittingTableForm(true);
     try {
-      const response = await fetch(`${API_URL}/api/admin/mesas`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          numero: values.numero,
-          capacidad: values.capacidad,
-          id_zona: values.zoneId,
-          estado: 'LIBRE',
-        }),
-      });
+      if (isAdmin) {
+        const response = await fetch(`${API_URL}/api/admin/mesas`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            numero: values.numero,
+            capacidad: values.capacidad,
+            id_zona: values.zoneId,
+            estado: 'LIBRE',
+          }),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error al crear mesa');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Error al crear mesa');
+        }
+      } else {
+        await createTableMock(values);
       }
 
       setIsCreateTableOpen(false);
@@ -216,7 +271,9 @@ export default function TableManagementPage({
       setFeedback({
         type: 'success',
         title: 'Mesa creada',
-        message: 'La mesa se creó correctamente.',
+        message: isAdmin
+          ? 'La mesa se creó correctamente en backend.'
+          : 'La mesa se creó correctamente con datos mockeados.',
       });
     } catch (error) {
       setFeedback({
@@ -233,24 +290,30 @@ export default function TableManagementPage({
     if (!editingTable) return;
     setIsSubmittingTableForm(true);
     try {
-      const response = await fetch(`${API_URL}/api/admin/mesas/${editingTable.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          numero: values.numero,
-          capacidad: values.capacidad,
-          id_zona: values.zoneId,
-        }),
-      });
+      if (isAdmin) {
+        const response = await fetch(`${API_URL}/api/admin/mesas/${editingTable.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            numero: values.numero,
+            capacidad: values.capacidad,
+            id_zona: values.zoneId,
+          }),
+        });
 
-      if (!response.ok) throw new Error('Error al actualizar mesa');
+        if (!response.ok) throw new Error('Error al actualizar mesa');
+      } else {
+        await updateTableMock(editingTable.id, values);
+      }
 
       setEditingTable(null);
       await loadTables();
       setFeedback({
         type: 'success',
         title: 'Mesa actualizada',
-        message: 'La mesa se actualizó correctamente.',
+        message: isAdmin
+          ? 'La mesa se actualizó correctamente en backend.'
+          : 'La mesa se actualizó correctamente con datos mockeados.',
       });
     } catch (error) {
       setFeedback({
@@ -269,10 +332,15 @@ export default function TableManagementPage({
 
     try {
       if (confirmState.type === 'delete') {
-        const response = await fetch(`${API_URL}/api/admin/mesas/${confirmState.table.id}`, {
-          method: 'DELETE',
-        });
-        if (!response.ok) throw new Error('Error al eliminar mesa');
+        if (isAdmin) {
+          const response = await fetch(`${API_URL}/api/admin/mesas/${confirmState.table.id}`, {
+            method: 'DELETE',
+          });
+          if (!response.ok) throw new Error('Error al eliminar mesa');
+        } else {
+          await deleteTableMock(confirmState.table.id);
+        }
+
         setFeedback({
           type: 'success',
           title: 'Mesa eliminada',
@@ -323,9 +391,7 @@ export default function TableManagementPage({
 
           <h1 className="text-title font-bold text-text">Gestión de mesas</h1>
           <p className="mt-1 text-[14px] leading-5 text-gray-500">
-            {isAdmin
-              ? 'Administra el salón, las zonas y el estado de cada mesa.'
-              : 'Consulta el salón y gestiona el estado operativo de cada mesa.'}
+            Administra el salón y gestiona pedidos utilizando los datos del backend.
           </p>
 
           <div className="mt-4">

@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AuthUser } from '../auth/types/auth.types';
 import ClientMenuProductCard from './components/ClientMenuProductCard';
-import {
-  listCategoriesMock,
-  listProductsMock,
-} from '../../shared/mocks/menu.mock';
+import { menuApi } from '../menu/menu.api';
 import type { MenuCategory, MenuProduct } from '../menu/types/menu.types';
 
 interface ClienteHomePageProps {
@@ -34,17 +31,26 @@ export default function ClienteHomePage({
       setErrorMessage('');
 
       try {
-        const [categoriesData, productsData] = await Promise.all([
-          listCategoriesMock(),
-          listProductsMock(),
+        const [categoriesData, productsDataRaw] = await Promise.all([
+          menuApi.getCategories('', 'activas'),
+          menuApi.getProductos(),
         ]);
 
-        const activeCategories = categoriesData.filter(
-          (category) => category.activo
-        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mappedProducts: MenuProduct[] = productsDataRaw.map((p: any) => ({
+          id: p.id_producto || p.id,
+          categoryId: p.id_categoria || p.categoryId,
+          nombre: p.nombre,
+          descripcion: p.descripcion || '',
+          precio: Number(p.precio) || 0,
+          tiempoPreparacion: Number(p.tiempo_preparacion) || 0,
+          imagen: p.imagen_url || p.imagen || null,
+          activo: p.activo ?? true,
+          disponible: p.disponible ?? true,
+        }));
 
-        setCategories(activeCategories);
-        setProducts(productsData);
+        setCategories(categoriesData);
+        setProducts(mappedProducts);
       } catch (error) {
         setErrorMessage(
           error instanceof Error ? error.message : 'No se pudo cargar el menú'

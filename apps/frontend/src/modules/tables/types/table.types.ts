@@ -2,7 +2,8 @@ export type TableStatus =
   | 'LIBRE'
   | 'OCUPADA'
   | 'RESERVADA'
-  | 'CUENTA_SOLICITADA';
+  | 'CUENTA_SOLICITADA'
+  | 'FUERA_DE_SERVICIO';
 
 export interface Zone {
   id: number;
