@@ -213,7 +213,7 @@ export function ProductFormModal({
 
           <div className="flex flex-col gap-2">
             <label className="text-[14px] font-semibold text-text">
-              Imagen (URL opcional)
+              Imagen
             </label>
             <input
               type="text"

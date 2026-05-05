@@ -78,24 +78,28 @@ export async function DELETE(
       return NextResponse.json({ error: 'Zona no encontrada' }, { status: 404 });
     }
 
-    /** 
-     * USAR UNA TRANSACCIÓN 
-     * Esto elimina las mesas y la zona en un solo bloque atómico.
-     */
-    await prisma.$transaction(async (tx) => {
-      // Primero eliminamos todas las mesas asociadas a esa zona
-      await tx.mesas.deleteMany({
-        where: { id_zona },
-      });
+    // 2. Verificar si tiene mesas activas
+    const activeTablesCount = await prisma.mesas.count({
+      where: {
+        id_zona,
+        activa: true,
+      },
+    });
 
-      // Luego eliminamos la zona
-      await tx.zonas.delete({
-        where: { id_zona },
-      });
+    if (activeTablesCount > 0) {
+      return NextResponse.json({ 
+        error: `No se puede eliminar la zona porque tiene ${activeTablesCount} mesa(s) asociada(s). Por favor elimine o reasigne las mesas primero.` 
+      }, { status: 400 });
+    }
+
+    // 3. Desactivamos (soft delete) la zona
+    await prisma.zonas.update({
+      where: { id_zona },
+      data: { activo: false },
     });
 
     return NextResponse.json({ 
-      message: 'Zona y todas sus mesas asociadas han sido eliminadas' 
+      message: 'Zona ha sido eliminada' 
     }, { status: 200 });
 
   } catch (error) {
