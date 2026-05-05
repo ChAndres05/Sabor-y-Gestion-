@@ -96,6 +96,7 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
     setOrders(
       orders.map((order) => {
         if (order.id !== orderId) return order;
+        if (order.status === 'ready') return order;
 
         const updatedItems = order.items.map((item, idx) =>
           idx === itemIndex ? { ...item, checked: !item.checked } : item
@@ -208,8 +209,8 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
                 {order.items.map((item, idx) => (
                   <li 
                     key={idx} 
-                    className="flex justify-between items-center cursor-pointer group"
-                    onClick={() => toggleItemChecked(order.id, idx)}
+                    className={`flex justify-between items-center group ${order.status === 'ready' ? 'cursor-default' : 'cursor-pointer'}`}
+                    onClick={() => order.status !== 'ready' && toggleItemChecked(order.id, idx)}
                   >
                     <span className={`text-[15px] font-bold transition-colors ${item.checked ? 'text-[#8c8c8c] line-through' : 'text-[#1c1c1c]'}`}>
                       {item.quantity} {item.name}
@@ -244,12 +245,12 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
 
               <button
                 onClick={() => setReady(order.id)}
-                disabled={order.status === 'ready' || !order.items.every((item) => item.checked)}
+                disabled={order.status === 'ready' || !order.items.every((item) => item.checked) || !order.isToggled}
                 className={`text-[11px] font-bold px-4 py-1.5 rounded-[8px] transition-colors border-2 ${
                   order.isToggled
                     ? 'bg-[#c25134] border-[#c25134] text-white shadow-sm'
                     : 'bg-white border-white text-[#c25134] shadow-sm'
-                } ${(order.status === 'ready' || !order.items.every((item) => item.checked)) ? 'opacity-50 cursor-not-allowed hover:bg-transparent hover:text-inherit' : ''}`}
+                } ${(order.status === 'ready' || !order.items.every((item) => item.checked) || !order.isToggled) ? 'opacity-50 cursor-not-allowed hover:bg-transparent hover:text-inherit' : ''}`}
               >
                 LISTO
               </button>
