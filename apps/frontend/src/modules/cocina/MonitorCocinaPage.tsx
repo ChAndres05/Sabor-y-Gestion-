@@ -1,53 +1,89 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ordersApi } from '../../shared/api/orders.api';
+import { cocinaApi } from './api/cocina.api';
+import { pusherClient } from '../../shared/utils/pusher';
 import {
   RESTAURANT_STATE_CHANGED_EVENT,
   RESTAURANT_STATE_CHANGED_STORAGE_KEY,
 } from '../../shared/utils/events';
-import type { KitchenOrder } from '../../shared/types/kitchen.types';
+
+interface OrderItem {
+  id: number;
+  name: string;
+  quantity: number;
+  checked: boolean;
+  notes: string | null;
+}
+
+interface Order {
+  id: number;
+  orderNumber: number;
+  items: OrderItem[];
+  status: 'pending' | 'preparing' | 'ready';
+  isToggled: boolean;
+  source?: 'mesa' | 'reserva';
+  tableNumber?: number;
+  customerName?: string;
+  reservationTime?: string;
+  prepareFrom?: string;
+}
 
 interface MonitorCocinaPageProps {
   onBack: () => void;
+  user?: { id?: number; id_usuario?: number; nombre: string; rol: string };
 }
 
-export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
-  const [orders, setOrders] = useState<KitchenOrder[]>([]);
+export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPageProps) {
+  const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  const [currentTime, setCurrentTime] = useState(
+    new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: true })
+  );
 
-  const loadOrders = async () => {
+  // Reloj en tiempo real
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(
+        new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: true })
+      );
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadOrders = useCallback(async () => {
     try {
       const data = await ordersApi.listKitchenOrders();
-      
+
       // Recuperar estados de check de localStorage
-      const checkedData = JSON.parse(localStorage.getItem('gestionysabor_kitchen_checked_items') || '{}');
-      
-      const hydrated = data.map(order => ({
-        ...order,
-        items: order.items.map(item => ({
-          ...item,
-          checked: checkedData[`${order.id}-${item.name}`] || false
-        }))
-      }));
-      
-      setOrders(hydrated);
+      const checkedData = JSON.parse(
+        localStorage.getItem('gestionysabor_kitchen_checked_items') || '{}'
+      );
+
+      setOrders((prevOrders) =>
+        data.map((backendOrder) => {
+          const existingOrder = prevOrders.find((o) => o.id === backendOrder.id);
+          return {
+            ...backendOrder,
+            isToggled: existingOrder ? existingOrder.isToggled : false,
+            items: backendOrder.items.map((item) => ({
+              ...item,
+              checked: checkedData[`${backendOrder.id}-${item.name}`] ?? false,
+            })),
+          };
+        })
+      );
     } catch (error) {
       console.error('Error loading kitchen orders:', error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
+  // Carga inicial + eventos de cambio de estado del restaurante
   useEffect(() => {
     void loadOrders();
 
-    const handleStateChange = () => {
-      void loadOrders();
-    };
-
-    const timer = setInterval(() => {
-      setCurrentTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    }, 60000);
+    const handleStateChange = () => void loadOrders();
 
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === RESTAURANT_STATE_CHANGED_STORAGE_KEY) {
@@ -61,63 +97,128 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
     return () => {
       window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
       window.removeEventListener('storage', handleStorageChange);
-      clearInterval(timer);
     };
-  }, []);
+  }, [loadOrders]);
 
-  const toggleOrder = (id: number) => {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, isToggled: !o.isToggled } : o));
+  // Pusher: tiempo real
+  useEffect(() => {
+    const channel = pusherClient.subscribe('cocina-channel');
+    channel.bind('nuevo-pedido', () => void loadOrders());
+    channel.bind('pedido-actualizado', () => void loadOrders());
+    channel.bind('detalle-actualizado', () => void loadOrders());
+    channel.bind('pedido-armado', () => void loadOrders());
+
+    return () => {
+      pusherClient.unsubscribe('cocina-channel');
+    };
+  }, [loadOrders]);
+
+  // Actualizar estado en BD
+  const updateBackendStatus = async (id: number, nuevoEstado: string) => {
+    try {
+      await ordersApi.updateOrderStatus(id, nuevoEstado, user?.id_usuario ?? user?.id ?? 0);
+    } catch (error) {
+      console.error('Error actualizando estado en BD:', error);
+    }
   };
 
-  const toggleItemChecked = async (orderId: number, itemIndex: number) => {
-    const updatedOrders = orders.map(o => {
-      if (o.id !== orderId) return o;
-      const newItems = o.items.map((it, idx) => {
-        if (idx === itemIndex) {
-          const newChecked = !it.checked;
-          // Persistir en localStorage
-          const checkedData = JSON.parse(localStorage.getItem('gestionysabor_kitchen_checked_items') || '{}');
-          if (newChecked) {
-            checkedData[`${orderId}-${it.name}`] = true;
-          } else {
-            delete checkedData[`${orderId}-${it.name}`];
-          }
-          localStorage.setItem('gestionysabor_kitchen_checked_items', JSON.stringify(checkedData));
-          return { ...it, checked: newChecked };
-        }
-        return it;
-      });
-      const isAnyChecked = newItems.some(it => it.checked);
-      const newStatus = isAnyChecked ? 'preparing' : 'pending';
-      return { ...o, items: newItems, status: newStatus as KitchenOrder['status'] };
-    });
+  // Toggle del botón de armado (toggle/switch)
+  const toggleOrder = async (id: number) => {
+    const orderToToggle = orders.find((o) => o.id === id);
+    const newToggledState = orderToToggle ? !orderToToggle.isToggled : false;
 
-    setOrders(updatedOrders);
+    setOrders((prev) =>
+      prev.map((order) =>
+        order.id === id ? { ...order, isToggled: !order.isToggled } : order
+      )
+    );
 
-    try {
-      const order = updatedOrders.find(o => o.id === orderId);
-      if (order && order.status === 'preparing') {
-        await ordersApi.updateOrderStatus(orderId, 'EN_PREPARACION', order.tableNumber || 0);
+    if (orderToToggle) {
+      try {
+        await cocinaApi.actualizarEstadoArmado(id, newToggledState);
+      } catch (error) {
+        console.error('Error al actualizar armado en BD:', error);
       }
-    } catch (error) {
-      console.error('Error updating status from kitchen:', error);
     }
   };
 
-  const setReady = async (id: number) => {
+  // Toggle de ítem individual
+  const toggleItemChecked = async (orderId: number, itemIndex: number) => {
+    const order = orders.find((o) => o.id === orderId);
+    if (!order || order.status === 'ready') return;
+
+    const item = order.items[itemIndex];
+    const newChecked = !item.checked;
+
+    // Persistir en localStorage
+    const checkedData = JSON.parse(
+      localStorage.getItem('gestionysabor_kitchen_checked_items') || '{}'
+    );
+    if (newChecked) {
+      checkedData[`${orderId}-${item.name}`] = true;
+    } else {
+      delete checkedData[`${orderId}-${item.name}`];
+    }
+    localStorage.setItem('gestionysabor_kitchen_checked_items', JSON.stringify(checkedData));
+
+    // Notificar al backend sobre el detalle
     try {
-      const order = orders.find(o => o.id === id);
-      await ordersApi.updateOrderStatus(id, 'LISTO', order?.tableNumber || 0);
-      await loadOrders();
+      await cocinaApi.marcarPlatoPreparado(item.id, newChecked);
     } catch (error) {
-      console.error('Error setting order ready:', error);
+      console.error('Error al actualizar el detalle del plato en BD:', error);
     }
+
+    // Actualizar estado local y status del pedido
+    setOrders((prevOrders) => {
+      let needsStatusUpdate = false;
+      let newStatus: Order['status'] = order.status;
+
+      const newOrders = prevOrders.map((o) => {
+        if (o.id !== orderId || o.status === 'ready') return o;
+
+        const updatedItems = o.items.map((it, idx) =>
+          idx === itemIndex ? { ...it, checked: newChecked } : it
+        );
+
+        const hasCheckedItem = updatedItems.some((it) => it.checked);
+
+        if (hasCheckedItem && o.status === 'pending') {
+          newStatus = 'preparing';
+          needsStatusUpdate = true;
+        } else if (!hasCheckedItem && o.status === 'preparing') {
+          newStatus = 'pending';
+          needsStatusUpdate = true;
+        } else {
+          newStatus = o.status;
+        }
+
+        return { ...o, items: updatedItems, status: newStatus };
+      });
+
+      if (needsStatusUpdate) {
+        void updateBackendStatus(
+          orderId,
+          newStatus === 'preparing' ? 'EN_PREPARACION' : 'REGISTRADO'
+        );
+      }
+
+      return newOrders;
+    });
   };
 
-  const pendingCount = orders.filter((order) => order.status === 'pending').length;
-  const preparingCount = orders.filter((order) => order.status === 'preparing').length;
-  const readyCount = orders.filter((order) => order.status === 'ready').length;
-  const reservationCount = orders.filter((order) => order.source === 'reserva').length;
+  // Marcar pedido como listo
+  const setReady = async (id: number) => {
+    setOrders((prev) =>
+      prev.map((order) => (order.id === id ? { ...order, status: 'ready' } : order))
+    );
+    await updateBackendStatus(id, 'LISTO');
+  };
+
+  // Contadores
+  const pendingCount = orders.filter((o) => o.status === 'pending').length;
+  const preparingCount = orders.filter((o) => o.status === 'preparing').length;
+  const readyCount = orders.filter((o) => o.status === 'ready').length;
+  const reservationCount = orders.filter((o) => o.source === 'reserva').length;
 
   if (isLoading) {
     return (
@@ -134,11 +235,23 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <button onClick={onBack} className="p-2 -ml-2 rounded-xl hover:bg-black/5 transition-colors text-[#1c1c1c]">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="3" y1="12" x2="21" y2="12"></line>
-                  <line x1="3" y1="6" x2="21" y2="6"></line>
-                  <line x1="3" y1="18" x2="21" y2="18"></line>
+              <button
+                onClick={onBack}
+                className="p-2 -ml-2 rounded-xl hover:bg-black/5 transition-colors text-[#1c1c1c]"
+              >
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
                 </svg>
               </button>
               <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight">
@@ -156,19 +269,19 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
       <div className="bg-white rounded-[24px] p-4 sm:p-5 shadow-sm mb-8 max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex flex-wrap gap-4 sm:gap-5 text-[11px] font-black tracking-wider">
           <div className="flex items-center gap-2">
-            <div className="w-[6px] h-[6px] rounded-full bg-[#ef4444]"></div>
+            <div className="w-[6px] h-[6px] rounded-full bg-[#ef4444]" />
             <span>{pendingCount} PENDIENTES</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-[6px] h-[6px] rounded-full bg-[#eab308]"></div>
+            <div className="w-[6px] h-[6px] rounded-full bg-[#eab308]" />
             <span>{preparingCount} EN PREPARACIÓN</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-[6px] h-[6px] rounded-full bg-[#22c55e]"></div>
+            <div className="w-[6px] h-[6px] rounded-full bg-[#22c55e]" />
             <span>{readyCount} LISTOS</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-[6px] h-[6px] rounded-full bg-[#4A7DA8]"></div>
+            <div className="w-[6px] h-[6px] rounded-full bg-[#4A7DA8]" />
             <span>{reservationCount} DE RESERVA</span>
           </div>
         </div>
@@ -177,7 +290,7 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
         </div>
       </div>
 
-      {/* Grid of Cards */}
+      {/* Grid de tarjetas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 max-w-7xl mx-auto">
         {orders.map((order) => (
           <div
@@ -187,16 +300,23 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
             <div>
               <div className="flex justify-between items-center mb-4">
                 <span className="text-[10px] font-black w-14 leading-[1.1] tracking-wide text-[#1c1c1c]">
-                  NUMERO DE ORDEN
+                  NÚMERO DE ORDEN
                 </span>
-                
                 <div className="flex items-center gap-2">
-                  <span className={`text-[9px] font-black px-2 py-1 rounded-[6px] text-white uppercase tracking-widest ${
-                    order.status === 'ready' ? 'bg-[#22c55e]' : 
-                    order.status === 'preparing' ? 'bg-[#eab308]' : 
-                    'bg-[#ef4444]'
-                  }`}>
-                    {order.status === 'ready' ? 'Listo' : order.status === 'preparing' ? 'Preparando' : 'Pendiente'}
+                  <span
+                    className={`text-[9px] font-black px-2 py-1 rounded-[6px] text-white uppercase tracking-widest ${
+                      order.status === 'ready'
+                        ? 'bg-[#22c55e]'
+                        : order.status === 'preparing'
+                        ? 'bg-[#eab308]'
+                        : 'bg-[#ef4444]'
+                    }`}
+                  >
+                    {order.status === 'ready'
+                      ? 'Listo'
+                      : order.status === 'preparing'
+                      ? 'Preparando'
+                      : 'Pendiente'}
                   </span>
                   <span className="text-[22px] font-bold border-2 border-black rounded-[12px] w-12 h-10 flex items-center justify-center text-[#1c1c1c] bg-[#F2E9DC]">
                     {order.orderNumber}
@@ -214,16 +334,36 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
 
               <ul className="space-y-3 mb-6">
                 {order.items.map((item, idx) => (
-                  <li 
-                    key={idx} 
-                    className={`flex justify-between items-center group ${order.status === 'ready' ? 'cursor-default' : 'cursor-pointer'}`}
+                  <li
+                    key={idx}
+                    className={`flex justify-between items-start group ${
+                      order.status === 'ready' ? 'cursor-default' : 'cursor-pointer'
+                    }`}
                     onClick={() => order.status !== 'ready' && void toggleItemChecked(order.id, idx)}
                   >
-                    <span className={`text-[15px] font-bold transition-colors ${item.checked ? 'text-[#8c8c8c] line-through' : 'text-[#1c1c1c]'}`}>
-                      {item.quantity} {item.name}
-                    </span>
-                    <div className={`w-[18px] h-[18px] rounded-full border-2 border-black flex items-center justify-center transition-colors ${item.checked ? 'bg-transparent text-[#1c1c1c]' : 'bg-transparent text-transparent'
-                      }`}>
+                    <div className="flex flex-col pr-2">
+                      <span
+                        className={`text-[15px] font-bold transition-colors ${
+                          item.checked ? 'text-[#8c8c8c] line-through' : 'text-[#1c1c1c]'
+                        }`}
+                      >
+                        {item.quantity} {item.name}
+                      </span>
+                      {item.notes && (
+                        <span
+                          className={`text-[12px] italic mt-0.5 ${
+                            item.checked ? 'text-[#8c8c8c] line-through' : 'text-[#ef4444]'
+                          }`}
+                        >
+                          * {item.notes}
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      className={`w-[18px] h-[18px] mt-1 rounded-full border-2 border-black flex shrink-0 items-center justify-center transition-colors ${
+                        item.checked ? 'bg-transparent text-[#1c1c1c]' : 'bg-transparent text-transparent'
+                      }`}
+                    >
                       {item.checked && (
                         <svg className="w-3 h-3 text-[#1c1c1c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -241,23 +381,37 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
                 disabled={order.status === 'ready' || !order.items.every((item) => item.checked)}
                 className={`w-[46px] h-[24px] rounded-full flex items-center p-1 transition-colors ${
                   order.isToggled ? 'bg-[#182033]' : 'bg-[#a3aab8]'
-                } ${(order.status === 'ready' || !order.items.every((item) => item.checked)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                } ${
+                  order.status === 'ready' || !order.items.every((item) => item.checked)
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
+                }`}
               >
                 <div
                   className={`w-[18px] h-[18px] rounded-full bg-[#f2e9dc] shadow-sm transition-transform ${
                     order.isToggled ? 'translate-x-[20px]' : 'translate-x-0'
                   }`}
-                ></div>
+                />
               </button>
 
               <button
                 onClick={() => void setReady(order.id)}
-                disabled={order.status === 'ready' || !order.items.every((item) => item.checked) || !order.isToggled}
+                disabled={
+                  order.status === 'ready' ||
+                  !order.items.every((item) => item.checked) ||
+                  !order.isToggled
+                }
                 className={`text-[11px] font-bold px-4 py-1.5 rounded-[8px] transition-colors border-2 ${
                   order.isToggled
                     ? 'bg-[#c25134] border-[#c25134] text-white shadow-sm'
                     : 'bg-white border-white text-[#c25134] shadow-sm'
-                } ${(order.status === 'ready' || !order.items.every((item) => item.checked) || !order.isToggled) ? 'opacity-50 cursor-not-allowed hover:bg-transparent hover:text-inherit' : ''}`}
+                } ${
+                  order.status === 'ready' ||
+                  !order.items.every((item) => item.checked) ||
+                  !order.isToggled
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
+                }`}
               >
                 LISTO
               </button>
