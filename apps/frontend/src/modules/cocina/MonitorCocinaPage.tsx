@@ -51,6 +51,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
       const data = await response.json();
 
       setOrders((prevOrders) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return data.map((backendOrder: any) => {
           // Buscamos si el pedido ya existía en pantalla para no borrar sus checkboxes marcados
           const existingOrder = prevOrders.find((o) => o.id === backendOrder.id_pedido);
@@ -61,6 +62,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
             orderNumber: backendOrder.id_pedido, // Usamos el ID del pedido como número de orden
             status: mappedStatus,
             isToggled: existingOrder ? existingOrder.isToggled : false,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             items: backendOrder.detalles_pedido.map((detalle: any) => {
               const existingItem = existingOrder?.items.find((i) => i.id === detalle.id_detalle_pedido);
               return {
@@ -81,7 +83,10 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
 
   // 3. Conectar a Pusher y cargar datos iniciales
   useEffect(() => {
-    fetchPedidos();
+    const init = async () => {
+      await fetchPedidos();
+    };
+    init();
 
     const channel = pusherClient.subscribe('cocina-channel');
     channel.bind('nuevo-pedido', fetchPedidos);

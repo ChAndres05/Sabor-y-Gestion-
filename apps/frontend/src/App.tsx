@@ -8,7 +8,6 @@ import AdminMenuPage from './modules/admin/AdminMenuPage';
 import MeseroHomePage from './modules/mesero/MeseroHomePage';
 import MeseroOrderFlowPage from './modules/mesero/MeseroOrderFlowPage';
 import MeseroOrdersPage from './modules/mesero/MeseroOrdersPage';
-import CocinaHomePage from './modules/cocina/CocinaHomePage';
 import CajeroHomePage from './modules/cajero/CajeroHomePage';
 import ClienteHomePage from './modules/cliente/ClienteHomePage';
 import ClientProductDetailPage from './modules/cliente/ClientProductDetailPage';
@@ -133,7 +132,7 @@ function App() {
     } finally {
       setIsBootstrapping(false);
     }
-  }, []);
+  }, [setScreen]);
 
   const handleLoginSuccess = (session: AuthSession) => {
     setAccessToken(session.accessToken);
