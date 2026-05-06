@@ -74,6 +74,7 @@ model detalles_pedido {
   precio_unitario          Decimal                 @db.Decimal
   subtotal                 Decimal                 @db.Decimal
   observaciones            String?
+  preparado                Boolean                 @default(false)
   pedido                   pedidos                 @relation(fields: [id_pedido], references: [id_pedido], onDelete: NoAction, onUpdate: NoAction)
   presentacion_producto    presentaciones_producto @relation(fields: [id_presentacion_producto], references: [id_presentacion_producto], onDelete: NoAction, onUpdate: NoAction)
 
@@ -252,6 +253,7 @@ model pedidos {
   observaciones                                 String?
   fecha_hora_pedido                             DateTime                     @default(now()) @db.Timestamp(6)
   fecha_hora_entrega                            DateTime?                    @db.Timestamp(6)
+  armado                                        Boolean                      @default(false)
   asignaciones_cocina                           asignaciones_cocina_pedido[]
   detalles_pedido                               detalles_pedido[]
   facturas                                      facturas[]
