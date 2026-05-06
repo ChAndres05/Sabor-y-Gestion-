@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { pusherServer } from '@/lib/pusher'; // <-- 1. Importamos la instancia de Pusher
 
 export async function POST(request: Request) {
   try {
@@ -37,6 +38,9 @@ export async function POST(request: Request) {
           impuesto: 0,
           descuento: 0,
           total: 0,
+        },
+        include: {
+          mesa: true // <-- 2. Incluimos la mesa para el monitor de cocina
         }
       }),
       prisma.mesas.update({
@@ -44,6 +48,9 @@ export async function POST(request: Request) {
         data: { estado: 'OCUPADA' }
       })
     ]);
+
+    // 3. Emitimos el evento en tiempo real a la cocina
+    await pusherServer.trigger('cocina-channel', 'nuevo-pedido', nuevoPedido);
 
     return NextResponse.json(nuevoPedido, { status: 201 });
   } catch (error) {
