@@ -76,7 +76,7 @@ export const ordersApi = {
    */
   async listActiveOrders(): Promise<TableOrder[]> {
     // Obtener mesas válidas para filtrar pedidos huérfanos del mock
-    const tables = await tryJson<BackendTableRecord[]>(`${API_URL}/api/mesas`);
+    const tables = await tryJson<BackendTableRecord[]>(`${API_URL}/api/mesas?t=${Date.now()}`, { cache: 'no-store' });
     const validIds = new Set(
       Array.isArray(tables) 
         ? tables.map((t) => Number(t.id_mesa ?? t.id)) 
@@ -84,7 +84,7 @@ export const ordersApi = {
     );
 
     // Intentamos obtener pedidos de backend
-    const backendData = await tryJson<BackendOrderRecord[]>(`${API_URL}/api/pedidos/activos`);
+    const backendData = await tryJson<BackendOrderRecord[]>(`${API_URL}/api/pedidos/activos?t=${Date.now()}`, { cache: 'no-store' });
     const simulatedStatuses = readSimulatedStatuses();
     const backendOrders = Array.isArray(backendData)
       ? backendData.map(o => mapBackendOrderToWaiterFrontend(o, simulatedStatuses))
@@ -291,7 +291,7 @@ export const ordersApi = {
 
     if (orderId > 0) {
       try {
-        const res = await fetch(`${API_URL}/api/pedidos/${orderId}`, {
+        const res = await fetch(`${API_URL}/api/pedidos/${orderId}/estado`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ estado: status })
@@ -301,8 +301,17 @@ export const ordersApi = {
         backendUpdated = false;
       }
 
-      // Overlay local para que las pantallas operativas no dependan de que el endpoint esté completo.
-      writeSimulatedStatus(orderId, status);
+      if (!backendUpdated) {
+        writeSimulatedStatus(orderId, status);
+      } else {
+        const statuses = readSimulatedStatuses();
+        if (statuses[orderId]) {
+          delete statuses[orderId];
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(SIMULATED_STATUSES_STORAGE_KEY, JSON.stringify(statuses));
+          }
+        }
+      }
     }
 
     await updateOrderStatusForTableMock(tableId, status);

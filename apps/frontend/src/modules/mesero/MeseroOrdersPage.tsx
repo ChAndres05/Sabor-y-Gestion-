@@ -107,8 +107,10 @@ export default function MeseroOrdersPage({
   const readyCount = orders.filter((order) => order.estado === 'LISTO').length;
   const completedCount = orders.filter(isCompletedOrder).length;
 
-  const loadOrders = useCallback(async () => {
-    setIsLoading(true);
+  const loadOrders = useCallback(async (isBackgroundRefresh = false) => {
+    if (!isBackgroundRefresh) {
+      setIsLoading(true);
+    }
 
     try {
       const [ordersData, tablesData] = await Promise.all([
@@ -124,7 +126,9 @@ export default function MeseroOrdersPage({
         message: error instanceof Error ? error.message : 'Ocurrió un error inesperado',
       });
     } finally {
-      setIsLoading(false);
+      if (!isBackgroundRefresh) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
@@ -132,7 +136,7 @@ export default function MeseroOrdersPage({
     void loadOrders();
 
     const handleStateChange = () => {
-      void loadOrders();
+      void loadOrders(true);
     };
 
     const channel = pusherClient.subscribe('orders-channel');

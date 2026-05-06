@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { pusherServer } from '@/lib/pusher';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -39,6 +40,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
       return [updatedMesa];
     });
+
+    await pusherServer.trigger('tables-channel', 'table-updated', mesa);
 
     return NextResponse.json(mesa);
   } catch (error) {

@@ -71,8 +71,10 @@ export default function ClientReservationsPage({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
-  const loadReservations = useCallback(async () => {
-    setIsLoading(true);
+  const loadReservations = useCallback(async (isBackgroundRefresh = false) => {
+    if (!isBackgroundRefresh) {
+      setIsLoading(true);
+    }
     try {
       const data = await clientFlowApi.listReservations(user.id);
       setReservations(data);
@@ -83,7 +85,9 @@ export default function ClientReservationsPage({
         message: error instanceof Error ? error.message : 'Ocurrió un error inesperado',
       });
     } finally {
-      setIsLoading(false);
+      if (!isBackgroundRefresh) {
+        setIsLoading(false);
+      }
     }
   }, [user.id]);
 
@@ -91,7 +95,7 @@ export default function ClientReservationsPage({
     void loadReservations();
 
     const handleStateChange = () => {
-      void loadReservations();
+      void loadReservations(true);
     };
 
     const handleStorageChange = (event: StorageEvent) => {

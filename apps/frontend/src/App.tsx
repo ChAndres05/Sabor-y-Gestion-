@@ -22,6 +22,8 @@ import TableManagementPage from './modules/tables/TableManagementPage';
 import MonitorCocinaPage from './modules/cocina/MonitorCocinaPage';
 import AdminReservationsPage from './modules/admin/AdminReservationsPage';
 import type { ClientNavigationKey } from './shared/types/client-flow.types';
+import { pusherClient } from './shared/utils/pusher';
+import { emitRestaurantStateChanged } from './shared/utils/events';
 
 type AppScreen =
   | 'login'
@@ -153,6 +155,25 @@ function App() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, [setScreen]);
+
+  useEffect(() => {
+    const handleEvent = () => emitRestaurantStateChanged();
+
+    const tablesChannel = pusherClient.subscribe('tables-channel');
+    tablesChannel.bind('table-updated', handleEvent);
+    tablesChannel.bind('table-order-updated', handleEvent);
+
+    const cocinaChannel = pusherClient.subscribe('cocina-channel');
+    cocinaChannel.bind('nuevo-pedido', handleEvent);
+    cocinaChannel.bind('pedido-actualizado', handleEvent);
+
+    return () => {
+      tablesChannel.unbind_all();
+      pusherClient.unsubscribe('tables-channel');
+      cocinaChannel.unbind_all();
+      pusherClient.unsubscribe('cocina-channel');
+    };
+  }, []);
 
   useEffect(() => {
     try {
