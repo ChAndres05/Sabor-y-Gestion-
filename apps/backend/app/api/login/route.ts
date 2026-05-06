@@ -9,13 +9,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-// Mapeo de Roles solicitado por el equipo
+// Mapeo de Roles actualizado: CLIENTE ahora es 5
 const ROLES_MAP: Record<number, string> = {
   1: "ADMIN",
   2: "MESERO",
   3: "COCINERO",
   4: "CAJERO",
-  6: "CLIENTE",
+  5: "CLIENTE",
 };
 
 export async function OPTIONS() {
@@ -44,7 +44,6 @@ export async function POST(req: Request) {
       },
     });
 
-    // Error estandarizado: INVALID_CREDENTIALS
     if (!user) {
       return NextResponse.json(
         { error: "INVALID_CREDENTIALS" },
@@ -52,7 +51,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Error estandarizado: ACCOUNT_DISABLED
     if (!user.activo) {
       return NextResponse.json(
         { error: "ACCOUNT_DISABLED" },
@@ -61,7 +59,7 @@ export async function POST(req: Request) {
     }
 
     let validPassword = false;
-    
+
     if (user.contrasena_hash && user.contrasena_hash.startsWith("$2")) {
       validPassword = await bcryptjs.compare(contrasena, user.contrasena_hash);
     } else {
@@ -75,15 +73,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // Generación de AccessToken (JWT)
     const token = jwt.sign(
       { id: user.id_usuario, rol: ROLES_MAP[user.id_rol] || "CLIENTE" },
       process.env.JWT_SECRET || "clave_secreta_temporal",
       { expiresIn: "8h" }
     );
 
-    // Limpieza de Body: No enviamos contrasena_hash por seguridad
-    // Extraemos los campos necesarios para el objeto 'user' que pidió el equipo
     const userData = {
       id: user.id_usuario,
       rol: ROLES_MAP[user.id_rol] || "CLIENTE",
@@ -102,7 +97,8 @@ export async function POST(req: Request) {
       user: userData,
     }, { headers: corsHeaders });
 
-  } catch (error: unknown) {
+  } catch (error) {
+    console.error("Error en login:", error);
     const mensajeError = error instanceof Error ? error.message : "SERVER_ERROR";
     return NextResponse.json(
       { error: mensajeError },
