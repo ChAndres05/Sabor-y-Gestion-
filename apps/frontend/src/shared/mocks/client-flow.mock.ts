@@ -5,9 +5,10 @@ import type {
   ClientReservation,
   ClientReservationRequest,
 } from '../types/client-flow.types';
+import type { TableOrder } from '../../modules/tables/types/table-order.types';
 
 const RESERVATIONS_STORAGE_KEY = 'gestionysabor_client_mock_reservations';
-const ORDERS_STORAGE_KEY = 'gestionysabor_client_mock_orders';
+const ORDERS_STORAGE_KEY = 'gestionysabor_unified_orders_mock';
 
 const delay = (ms = 220) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -47,25 +48,6 @@ function getYesterdayDate() {
   return date.toISOString().slice(0, 10);
 }
 
-const defaultOrderItems: ClientOrderItem[] = [
-  {
-    id: 1,
-    name: 'Pique macho especial',
-    quantity: 2,
-    notes: 'Sin locoto para una porcion',
-    unitPrice: 45,
-    subtotal: 90,
-  },
-  {
-    id: 2,
-    name: 'Jugo natural',
-    quantity: 2,
-    notes: 'Con poco azucar',
-    unitPrice: 18,
-    subtotal: 36,
-  },
-];
-
 function buildDefaultReservations(userId: number): ClientReservation[] {
   return [
     {
@@ -97,47 +79,6 @@ function buildDefaultReservations(userId: number): ClientReservation[] {
   ];
 }
 
-function buildDefaultOrders(userId: number): ClientOrder[] {
-  return [
-    {
-      id: 7001 + userId,
-      orderNumber: `P-${7001 + userId}`,
-      userId,
-      tableNumber: 5,
-      source: 'MESA_MESERO',
-      status: 'EN_PREPARACION',
-      items: defaultOrderItems,
-      subtotal: 126,
-      total: 126,
-      estimatedMinutes: 25,
-      notes: 'Pedido tomado por mesero. Solo aparece porque esta asociado al cliente registrado.',
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 6001 + userId,
-      orderNumber: `H-${6001 + userId}`,
-      userId,
-      tableNumber: 3,
-      source: 'MESA_MESERO',
-      status: 'PAGADO',
-      items: [
-        {
-          id: 3,
-          name: 'Parrilla de res',
-          quantity: 1,
-          unitPrice: 55,
-          subtotal: 55,
-        },
-      ],
-      subtotal: 55,
-      total: 55,
-      estimatedMinutes: 30,
-      notes: 'Pedido de historial mock finalizado.',
-      createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-    },
-  ];
-}
-
 function readReservations(userId: number) {
   const stored = readStorage<ClientReservation[]>(RESERVATIONS_STORAGE_KEY, []);
   const hasUserReservations = stored.some((reservation) => reservation.userId === userId);
@@ -149,30 +90,27 @@ function readReservations(userId: number) {
   return seeded;
 }
 
-function readOrders(userId: number) {
-  const stored = readStorage<ClientOrder[]>(ORDERS_STORAGE_KEY, []);
-  const hasUserOrders = stored.some((order) => order.userId === userId);
-
-  if (hasUserOrders) return stored;
-
-  const seeded = [...stored, ...buildDefaultOrders(userId)];
-  writeStorage(ORDERS_STORAGE_KEY, seeded);
-  return seeded;
-}
-
-function normalizeReservation(payload: ClientReservationRequest, id: number): ClientReservation {
+function mapTableToClientOrder(order: TableOrder): ClientOrder {
   return {
-    id,
-    userId: payload.userId,
-    tableId: payload.table.id,
-    tableNumber: payload.table.numero,
-    zoneName: payload.zone?.nombre ?? 'Sin zona',
-    people: payload.people,
-    date: payload.date,
-    time: payload.time,
-    status: 'CONFIRMADA',
-    observations: payload.observations?.trim() || 'Reserva creada desde flujo visual del cliente.',
-    createdAt: new Date().toISOString(),
+    id: order.id,
+    orderNumber: `P-${order.id}`,
+    userId: order.customer?.idUsuario || 0,
+    tableNumber: order.tableId,
+    source: 'MESA_MESERO',
+    status: order.estado,
+    items: (order.items || []).map((item) => ({
+      id: item.id,
+      name: item.nombreProducto,
+      quantity: item.cantidad,
+      notes: item.observacion,
+      unitPrice: item.precioUnitario,
+      subtotal: item.subtotal,
+    })),
+    subtotal: order.subtotal,
+    total: order.total,
+    estimatedMinutes: order.tiempoEstimadoMinutos,
+    notes: order.observaciones,
+    createdAt: order.fechaCreacion,
   };
 }
 
@@ -203,7 +141,19 @@ export async function createClientReservationMock(
   }
 
   const current = readReservations(payload.userId);
-  const newReservation = normalizeReservation(payload, getNextId(current, 1000));
+  const newReservation: ClientReservation = {
+    id: getNextId(current, 1000),
+    userId: payload.userId,
+    tableId: payload.table.id,
+    tableNumber: payload.table.numero,
+    zoneName: payload.zone?.nombre ?? 'Sin zona',
+    people: payload.people,
+    date: payload.date,
+    time: payload.time,
+    status: 'CONFIRMADA',
+    observations: payload.observations?.trim() || 'Reserva creada desde flujo visual del cliente.',
+    createdAt: new Date().toISOString(),
+  };
   const next = [...current, newReservation];
   writeStorage(RESERVATIONS_STORAGE_KEY, next);
   return newReservation;
@@ -239,8 +189,11 @@ export async function cancelClientReservationMock(
 
 export async function listClientOrdersMock(userId: number): Promise<ClientOrder[]> {
   await delay();
-  return readOrders(userId)
-    .filter((order) => order.userId === userId)
+  const allTableOrders = readStorage<TableOrder[]>(ORDERS_STORAGE_KEY, []);
+  
+  return allTableOrders
+    .filter((order) => order.customer?.idUsuario === userId)
+    .map(mapTableToClientOrder)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
@@ -258,28 +211,43 @@ export async function createPreparedReservationOrderMock(
     throw new Error('Reserva no encontrada para asociar pedido');
   }
 
-  const currentOrders = readOrders(payload.userId);
+  const allTableOrders = readStorage<TableOrder[]>(ORDERS_STORAGE_KEY, []);
   const subtotal = payload.items.reduce((total: number, item: ClientOrderItem) => total + item.subtotal, 0);
-  const nextId = getNextId(currentOrders, 3000);
+  const nextId = getNextId(allTableOrders, 3000);
 
-  const newOrder: ClientOrder = {
+  // IMPORTANTE: Guardamos como TableOrder, no como ClientOrder
+  const newOrder: TableOrder = {
     id: nextId,
-    orderNumber: `R-${nextId}`,
-    userId: payload.userId,
-    tableNumber: reservation.tableNumber,
-    reservationId: reservation.id,
-    source: 'RESERVA_PREPARADA',
-    status: 'REGISTRADO',
-    items: payload.items,
+    tableId: reservation.tableId,
+    tipoPedido: 'MESA',
+    estado: 'REGISTRADO',
+    waiterName: 'Autoservicio',
+    customer: {
+      idUsuario: payload.userId,
+      nombre: 'Cliente Reserva',
+      telefono: '00000000',
+      ci: '0'
+    },
+    items: payload.items.map((item, idx) => ({
+      id: idx + 1,
+      productoId: 0,
+      nombreProducto: item.name,
+      categoriaId: 0,
+      categoriaNombre: 'General',
+      cantidad: item.quantity,
+      observacion: item.notes || '',
+      ingredientes: [],
+      precioUnitario: item.unitPrice,
+      tiempoPreparacion: 15,
+      subtotal: item.subtotal
+    })),
     subtotal,
+    impuesto: 0,
+    descuento: 0,
     total: subtotal,
-    estimatedMinutes: 30,
-    notes:
-      payload.notes?.trim() ||
-      'Pedido de reserva mock. Cocina podria verlo con hora de reserva y hora sugerida de preparacion.',
-    createdAt: new Date().toISOString(),
-    reservationTime: `${reservation.date} ${reservation.time}`,
-    prepareFrom: '30 minutos antes de la reserva',
+    tiempoEstimadoMinutos: 30,
+    observaciones: payload.notes || 'Pedido de reserva.',
+    fechaCreacion: new Date().toISOString(),
   };
 
   const updatedReservations = reservations.map((item) =>
@@ -287,7 +255,7 @@ export async function createPreparedReservationOrderMock(
   );
 
   writeStorage(RESERVATIONS_STORAGE_KEY, updatedReservations);
-  writeStorage(ORDERS_STORAGE_KEY, [...currentOrders, newOrder]);
+  writeStorage(ORDERS_STORAGE_KEY, [...allTableOrders, newOrder]);
 
-  return newOrder;
+  return mapTableToClientOrder(newOrder);
 }

@@ -16,6 +16,11 @@ export interface MenuProduct {
   imagen: string | null;
   activo: boolean;
   disponible: boolean;
+  ingredientes?: Array<{
+    id: number;
+    nombre: string;
+    incluidoPorDefecto: boolean;
+  }>;
 }
 
 export interface MenuCategoryFormValues {

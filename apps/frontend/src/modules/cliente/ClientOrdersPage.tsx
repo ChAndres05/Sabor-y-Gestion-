@@ -3,7 +3,7 @@ import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { TableOrderStatus } from '../tables/types/table-order.types';
 import ClientLayout from '../../components/client/ClientLayout';
-import { clientFlowApi } from '../../shared/api/client-flow.api';
+import { ordersApi } from '../../shared/api/orders.api';
 import { pusherClient } from '../../shared/utils/pusher';
 import type { ClientNavigationKey, ClientOrder, ClientOrderStep, ClientOrderItem } from '../../shared/types/client-flow.types';
 
@@ -99,7 +99,7 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
   const loadOrders = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await clientFlowApi.listOrders(user.id);
+      const data = await ordersApi.listOrdersByClient(user.id);
       setOrders(data);
     } catch (error) {
       setFeedback({
@@ -252,13 +252,13 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
                         Ver detalle
                       </button>
                       
-                      {!['ENTREGADO', 'PAGADO', 'CANCELADO'].includes(order.status) && onManageOrder && order.tableNumber && (
+                      {onManageOrder && order.tableNumber && ['REGISTRADO', 'EN_PREPARACION', 'LISTO'].includes(order.status) && (
                         <button
                           type="button"
                           onClick={() => onManageOrder(Number(order.tableNumber))}
                           className="flex-1 rounded-2xl bg-primary px-4 py-2 text-[13px] font-bold text-white transition-colors hover:bg-primary-hover"
                         >
-                          Añadir platos
+                          {order.status === 'REGISTRADO' ? 'Añadir platos' : '+ Nuevo pedido'}
                         </button>
                       )}
                     </div>

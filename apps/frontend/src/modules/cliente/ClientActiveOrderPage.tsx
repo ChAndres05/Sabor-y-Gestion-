@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import { getMockIngredientsForProduct } from '../../shared/mocks/menu-ingredients.mock';
+import { ordersApi } from '../../shared/api/orders.api';
+import { menuApi } from '../menu/menu.api';
 import {
-  addOrderItemToTableMock,
-  getOpenOrderByTableMock,
-  listOrderCategoriesMock,
   listOrderProductsByCategoryMock,
-  removeOrderItemFromTableMock,
-  updateOrderItemInTableMock,
+  requestBillForTableMock,
 } from '../../shared/mocks/table-orders.mock';
-import { pusherClient } from '../../shared/utils/pusher';
-import { getTableByIdMock } from '../../shared/mocks/tables.mock';
+import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
+import { getTableByIdMock, updateTableStatusMock } from '../../shared/mocks/tables.mock';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { RestaurantTable } from '../tables/types/table.types';
 import type {
@@ -106,6 +104,7 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
   const [activeStep, setActiveStep] = useState<FlowStep>('menu');
   const [table, setTable] = useState<RestaurantTable | null>(null);
   const [order, setOrder] = useState<TableOrder | null>(null);
+  const [activeOrders, setActiveOrders] = useState<TableOrder[]>([]);
   const [categories, setCategories] = useState<OrderCatalogCategory[]>([]);
   const [products, setProducts] = useState<OrderCatalogProduct[]>([]);
 
@@ -131,26 +130,59 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
   const canEditItems =
     Boolean(order) &&
     !isBillRequested &&
-    order?.estado !== 'PAGADO' &&
-    order?.estado !== 'CANCELADO';
+    order?.estado === 'REGISTRADO';
+  const hasItems = (order?.items.length ?? 0) > 0;
+
+  const orderFlow = [
+    {
+      label: 'Registrado',
+      done: Boolean(order),
+      active: order?.estado === 'REGISTRADO',
+    },
+    {
+      label: 'Preparando',
+      done: ['EN_PREPARACION', 'LISTO', 'ENTREGADO'].includes(order?.estado || ''),
+      active: order?.estado === 'EN_PREPARACION',
+    },
+    {
+      label: 'Listo',
+      done: ['LISTO', 'ENTREGADO'].includes(order?.estado || ''),
+      active: order?.estado === 'LISTO',
+    },
+    {
+      label: 'Entregado',
+      done: order?.estado === 'ENTREGADO',
+      active: order?.estado === 'ENTREGADO',
+    },
+  ];
 
   const refreshPageState = useCallback(async () => {
-    const latestOrder = await getOpenOrderByTableMock(tableId);
-    setOrder(latestOrder);
+    const latestOrders = await ordersApi.getOpenOrdersByTable(tableId);
+    setActiveOrders(latestOrders);
+    
+    setOrder(currentOrder => {
+      const stillActive = latestOrders.find(o => o.id === currentOrder?.id);
+      if (stillActive) return stillActive;
+      return latestOrders.find(o => o.estado === 'REGISTRADO') || latestOrders[0] || null;
+    });
   }, [tableId]);
 
   useEffect(() => {
     const loadPage = async () => {
       setIsLoading(true);
       try {
-        const [tableData, categoriesData, orderData] = await Promise.all([
+        const [tableData, categoriesData, ordersData] = await Promise.all([
           getTableByIdMock(tableId),
-          listOrderCategoriesMock(),
-          getOpenOrderByTableMock(tableId),
+          menuApi.getCategories('', 'activas'),
+          ordersApi.getOpenOrdersByTable(tableId),
         ]);
         setTable(tableData);
         setCategories(categoriesData);
-        setOrder(orderData);
+        setActiveOrders(ordersData);
+        
+        const currentOrder = ordersData.find(o => o.estado === 'REGISTRADO') || ordersData[0] || null;
+        setOrder(currentOrder);
+        
         setSelectedCategoryId(categoriesData[0]?.id ?? 0);
       } catch (error) {
         setFeedback({
@@ -164,11 +196,14 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
     };
     void loadPage();
 
-    const channel = pusherClient.subscribe('orders-channel');
-    channel.bind('order-updated', () => { void refreshPageState(); });
+    const handleStateChange = () => {
+      void refreshPageState();
+    };
+
+    window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+
     return () => {
-      channel.unbind('order-updated');
-      pusherClient.unsubscribe('orders-channel');
+      window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
     };
   }, [tableId, refreshPageState]);
 
@@ -213,6 +248,52 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
     setIsItemModalOpen(true);
   };
 
+  const handleNewComanda = async () => {
+    if (!order) return;
+    setIsLoading(true);
+    try {
+      const newOrder = await ordersApi.createExtraOrder(tableId, order.customer, 0);
+      const ordersData = await ordersApi.getOpenOrdersByTable(tableId);
+      setActiveOrders(ordersData);
+      setOrder(newOrder);
+      setActiveStep('menu');
+      setFeedback({
+        type: 'success',
+        title: 'Nuevo pedido',
+        message: 'Se ha creado un nuevo pedido para tu mesa.',
+      });
+    } catch (error) {
+      setFeedback({
+        type: 'error',
+        title: 'Error',
+        message: error instanceof Error ? error.message : 'No se pudo crear el nuevo pedido',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRequestBill = async () => {
+    setIsSavingItem(true);
+    try {
+      await requestBillForTableMock(tableId);
+      await updateTableStatusMock(tableId, 'CUENTA_SOLICITADA');
+      await refreshPageState();
+      setFeedback({
+        type: 'success',
+        title: 'Cuenta solicitada',
+        message: 'Tu cuenta ha sido solicitada. El personal se acercará pronto.',
+      });
+    } catch (error) {
+      setFeedback({
+        type: 'error',
+        title: 'Error',
+        message: 'No se pudo solicitar la cuenta.',
+      });
+    } finally {
+      setIsSavingItem(false);
+    }
+  };
   const handleSaveItem = async () => {
     setIsSavingItem(true);
     try {
@@ -224,9 +305,9 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
         ingredientes: ingredientSelections.map(i => ({ nombre: i.nombre, incluido: i.incluido })),
       };
       if (editingItemId) {
-        await updateOrderItemInTableMock(tableId, editingItemId, payload);
+        await ordersApi.updateOrderItem(tableId, editingItemId, payload);
       } else {
-        await addOrderItemToTableMock(tableId, payload);
+        await ordersApi.addOrderItem(tableId, payload);
       }
       await refreshPageState();
       resetItemForm();
@@ -258,7 +339,11 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
 
   const handleRemoveItem = async (itemId: number) => {
     try {
-      await removeOrderItemFromTableMock(tableId, itemId);
+      if (order) {
+        await ordersApi.removeOrderItem(order.id, itemId, tableId);
+      } else {
+        await ordersApi.removeOrderItem(0, itemId, tableId);
+      }
       await refreshPageState();
     } catch (error) {
       console.error(error);
@@ -360,17 +445,62 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
 
             {activeStep === 'pedido' && (
               <section className="space-y-4">
-                <div className="rounded-[1.5rem] bg-white p-5 shadow-sm flex justify-between items-center">
-                  <div>
-                    <h2 className="text-[20px] font-bold">Pedido actual</h2>
-                    <p className="text-[13px] text-gray-500">{order?.customer.nombre} · Mesa {table?.numero}</p>
+                <div className="rounded-[1.5rem] bg-white p-5 shadow-sm">
+                  <div className="flex flex-col gap-3">
+                    <h2 className="text-[20px] font-bold">Mis pedidos activos</h2>
+                    <div className="flex flex-wrap gap-2">
+                      {activeOrders.map((o, idx) => (
+                        <button
+                          key={o.id}
+                          type="button"
+                          onClick={() => setOrder(o)}
+                          className={`rounded-xl px-3 py-2 text-[11px] font-bold transition-all ${
+                            order?.id === o.id
+                              ? 'bg-primary text-white shadow-md'
+                              : 'bg-background text-gray-500 hover:bg-gray-200'
+                          }`}
+                        >
+                          Pedido #{idx + 1} ({getOrderStatusLabel(o.estado)})
+                        </button>
+                      ))}
+                      
+                      {!activeOrders.some(o => o.estado === 'REGISTRADO') && (
+                        <button
+                          type="button"
+                          onClick={handleNewComanda}
+                          className="rounded-xl bg-success px-3 py-2 text-[11px] font-bold text-white shadow-sm"
+                        >
+                          + Nuevo pedido
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${getStatusBadgeClass(order?.estado || 'REGISTRADO')}`}>
-                    {getOrderStatusLabel(order?.estado || 'REGISTRADO')}
-                  </span>
                 </div>
 
-                {order?.items.map((item) => (
+                {order && (
+                  <div className="rounded-[1.5rem] bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[14px] font-bold text-gray-500">Estado del pedido actual</span>
+                      <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${getStatusBadgeClass(order.estado)}`}>
+                        {getOrderStatusLabel(order.estado)}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {orderFlow.map((step, index) => (
+                        <div
+                          key={step.label}
+                          className={`rounded-xl px-1 py-2 text-center text-[9px] font-bold ${
+                            step.done ? 'bg-success text-white' : step.active ? 'bg-primary text-white' : 'bg-background text-gray-400'
+                          }`}
+                        >
+                          <span className="block opacity-80">{index + 1}</span>
+                          {step.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(order?.items ?? []).map((item) => (
                   <article key={item.id} className="rounded-2xl bg-white p-4 shadow-sm">
                     <div className="flex justify-between">
                       <div className="flex gap-3">
@@ -397,6 +527,16 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
                   <span className="font-bold">Total</span>
                   <span className="text-[22px] font-bold text-primary">{formatCurrency(order?.total || 0)}</span>
                 </div>
+
+                {!isBillRequested && hasItems && (
+                  <button
+                    type="button"
+                    onClick={handleRequestBill}
+                    className="w-full rounded-2xl bg-primary py-4 text-[16px] font-bold text-white shadow-lg transition-all hover:bg-primary-hover active:scale-95"
+                  >
+                    Solicitar cuenta
+                  </button>
+                )}
               </section>
             )}
           </>

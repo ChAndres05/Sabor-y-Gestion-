@@ -53,7 +53,6 @@ export default function AdminReservationsPage({
   onOpenReservationOrder, 
   onViewOrder 
 }: AdminReservationsPageProps) {
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const [reservations, setReservations] = useState<ClientReservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ReservationTab>('active');
@@ -96,18 +95,8 @@ export default function AdminReservationsPage({
   const handleCancelReservation = async (reservation: ClientReservation) => {
     setIsSubmitting(true);
     try {
-      await clientFlowApi.cancelReservation(reservation.userId, reservation.id);
+      await clientFlowApi.cancelReservation(reservation.userId, reservation.id, reservation.tableId);
       
-      const response = await fetch(`${API_URL}/api/admin/mesas/${reservation.tableId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: 'LIBRE' }),
-      });
-      
-      if (!response.ok) {
-        console.warn('No se pudo liberar la mesa en el backend de mesas.');
-      }
-
       await loadReservations();
       setFeedback({
         type: 'success',

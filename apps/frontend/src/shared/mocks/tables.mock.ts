@@ -106,11 +106,11 @@ function cloneTable(table: RestaurantTable): RestaurantTable {
 }
 
 export function applyWaiterTableStatusOverlayMock(
-  backendTables: RestaurantTable[]
+  tablesToApply: RestaurantTable[]
 ): RestaurantTable[] {
   const overlay = readStatusOverlay();
 
-  return backendTables.map((table) => ({
+  return tablesToApply.map((table) => ({
     ...table,
     estado: overlay[String(table.id)] ?? table.estado,
   }));
@@ -405,6 +405,23 @@ export async function deleteTableMock(tableId: number): Promise<void> {
 export async function getTableByIdMock(
   tableId: number
 ): Promise<RestaurantTable> {
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/mesas/${tableId}`);
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        id: data.id_mesa,
+        numero: data.numero,
+        capacidad: data.capacidad,
+        zoneId: data.id_zona,
+        estado: data.estado,
+        activo: data.activa,
+      };
+    }
+  } catch (error) {
+    console.error('API fail for getTableById', error);
+  }
+
   await delay();
 
   const overlay = readStatusOverlay();

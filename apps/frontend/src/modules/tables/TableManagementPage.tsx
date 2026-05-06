@@ -13,7 +13,7 @@ import {
   deleteTableMock,
   updateTableMock,
 } from '../../shared/mocks/tables.mock';
-import { pusherClient } from '../../shared/utils/pusher';
+import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { ClientNavigationKey } from '../../shared/types/client-flow.types';
 import { clientFlowApi } from '../../shared/api/client-flow.api';
@@ -189,44 +189,16 @@ export default function TableManagementPage({
   }, [loadZones, loadTables]);
 
   useEffect(() => {
-    const channel = pusherClient.subscribe('tables-channel');
-    
-    channel.bind('table-updated', (updatedBackendTable: BackendTable) => {
-      const mappedTable = mapBackendTable(updatedBackendTable);
-      
-      setTables((currentTables) => {
-        if (mappedTable.activo) {
-          const exists = currentTables.some((t) => t.id === mappedTable.id);
-          if (exists) {
-            return currentTables.map((t) => (t.id === mappedTable.id ? mappedTable : t));
-          }
-          return [...currentTables, mappedTable];
-        } else {
-          return currentTables.filter((t) => t.id !== mappedTable.id);
-        }
-      });
-    });
+    const handleStateChange = () => {
+      void loadTables();
+    };
 
-    channel.bind('zone-updated', (updatedBackendZone: BackendZone) => {
-      const mappedZone = mapBackendZone(updatedBackendZone);
-      
-      setZones((currentZones) => {
-        if (mappedZone.activo) {
-          const exists = currentZones.some((z) => z.id === mappedZone.id);
-          if (exists) {
-            return currentZones.map((z) => (z.id === mappedZone.id ? mappedZone : z));
-          }
-          return [...currentZones, mappedZone];
-        } else {
-          return currentZones.filter((z) => z.id !== mappedZone.id);
-        }
-      });
-    });
+    window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
 
     return () => {
-      pusherClient.unsubscribe('tables-channel');
+      window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
     };
-  }, []);
+  }, [loadTables]);
 
   const filteredTables = useMemo(() => {
     let result = tables;
@@ -424,28 +396,23 @@ export default function TableManagementPage({
     setIsConfirming(true);
 
     try {
-      if (role === 'CLIENTE' && user) {
-        const currentYear = new Date().getFullYear();
-        const monthIndex = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'].indexOf(mes) + 1;
-        const formattedDate = `${currentYear}-${String(monthIndex).padStart(2, '0')}-${dia.padStart(2, '0')}`;
-        
-        await clientFlowApi.createReservation({
-          userId: user.id,
-          table: reservingTable,
-          zone: zones.find(z => z.id === reservingTable.zoneId),
-          people: reservingTable.capacidad,
-          date: formattedDate,
-          time: horaInicio,
-          observations: 'Reserva creada desde el panel de mesas general.',
-        });
-      }
+      const currentYear = new Date().getFullYear();
+      const monthIndex = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'].indexOf(mes) + 1;
+      const formattedDate = `${currentYear}-${String(monthIndex).padStart(2, '0')}-${dia.padStart(2, '0')}`;
+      
+      // Si no es cliente (ej: admin/mesero), usamos un ID de usuario genérico o el del admin
+      // Pero el contrato de createReservation pide un userId.
+      const userId = user?.id || 1; 
 
-      const response = await fetch(`${API_URL}/api/admin/mesas/${reservingTable.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: 'RESERVADA' }),
+      await clientFlowApi.createReservation({
+        userId,
+        table: reservingTable,
+        zone: zones.find(z => z.id === reservingTable.zoneId),
+        people: reservingTable.capacidad,
+        date: formattedDate,
+        time: horaInicio,
+        observations: role === 'CLIENTE' ? 'Reserva creada desde el panel de cliente.' : 'Reserva creada por personal del restaurante.',
       });
-      if (!response.ok) throw new Error('Error al actualizar estado');
 
       setFeedback({
         type: 'success',

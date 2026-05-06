@@ -4,6 +4,7 @@ import type {
   ClientReservation,
   ClientReservationRequest,
 } from '../types/client-flow.types';
+import type { TableStatus } from '../../modules/tables/types/table.types';
 import {
   mapBackendReservation,
   mapBackendOrder,
@@ -28,6 +29,30 @@ async function tryJson<T>(url: string, init?: RequestInit): Promise<T | null> {
     return (await response.json()) as T;
   } catch {
     return null;
+  }
+}
+
+async function updateTableStatusBackend(tableId: number, status: TableStatus): Promise<boolean> {
+  try {
+    // Intentamos con el endpoint de admin primero, si no con el general
+    let res = await fetch(`${API_URL}/api/admin/mesas/${tableId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estado: status }),
+    });
+
+    if (!res.ok) {
+      res = await fetch(`${API_URL}/api/mesas/${tableId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: status }),
+      });
+    }
+
+    return res.ok;
+  } catch (error) {
+    console.error('Error updating table status:', error);
+    return false;
   }
 }
 
@@ -66,18 +91,33 @@ export const clientFlowApi = {
       }),
     });
 
-    if (data) return mapBackendReservation(data);
-    return createClientReservationMock(payload);
+    if (data) {
+      await updateTableStatusBackend(payload.table.id, 'RESERVADA');
+      return mapBackendReservation(data);
+    }
+    
+    const mockRes = await createClientReservationMock(payload);
+    // En mock también deberíamos "simular" el cambio de mesa si no hay backend
+    // pero por ahora priorizamos que la API centralice la intención.
+    return mockRes;
   },
 
-  async cancelReservation(userId: number, reservationId: number): Promise<ClientReservation> {
+  async cancelReservation(userId: number, reservationId: number, tableId?: number): Promise<ClientReservation> {
     const data = await tryJson<BackendReservation>(`${API_URL}/api/reservas/${reservationId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ estado: 'CANCELADA' }),
     });
 
-    if (data) return mapBackendReservation(data);
+    if (data) {
+      const reservation = mapBackendReservation(data);
+      const tid = tableId || reservation.tableId;
+      if (tid) {
+        await updateTableStatusBackend(tid, 'LIBRE');
+      }
+      return reservation;
+    }
+    
     return cancelClientReservationMock(userId, reservationId);
   },
 

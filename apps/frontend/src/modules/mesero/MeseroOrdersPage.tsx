@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
+import { ordersApi } from '../../shared/api/orders.api';
 import {
-  listWaiterOrdersMock,
   requestBillForTableMock,
-  updateOrderStatusForTableMock,
 } from '../../shared/mocks/table-orders.mock';
 import { pusherClient } from '../../shared/utils/pusher';
 import { listTablesMock, updateTableStatusMock } from '../../shared/mocks/tables.mock';
@@ -109,7 +108,7 @@ export default function MeseroOrdersPage({
 
     try {
       const [ordersData, tablesData] = await Promise.all([
-        listWaiterOrdersMock(),
+        ordersApi.listActiveOrders(),
         listTablesMock(),
       ]);
       setOrders(ordersData);
@@ -143,7 +142,12 @@ export default function MeseroOrdersPage({
     setBusyTableId(tableId);
 
     try {
-      await updateOrderStatusForTableMock(tableId, status);
+      const orderToUpdate = orders.find(o => o.tableId === tableId && !isCompletedOrder(o));
+      if (orderToUpdate) {
+        await ordersApi.updateOrderStatus(orderToUpdate.id, status, tableId);
+      } else {
+        await ordersApi.updateOrderStatus(0, status, tableId);
+      }
       await updateTableStatusMock(tableId, 'OCUPADA');
       await loadOrders();
       setFeedback({
@@ -303,14 +307,9 @@ export default function MeseroOrdersPage({
                     )}
 
                     {order.estado === 'EN_PREPARACION' && (
-                      <button
-                        type="button"
-                        onClick={() => void handleChangeOrderStatus(order.tableId, 'LISTO')}
-                        disabled={isBusy}
-                        className="w-full rounded-xl bg-info px-4 py-3 text-[13px] font-bold text-white disabled:opacity-60"
-                      >
-                        Simular cocina: listo para entregar
-                      </button>
+                      <div className="w-full rounded-xl bg-gray-100 px-4 py-3 text-[13px] font-bold text-gray-500 text-center">
+                        En preparación...
+                      </div>
                     )}
 
                     {(order.estado === 'LISTO' || order.estado === 'EN_CAMINO') && (

@@ -1,10 +1,6 @@
 import { useEffect, useState } from 'react';
-import {
-  listKitchenOrdersMock,
-  toggleKitchenOrderMock,
-  toggleKitchenOrderItemMock,
-  updateKitchenOrderStatusMock,
-} from '../../shared/mocks/kitchen.mock';
+import { ordersApi } from '../../shared/api/orders.api';
+import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
 import type { KitchenOrder } from '../../shared/types/kitchen.types';
 
 interface MonitorCocinaPageProps {
@@ -14,44 +10,94 @@ interface MonitorCocinaPageProps {
 export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
 
-  useEffect(() => {
-    async function load() {
-      setIsLoading(true);
-      try {
-        const data = await listKitchenOrdersMock();
-        setOrders(data);
-      } catch (error) {
-        console.error('Error loading kitchen orders:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    void load();
-  }, []);
-
-  const toggleOrder = async (id: number) => {
+  const loadOrders = async () => {
     try {
-      const updated = await toggleKitchenOrderMock(id);
-      setOrders(updated);
+      const data = await ordersApi.listKitchenOrders();
+      
+      // Recuperar estados de check de localStorage
+      const checkedData = JSON.parse(localStorage.getItem('gestionysabor_kitchen_checked_items') || '{}');
+      
+      const hydrated = data.map(order => ({
+        ...order,
+        items: order.items.map(item => ({
+          ...item,
+          checked: checkedData[`${order.id}-${item.name}`] || false
+        }))
+      }));
+      
+      setOrders(hydrated);
     } catch (error) {
-      console.error('Error toggling order:', error);
+      console.error('Error loading kitchen orders:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  useEffect(() => {
+    void loadOrders();
+
+    const handleStateChange = () => {
+      void loadOrders();
+    };
+
+    const timer = setInterval(() => {
+      setCurrentTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    }, 60000);
+
+    window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+
+    return () => {
+      window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+      clearInterval(timer);
+    };
+  }, []);
+
+  const toggleOrder = (id: number) => {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, isToggled: !o.isToggled } : o));
+  };
+
   const toggleItemChecked = async (orderId: number, itemIndex: number) => {
+    const updatedOrders = orders.map(o => {
+      if (o.id !== orderId) return o;
+      const newItems = o.items.map((it, idx) => {
+        if (idx === itemIndex) {
+          const newChecked = !it.checked;
+          // Persistir en localStorage
+          const checkedData = JSON.parse(localStorage.getItem('gestionysabor_kitchen_checked_items') || '{}');
+          if (newChecked) {
+            checkedData[`${orderId}-${it.name}`] = true;
+          } else {
+            delete checkedData[`${orderId}-${it.name}`];
+          }
+          localStorage.setItem('gestionysabor_kitchen_checked_items', JSON.stringify(checkedData));
+          return { ...it, checked: newChecked };
+        }
+        return it;
+      });
+      const isAnyChecked = newItems.some(it => it.checked);
+      const newStatus = isAnyChecked ? 'preparing' : 'pending';
+      return { ...o, items: newItems, status: newStatus as any };
+    });
+
+    setOrders(updatedOrders);
+
     try {
-      const updated = await toggleKitchenOrderItemMock(orderId, itemIndex);
-      setOrders(updated);
+      const order = updatedOrders.find(o => o.id === orderId);
+      if (order && order.status === 'preparing') {
+        await ordersApi.updateOrderStatus(orderId, 'EN_PREPARACION', order.tableNumber || 0);
+      }
     } catch (error) {
-      console.error('Error toggling item:', error);
+      console.error('Error updating status from kitchen:', error);
     }
   };
 
   const setReady = async (id: number) => {
     try {
-      const updated = await updateKitchenOrderStatusMock(id, 'ready');
-      setOrders(updated);
+      const order = orders.find(o => o.id === id);
+      await ordersApi.updateOrderStatus(id, 'LISTO', order?.tableNumber || 0);
+      await loadOrders();
     } catch (error) {
       console.error('Error setting order ready:', error);
     }
@@ -116,7 +162,7 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
           </div>
         </div>
         <div className="flex items-center justify-between w-full sm:w-auto gap-4 text-[#9ca3af] text-sm font-medium">
-          <span className="hidden sm:inline">09:44 p. m.</span>
+          <span className="hidden sm:inline">{currentTime}</span>
         </div>
       </div>
 
