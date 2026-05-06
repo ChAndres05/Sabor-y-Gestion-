@@ -17,6 +17,11 @@ interface Order {
   items: OrderItem[];
   status: 'pending' | 'preparing' | 'ready';
   isToggled: boolean;
+  source?: 'mesa' | 'reserva';
+  tableNumber?: number;
+  customerName?: string;
+  reservationTime?: string;
+  prepareFrom?: string;
 }
 
 interface MonitorCocinaPageProps {
@@ -252,6 +257,10 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
             <div className="w-[6px] h-[6px] rounded-full bg-[#22c55e]"></div>
             <span>{readyCount} LISTOS</span>
           </div>
+          <div className="flex items-center gap-2">
+            <div className="w-[6px] h-[6px] rounded-full bg-[#4A7DA8]"></div>
+            <span>{reservationCount} DE RESERVA</span>
+          </div>
         </div>
         <div className="flex items-center justify-between w-full sm:w-auto gap-4 text-[#9ca3af] text-sm font-medium">
           <span className="hidden sm:inline">{currentTime}</span>
@@ -266,7 +275,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
             className="border-2 border-black bg-[#F2E9DC] rounded-[20px] p-5 flex flex-col justify-between min-h-[240px] shadow-sm hover:shadow-md transition-shadow"
           >
             <div>
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex justify-between items-center mb-4">
                 <span className="text-[10px] font-black w-14 leading-[1.1] tracking-wide text-[#1c1c1c]">
                   NÚMERO DE ORDEN
                 </span>
@@ -283,6 +292,14 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
                   </span>
                 </div>
               </div>
+
+              {order.source === 'reserva' && (
+                <div className="mb-4 rounded-[12px] border-2 border-[#4A7DA8] bg-white p-3 text-[11px] font-bold leading-4 text-[#1c1c1c]">
+                  <p>PEDIDO DE RESERVA</p>
+                  <p>Mesa: {order.tableNumber} · Cliente: {order.customerName}</p>
+                  <p>Hora reserva: {order.reservationTime} · Preparar desde: {order.prepareFrom}</p>
+                </div>
+              )}
 
               <ul className="space-y-3 mb-6">
                 {order.items.map((item, idx) => (

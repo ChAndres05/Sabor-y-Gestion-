@@ -13,6 +13,8 @@ const menuItems = [
   { key: 'productos', label: 'Administración de productos', enabled: true },
   { key: 'mesas', label: 'Gestión de Mesas', enabled: true },
   { key: 'cocina', label: 'Monitor de cocina', enabled: true },
+  { key: 'reservas', label: 'Gestión de reservas (preparado)', enabled: false },
+  { key: 'pedidos', label: 'Gestión de pedidos (preparado)', enabled: false },
   { key: 'delivery', label: 'Atención Delivery', enabled: false },
   { key: 'facturacion', label: 'Facturación', enabled: false },
   { key: 'cierre', label: 'Cierre de Caja', enabled: false },

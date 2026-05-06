@@ -725,7 +725,8 @@ export async function getOpenOrderByTableMock(
 
 export async function saveOrderCustomerMock(
   tableId: number,
-  customer: TableOrderCustomer
+  customer: TableOrderCustomer,
+  waiterUserId?: number
 ): Promise<TableOrder> {
   if (!customer.nombre.trim()) {
     throw new Error('El nombre del cliente es obligatorio');
@@ -740,8 +741,8 @@ export async function saveOrderCustomerMock(
 
     const body = {
       id_mesa: tableId,
-      id_usuario_mesero: 20, // Hardcoded mesero o sacar del contexto
-      id_usuario_cliente: customer.idUsuario || null,
+      id_usuario_mesero: waiterUserId ?? 20,
+      id_usuario_cliente: customer.idUsuario ?? null,
       observaciones: 'Pedido creado desde flujo de mesa'
     };
 
@@ -783,7 +784,7 @@ export async function saveOrderCustomerMock(
       tableId,
       tipoPedido: 'MESA',
       estado: 'REGISTRADO',
-      waiterName: 'Mesero asignado',
+      waiterName: waiterUserId ? `Mesero ${waiterUserId}` : 'Mesero asignado',
       customer: normalizedCustomer,
       items: [],
       subtotal: 0,

@@ -41,6 +41,10 @@ type ConfirmState =
       table: RestaurantTable;
     }
   | {
+      type: 'deleteZone';
+      zone: Zone;
+    }
+  | {
       type: 'status';
       table: RestaurantTable;
       nextStatus: TableStatus;
@@ -366,6 +370,30 @@ export default function TableManagementPage({
         });
       }
 
+      if (confirmState.type === 'deleteZone') {
+        if (isAdmin) {
+          const response = await fetch(`${API_URL}/api/zonas/${confirmState.zone.id}`, {
+            method: 'DELETE',
+          });
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Error al eliminar zona');
+          }
+        } else {
+          throw new Error('Solo los administradores pueden eliminar zonas.');
+        }
+
+        setFeedback({
+          type: 'success',
+          title: 'Zona eliminada',
+          message: `La zona "${confirmState.zone.nombre}" y todas sus mesas fueron eliminadas.`,
+        });
+        
+        if (selectedZoneId === confirmState.zone.id) {
+          setSelectedZoneId('ALL');
+        }
+      }
+
       if (confirmState.type === 'status') {
         const response = await fetch(`${API_URL}/api/admin/mesas/${confirmState.table.id}`, {
           method: 'PUT',
@@ -383,6 +411,7 @@ export default function TableManagementPage({
 
       setConfirmState(null);
       setOpenActionMenuId(null);
+      await loadZones();
       await loadTables();
     } catch (error) {
       setFeedback({
@@ -490,6 +519,7 @@ export default function TableManagementPage({
                 zones={zones}
                 selectedZoneId={selectedZoneId}
                 onSelectZone={setSelectedZoneId}
+                onDeleteZone={isAdmin ? (zone) => setConfirmState({ type: 'deleteZone', zone }) : undefined}
               />
             )}
           </div>
@@ -590,15 +620,23 @@ export default function TableManagementPage({
 
       <ConfirmModal
         open={Boolean(confirmState)}
-        title={confirmState?.type === 'delete' ? '¿Eliminar mesa?' : '¿Cambiar estado de la mesa?'}
+        title={
+          confirmState?.type === 'delete'
+            ? '¿Eliminar mesa?'
+            : confirmState?.type === 'deleteZone'
+            ? '¿Eliminar zona?'
+            : '¿Cambiar estado de la mesa?'
+        }
         description={
           confirmState?.type === 'delete'
             ? 'Esta acción no se puede deshacer.'
+            : confirmState?.type === 'deleteZone'
+            ? 'Esta acción eliminará la zona y todas las mesas asociadas a ella. No se puede deshacer.'
             : confirmState
             ? `La mesa ${confirmState.table.numero} cambiará a estado ${getStatusLabel(confirmState.nextStatus)}.`
             : ''
         }
-        confirmLabel={confirmState?.type === 'delete' ? 'Eliminar' : 'Confirmar'}
+        confirmLabel={confirmState?.type === 'delete' || confirmState?.type === 'deleteZone' ? 'Eliminar' : 'Confirmar'}
         isLoading={isConfirming}
         onClose={() => setConfirmState(null)}
         onConfirm={handleConfirmAction}
