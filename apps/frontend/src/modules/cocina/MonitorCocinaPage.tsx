@@ -216,6 +216,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
   const pendingCount = orders.filter((o) => o.status === 'pending').length;
   const preparingCount = orders.filter((o) => o.status === 'preparing').length;
   const readyCount = orders.filter((o) => o.status === 'ready').length;
+  const reservationCount = orders.filter((o) => o.source === 'reserva').length;
 
   return (
     <div className="min-h-screen font-sans p-4 sm:p-6 md:p-8 text-[#1c1c1c] bg-[#F2E9DC]">
