@@ -6,6 +6,7 @@ import type {
   ClientReservationRequest,
 } from '../types/client-flow.types';
 import type { TableOrder } from '../../modules/tables/types/table-order.types';
+import { emitRestaurantStateChanged } from '../utils/events';
 
 const RESERVATIONS_STORAGE_KEY = 'gestionysabor_client_mock_reservations';
 const ORDERS_STORAGE_KEY = 'gestionysabor_unified_orders_mock';
@@ -136,11 +137,20 @@ export async function createClientReservationMock(
     throw new Error('La cantidad de personas debe ser mayor a 0');
   }
 
-  if (payload.people > payload.table.capacidad) {
-    throw new Error('La mesa no cubre la capacidad solicitada');
+  const current = readReservations(payload.userId);
+  
+  // Validar conflicto de reserva (misma mesa, fecha y hora aproximada)
+  const hasConflict = current.some(r => 
+    r.tableId === payload.table.id && 
+    r.date === payload.date && 
+    r.time === payload.time &&
+    r.status === 'CONFIRMADA'
+  );
+
+  if (hasConflict) {
+    throw new Error('Esta mesa ya tiene una reserva confirmada para la fecha y hora seleccionadas.');
   }
 
-  const current = readReservations(payload.userId);
   const newReservation: ClientReservation = {
     id: getNextId(current, 1000),
     userId: payload.userId,
@@ -151,11 +161,12 @@ export async function createClientReservationMock(
     date: payload.date,
     time: payload.time,
     status: 'CONFIRMADA',
-    observations: payload.observations?.trim() || 'Reserva creada desde flujo visual del cliente.',
+    observations: payload.observations?.trim() || 'Reserva creada desde el flujo del cliente.',
     createdAt: new Date().toISOString(),
   };
   const next = [...current, newReservation];
   writeStorage(RESERVATIONS_STORAGE_KEY, next);
+  emitRestaurantStateChanged();
   return newReservation;
 }
 
@@ -184,7 +195,20 @@ export async function cancelClientReservationMock(
     current.map((reservation) => (reservation.id === reservationId ? updated : reservation))
   );
 
+  emitRestaurantStateChanged();
   return updated;
+}
+
+export async function cancelActiveReservationsByTableMock(tableId: number): Promise<void> {
+  await delay();
+  const stored = readStorage<ClientReservation[]>(RESERVATIONS_STORAGE_KEY, []);
+  const updated = stored.map(r => 
+    (r.tableId === tableId && r.status === 'CONFIRMADA') 
+      ? { ...r, status: 'CANCELADA' as const } 
+      : r
+  );
+  writeStorage(RESERVATIONS_STORAGE_KEY, updated);
+  emitRestaurantStateChanged();
 }
 
 export async function listClientOrdersMock(userId: number): Promise<ClientOrder[]> {
@@ -256,6 +280,7 @@ export async function createPreparedReservationOrderMock(
 
   writeStorage(RESERVATIONS_STORAGE_KEY, updatedReservations);
   writeStorage(ORDERS_STORAGE_KEY, [...allTableOrders, newOrder]);
+  emitRestaurantStateChanged();
 
   return mapTableToClientOrder(newOrder);
 }

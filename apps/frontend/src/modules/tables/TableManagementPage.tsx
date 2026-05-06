@@ -12,7 +12,11 @@ import {
   createZoneMock,
   deleteTableMock,
   updateTableMock,
+  getEffectiveTableStatus,
+  updateTableStatusMock,
+  listTablesMock,
 } from '../../shared/mocks/tables.mock';
+import { ordersApi } from '../../shared/api/orders.api';
 import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { ClientNavigationKey } from '../../shared/types/client-flow.types';
@@ -159,19 +163,39 @@ export default function TableManagementPage({
   const loadTables = useCallback(async () => {
     setIsTablesLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/admin/mesas`);
-      if (!response.ok) throw new Error('Error al cargar mesas desde backend');
-
-      const data = await response.json();
-      if (!Array.isArray(data)) {
-        throw new Error('El servidor no devolvió una lista válida de mesas');
+      let data: any[] = [];
+      
+      // Intentar obtener mesas del backend
+      try {
+        const endpoint = isAdmin ? `${API_URL}/api/admin/mesas` : `${API_URL}/api/mesas`;
+        const response = await fetch(endpoint);
+        if (response.ok) {
+          const rawData = await response.json();
+          data = rawData.map((t: any) => {
+            if (t.id_mesa && !t.id) return mapBackendTable(t as BackendTable);
+            return t as RestaurantTable;
+          });
+        } else {
+          data = await listTablesMock();
+        }
+      } catch {
+        data = await listTablesMock();
       }
 
-      const backendTables = data
-        .map(mapBackendTable)
-        .filter((table) => table.activo);
+      const backendTables = data.filter((table) => table.activo);
 
-      setTables(backendTables);
+      // Cargar datos operativos para calcular el estado efectivo
+      const [activeOrders, reservations] = await Promise.all([
+        ordersApi.listActiveOrders(),
+        clientFlowApi.listAllReservations()
+      ]);
+
+      const updatedTables = backendTables.map(table => ({
+        ...table,
+        estado: getEffectiveTableStatus(table, activeOrders, reservations)
+      }));
+
+      setTables(updatedTables);
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -181,7 +205,7 @@ export default function TableManagementPage({
     } finally {
       setIsTablesLoading(false);
     }
-  }, [API_URL]);
+  }, [API_URL, isAdmin]);
 
   useEffect(() => {
     void loadZones();
@@ -193,10 +217,18 @@ export default function TableManagementPage({
       void loadTables();
     };
 
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key?.startsWith('gestionysabor_')) {
+        void loadTables();
+      }
+    };
+
     window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+    window.addEventListener('storage', handleStorageChange);
 
     return () => {
       window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, [loadTables]);
 
@@ -363,17 +395,52 @@ export default function TableManagementPage({
       }
 
       if (confirmState.type === 'status') {
-        const response = await fetch(`${API_URL}/api/admin/mesas/${confirmState.table.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ estado: confirmState.nextStatus }),
-        });
-        if (!response.ok) throw new Error('Error al actualizar estado');
+        const { table, nextStatus } = confirmState;
+
+        // 1. Validaciones de negocio (Comunes para todos los roles)
+        if (nextStatus === 'LIBRE') {
+          const activeOrders = await ordersApi.listActiveOrders();
+          const hasActiveOrders = activeOrders.some(
+            (order) =>
+              order.tableId === table.id &&
+              ['REGISTRADO', 'EN_PREPARACION', 'LISTO', 'ENTREGADO'].includes(order.estado)
+          );
+
+          if (hasActiveOrders) {
+            setFeedback({
+              type: 'error',
+              title: 'No se puede liberar',
+              message: 'La mesa tiene un pedido activo en curso.',
+            });
+            setConfirmState(null);
+            setIsConfirming(false);
+            return;
+          }
+
+          // 2. Cancelar reservas asociadas (Común para todos)
+          await clientFlowApi.cancelActiveReservationsByTable(table.id);
+        }
+
+        // 3. Intentar actualizar en el backend si es ADMIN
+        if (isAdmin) {
+          try {
+            await fetch(`${API_URL}/api/admin/mesas/${table.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ estado: nextStatus }),
+            });
+          } catch (e) {
+            console.warn('Backend update failed, using local sync fallback', e);
+          }
+        }
+
+        // 4. SIEMPRE sincronizar localmente y emitir evento (Fundamental para sincronización total)
+        await updateTableStatusMock(table.id, nextStatus);
 
         setFeedback({
           type: 'success',
           title: 'Estado actualizado',
-          message: `La mesa ${confirmState.table.numero} ahora está ${getStatusLabel(confirmState.nextStatus)}.`,
+          message: `La mesa ${table.numero} ahora está ${getStatusLabel(nextStatus)}.`,
         });
       }
 

@@ -11,6 +11,7 @@ import {
   type BackendReservation,
   type BackendOrder,
 } from '../mappers/client-flow.mapper';
+import { ordersApi } from './orders.api';
 import {
   cancelClientReservationMock,
   createClientReservationMock,
@@ -18,6 +19,7 @@ import {
   listClientReservationsMock,
   listAllReservationsMock,
   createPreparedReservationOrderMock,
+  cancelActiveReservationsByTableMock,
 } from '../mocks/client-flow.mock';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -56,25 +58,31 @@ async function updateTableStatusBackend(tableId: number, status: TableStatus): P
   }
 }
 
+function mergeReservationsById(backend: ClientReservation[], mock: ClientReservation[]): ClientReservation[] {
+  const mergedMap = new Map<number, ClientReservation>();
+  backend.forEach(r => mergedMap.set(r.id, r));
+  mock.forEach(r => mergedMap.set(r.id, r));
+  return Array.from(mergedMap.values());
+}
+
 export const clientFlowApi = {
   async listReservations(userId: number): Promise<ClientReservation[]> {
     const data = await tryJson<BackendReservation[]>(`${API_URL}/api/reservas/cliente/${userId}`);
+    const backendReservations = Array.isArray(data) ? data.map(mapBackendReservation) : [];
+    const mockReservations = await listClientReservationsMock(userId);
 
-    if (Array.isArray(data)) {
-      return data.map(mapBackendReservation);
-    }
-
-    return listClientReservationsMock(userId);
+    return mergeReservationsById(backendReservations, mockReservations)
+      .filter(r => r.userId === userId)
+      .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
   },
 
   async listAllReservations(): Promise<ClientReservation[]> {
     const data = await tryJson<BackendReservation[]>(`${API_URL}/api/reservas`);
+    const backendReservations = Array.isArray(data) ? data.map(mapBackendReservation) : [];
+    const mockReservations = await listAllReservationsMock();
 
-    if (Array.isArray(data)) {
-      return data.map(mapBackendReservation);
-    }
-
-    return listAllReservationsMock();
+    return mergeReservationsById(backendReservations, mockReservations)
+      .sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
   },
 
   async createReservation(payload: ClientReservationRequest): Promise<ClientReservation> {
@@ -97,8 +105,10 @@ export const clientFlowApi = {
     }
     
     const mockRes = await createClientReservationMock(payload);
-    // En mock también deberíamos "simular" el cambio de mesa si no hay backend
-    // pero por ahora priorizamos que la API centralice la intención.
+    // En mock actualizamos la mesa a RESERVADA para que Admin/Mesero la vean
+    const { updateTableStatusMock } = await import('../mocks/tables.mock');
+    await updateTableStatusMock(payload.table.id, 'RESERVADA');
+    
     return mockRes;
   },
 
@@ -113,12 +123,40 @@ export const clientFlowApi = {
       const reservation = mapBackendReservation(data);
       const tid = tableId || reservation.tableId;
       if (tid) {
-        await updateTableStatusBackend(tid, 'LIBRE');
+        // Solo poner la mesa en LIBRE si no hay otros pedidos activos en esa mesa
+        const activeOrders = await ordersApi.getOpenOrdersByTable(tid);
+        if (activeOrders.length === 0) {
+          await updateTableStatusBackend(tid, 'LIBRE');
+        }
       }
       return reservation;
     }
     
-    return cancelClientReservationMock(userId, reservationId);
+    const mockRes = await cancelClientReservationMock(userId, reservationId);
+    
+    // En mock también liberamos la mesa si corresponde
+    const tid = tableId || mockRes.tableId;
+    if (tid) {
+      const activeOrders = await ordersApi.getOpenOrdersByTable(tid);
+      if (activeOrders.length === 0) {
+        const { updateTableStatusMock } = await import('../mocks/tables.mock');
+        await updateTableStatusMock(tid, 'LIBRE');
+      }
+    }
+    
+    return mockRes;
+  },
+
+  async cancelActiveReservationsByTable(tableId: number): Promise<void> {
+    try {
+      // Si el backend no tiene este endpoint, fallará con 404, pero no queremos que bloquee la limpieza del mock
+      await fetch(`${API_URL}/api/reservas/mesa/${tableId}/cancelar`, { method: 'POST' });
+    } catch (error) {
+      console.warn('Backend reservation cancel failed (expected if mock flow):', error);
+    }
+    
+    // Siempre intentamos limpiar el mock para asegurar sincronización
+    await cancelActiveReservationsByTableMock(tableId);
   },
 
   async listOrders(userId: number): Promise<ClientOrder[]> {

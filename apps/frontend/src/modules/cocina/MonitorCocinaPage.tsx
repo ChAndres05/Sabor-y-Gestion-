@@ -47,9 +47,11 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
     }, 60000);
 
     window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+    window.addEventListener('storage', handleStateChange);
 
     return () => {
       window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+      window.removeEventListener('storage', handleStateChange);
       clearInterval(timer);
     };
   }, []);

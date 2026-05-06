@@ -3,6 +3,7 @@ import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import type { AuthUser } from '../auth/types/auth.types';
 import ClientLayout from '../../components/client/ClientLayout';
 import { clientFlowApi } from '../../shared/api/client-flow.api';
+import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
 import type { ClientNavigationKey, ClientReservation, ClientReservationStatus } from '../../shared/types/client-flow.types';
 
 interface ClientReservationsPageProps {
@@ -85,6 +86,22 @@ export default function ClientReservationsPage({
 
   useEffect(() => {
     void loadReservations();
+
+    const handleStateChange = () => {
+      void loadReservations();
+    };
+
+    window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+    window.addEventListener('storage', (e) => {
+      if (e.key?.startsWith('gestionysabor_')) {
+        handleStateChange();
+      }
+    });
+
+    return () => {
+      window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+      window.removeEventListener('storage', handleStateChange);
+    };
   }, [loadReservations]);
 
   const activeReservations = useMemo(

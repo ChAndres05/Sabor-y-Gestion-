@@ -50,7 +50,7 @@ export function mapProductFromBackend(product: BackendProduct): MenuProduct {
       presentation?.tiempo_preparacion_minutos || 
       0
     ),
-    imagen: product.imagen_url || product.imagen || null,
+    imagen: product.imagen_url || product.imagen || (product as any).url_imagen || (product as any).foto || null,
     activo: product.activo ?? true,
     disponible: product.disponible ?? true,
     ingredientes,

@@ -4,7 +4,6 @@ import { getMockIngredientsForProduct } from '../../shared/mocks/menu-ingredient
 import { ordersApi } from '../../shared/api/orders.api';
 import { menuApi } from '../menu/menu.api';
 import {
-  listOrderProductsByCategoryMock,
   requestBillForTableMock,
 } from '../../shared/mocks/table-orders.mock';
 import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
@@ -211,7 +210,18 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
     const loadProducts = async () => {
       if (!selectedCategoryId) return;
       try {
-        const categoryProducts = await listOrderProductsByCategoryMock(selectedCategoryId);
+        const productsDataRaw = await menuApi.getProductos();
+        const categoryProducts = productsDataRaw
+          .map((p: any) => ({
+            ...p,
+            id: p.id_producto || p.id,
+            categoryId: p.id_categoria || p.categoryId,
+            imagen: p.imagen_url || p.imagen || (p as any).url_imagen || (p as any).foto || null,
+            precio: Number(p.precio || 0),
+            tiempoPreparacion: Number(p.tiempo_preparacion || p.tiempoPreparacion || 0)
+          }))
+          .filter((p: any) => p.categoryId === selectedCategoryId && (p.disponible ?? true));
+
         setProducts(categoryProducts);
         if (!skipNextIngredientHydration.current) {
           setSelectedProductId(categoryProducts[0]?.id ?? 0);

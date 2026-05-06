@@ -5,6 +5,7 @@ import type {
   ClientReservation,
   ClientReservationStatus,
 } from '../../shared/types/client-flow.types';
+import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
 
 interface AdminReservationsPageProps {
   onBack: () => void;
@@ -78,6 +79,22 @@ export default function AdminReservationsPage({
 
   useEffect(() => {
     void loadReservations();
+
+    const handleStateChange = () => {
+      void loadReservations();
+    };
+
+    window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+    window.addEventListener('storage', (e) => {
+      if (e.key?.startsWith('gestionysabor_')) {
+        handleStateChange();
+      }
+    });
+
+    return () => {
+      window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+      window.removeEventListener('storage', handleStateChange);
+    };
   }, [loadReservations]);
 
   const activeReservations = useMemo(

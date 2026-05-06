@@ -6,6 +6,7 @@ import type {
   Zone,
   ZoneFormValues,
 } from '../../modules/tables/types/table.types';
+import { emitRestaurantStateChanged } from '../utils/events';
 
 const ZONES_STORAGE_KEY = 'gestionysabor_waiter_mock_zones';
 const TABLES_STORAGE_KEY = 'gestionysabor_waiter_mock_tables';
@@ -97,12 +98,42 @@ function writeStatusOverlay(overlay: Record<string, TableStatus>) {
 
 function saveStatusOverlay(tableId: number, status: TableStatus) {
   const overlay = readStatusOverlay();
+  // Guardamos siempre el estado para que actúe como override manual (incluyendo LIBRE)
   overlay[String(tableId)] = status;
   writeStatusOverlay(overlay);
 }
 
 function cloneTable(table: RestaurantTable): RestaurantTable {
   return { ...table };
+}
+
+export function getEffectiveTableStatus(
+  table: RestaurantTable,
+  activeOrders: any[],
+  activeReservations: any[]
+): TableStatus {
+  // 1. Prioridad Máxima: Pedido activo (OCUPADA) - Siempre manda si hay consumo
+  const tableOrders = activeOrders.filter(o => o.tableId === table.id && o.estado !== 'PAGADO' && o.estado !== 'CANCELADO');
+  if (tableOrders.some(o => ['REGISTRADO', 'EN_PREPARACION', 'LISTO', 'ENTREGADO'].includes(o.estado))) {
+    return 'OCUPADA';
+  }
+
+  // 2. Prioridad: Overlay manual (Admin/Mesero) - Permite correcciones manuales
+  const overlay = readStatusOverlay();
+  const overlayStatus = overlay[String(table.id)];
+  if (overlayStatus) return overlayStatus;
+
+  // 3. Prioridad: Reserva confirmada (RESERVADA)
+  const tableReservations = activeReservations.filter(r => r.tableId === table.id && r.status === 'CONFIRMADA');
+  if (tableReservations.length > 0) {
+    return 'RESERVADA';
+  }
+
+  // 4. Prioridad: Estado explícito CUENTA_SOLICITADA
+  if (table.estado === 'CUENTA_SOLICITADA') return 'CUENTA_SOLICITADA';
+
+  // 5. Prioridad Final: Estado backend base
+  return table.estado;
 }
 
 export function applyWaiterTableStatusOverlayMock(
@@ -361,6 +392,7 @@ export async function updateTableStatusMock(
     };
 
     saveStatusOverlay(tableId, status);
+    emitRestaurantStateChanged();
     return fallbackTable;
   }
 
@@ -372,6 +404,7 @@ export async function updateTableStatusMock(
   tables = tables.map((table) => (table.id === tableId ? updatedTable : table));
   persistTables();
   saveStatusOverlay(tableId, status);
+  emitRestaurantStateChanged();
 
   return cloneTable(updatedTable);
 }

@@ -37,6 +37,7 @@ export interface TableOrderItem {
   precioUnitario: number;
   tiempoPreparacion: number;
   subtotal: number;
+  imagen?: string | null;
 }
 
 export interface TableOrder {

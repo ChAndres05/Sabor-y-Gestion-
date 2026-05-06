@@ -40,7 +40,8 @@ export function mapBackendOrderToWaiterFrontend(backendOrder: any, simulatedStat
         })) as TableOrderItemIngredient[],
         precioUnitario: Number(detalle.precio_unitario || 0),
         tiempoPreparacion: pres.tiempo_preparacion_minutos || 0,
-        subtotal: Number(detalle.subtotal || 0)
+        subtotal: Number(detalle.subtotal || 0),
+        imagen: prod.imagen_url || prod.imagen || null,
       };
     }),
     subtotal: Number(backendOrder.subtotal || 0),

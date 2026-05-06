@@ -6,6 +6,7 @@ import {
 } from '../../shared/mocks/table-orders.mock';
 import { pusherClient } from '../../shared/utils/pusher';
 import { listTablesMock, updateTableStatusMock } from '../../shared/mocks/tables.mock';
+import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { RestaurantTable } from '../tables/types/table.types';
 import type { TableOrder, TableOrderStatus } from '../tables/types/table-order.types';
@@ -127,16 +128,27 @@ export default function MeseroOrdersPage({
   useEffect(() => {
     void loadOrders();
 
-    const channel = pusherClient.subscribe('orders-channel');
-    channel.bind('order-updated', () => {
+    const handleStateChange = () => {
       void loadOrders();
+    };
+
+    const channel = pusherClient.subscribe('orders-channel');
+    channel.bind('order-updated', handleStateChange);
+
+    window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+    window.addEventListener('storage', (e) => {
+      if (e.key?.startsWith('gestionysabor_')) {
+        handleStateChange();
+      }
     });
 
     return () => {
       channel.unbind('order-updated');
       pusherClient.unsubscribe('orders-channel');
+      window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+      window.removeEventListener('storage', handleStateChange);
     };
-  }, []);
+  }, [loadOrders]);
 
   const handleChangeOrderStatus = async (tableId: number, status: TableOrderStatus) => {
     setBusyTableId(tableId);

@@ -9,6 +9,7 @@ import { menuApi } from '../menu/menu.api';
 import { mapProductFromBackend } from '../../shared/mappers/menu.mapper';
 import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
 import { getTableByIdMock, updateTableStatusMock } from '../../shared/mocks/tables.mock';
+import { getMockIngredientsForProduct } from '../../shared/mocks/menu-ingredients.mock';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { RestaurantTable } from '../tables/types/table.types';
 import type {
@@ -114,7 +115,18 @@ function getItemIcon(categoryId: number) {
 function buildDefaultIngredients(product: OrderCatalogProduct | null): IngredientSelection[] {
   if (!product) return [];
 
-  return (product.ingredientes ?? []).map((ingredient) => ({
+  const backendIngredients = product.ingredientes ?? [];
+
+  if (backendIngredients.length > 0) {
+    return backendIngredients.map((ingredient) => ({
+      id: ingredient.id,
+      nombre: ingredient.nombre,
+      incluido: ingredient.incluidoPorDefecto,
+      incluidoPorDefecto: ingredient.incluidoPorDefecto,
+    }));
+  }
+
+  return getMockIngredientsForProduct(product.nombre).map((ingredient) => ({
     id: ingredient.id,
     nombre: ingredient.nombre,
     incluido: ingredient.incluidoPorDefecto,
@@ -642,7 +654,7 @@ export default function MeseroOrderFlowPage({
           <h1 className="text-title font-bold text-text">Gestionar pedido</h1>
           <p className="mt-1 text-[13px] leading-5 text-gray-500">
             {table
-              ? `Mesa ${table.numero} \u00B7 ${getTableStatusLabel(table.estado)} \u00B7 Mesero ${user.nombre}`
+              ? `Mesa ${table.numero} · ${getTableStatusLabel(table.estado)} · Mesero ${user.nombre}`
               : 'Flujo operativo del mesero'}
           </p>
         </header>
@@ -829,7 +841,7 @@ export default function MeseroOrderFlowPage({
                               <h3 className="text-[15px] font-bold text-text">{product.nombre}</h3>
                               <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-gray-500">{product.descripcion}</p>
                               <p className="mt-1 text-[12px] font-bold text-primary">
-                                {formatCurrency(product.precio)} \u00B7 {product.tiempoPreparacion} min
+                                {formatCurrency(product.precio)} <span aria-hidden="true">&middot;</span> {product.tiempoPreparacion} min
                               </p>
                             </div>
                             <button
@@ -856,7 +868,7 @@ export default function MeseroOrderFlowPage({
                     <div>
                       <h2 className="text-[20px] font-bold text-text">Comandas activas</h2>
                       <p className="mt-1 text-[13px] leading-5 text-gray-500">
-                        Mesa {table?.numero ?? tableId} \u00B7 {activeOrders.length} pedido(s)
+                        Mesa {table?.numero ?? tableId} <span aria-hidden="true">&middot;</span> {activeOrders.length} pedido(s)
                       </p>
                     </div>
                     {order && activeOrders.length === 1 && (
@@ -946,13 +958,17 @@ export default function MeseroOrderFlowPage({
                         return (
                           <article key={item.id} className="rounded-2xl bg-white p-4 shadow-sm">
                             <div className="grid grid-cols-[42px_1fr_auto] gap-3">
-                              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-background text-[20px]">
-                                {getItemIcon(item.categoriaId)}
+                              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-background text-[20px] overflow-hidden">
+                                {typeof item.imagen === 'string' && item.imagen.trim() ? (
+                                  <img src={item.imagen} alt={item.nombreProducto} className="h-full w-full object-cover" />
+                                ) : (
+                                  getItemIcon(item.categoriaId)
+                                )}
                               </div>
                               <div>
                                 <h3 className="text-[15px] font-bold text-text">{item.nombreProducto}</h3>
                                 <p className="mt-1 text-[12px] text-gray-500">
-                                  {item.cantidad}x \u00B7 {formatCurrency(item.precioUnitario)} c/u
+                                  {item.cantidad}x <span aria-hidden="true">&middot;</span> {formatCurrency(item.precioUnitario)} c/u
                                 </p>
                                 {removedIngredients.map((ingredient) => (
                                   <p key={`${item.id}-${ingredient.nombre}`} className="text-[12px] font-semibold text-alert">
@@ -1001,7 +1017,7 @@ export default function MeseroOrderFlowPage({
                         <span className="text-[22px] font-bold text-primary">{formatCurrency(order.total)}</span>
                       </div>
                       <p className="mt-1 text-[12px] font-medium text-gray-500">
-                        Tiempo estimado: {order.tiempoEstimadoMinutos} min \u00B7 Items: {order.items.length}
+                        Tiempo estimado: {order.tiempoEstimadoMinutos} min <span aria-hidden="true">&middot;</span> Items: {order.items.length}
                       </p>
                     </div>
 

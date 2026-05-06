@@ -33,16 +33,49 @@ async function tryJson<T>(url: string, init?: RequestInit): Promise<T | null> {
   }
 }
 
+function mergeOrdersByIdOrSource(backend: TableOrder[], mock: TableOrder[]): TableOrder[] {
+  const mergedMap = new Map<number, TableOrder>();
+  
+  // Agregamos primero backend
+  backend.forEach(o => mergedMap.set(o.id, o));
+  
+  // Sobrescribimos con mock si coincide ID, o agregamos nuevos
+  // Preferimos mock para operación local reciente según requerimiento
+  mock.forEach(o => mergedMap.set(o.id, o));
+  
+  return Array.from(mergedMap.values());
+}
+
 export const ordersApi = {
   /**
    * Lista pedidos activos para mesero/admin
    */
   async listActiveOrders(): Promise<TableOrder[]> {
-    const data = await tryJson<any[]>(`${API_URL}/api/pedidos/activos`);
-    if (Array.isArray(data)) {
-      return data.map(o => mapBackendOrderToWaiterFrontend(o)).filter((o: TableOrder) => o.estado !== 'PAGADO' && o.estado !== 'CANCELADO');
-    }
-    return listWaiterOrdersMock();
+    // Obtener mesas válidas para filtrar pedidos huérfanos del mock
+    const tables = await tryJson<any[]>(`${API_URL}/api/mesas`);
+    const validIds = new Set(
+      Array.isArray(tables) 
+        ? tables.map((t: any) => Number(t.id_mesa ?? t.id)) 
+        : []
+    );
+
+    // Intentamos obtener pedidos de backend
+    const backendData = await tryJson<any[]>(`${API_URL}/api/pedidos/activos`);
+    const backendOrders = Array.isArray(backendData)
+      ? backendData.map(o => mapBackendOrderToWaiterFrontend(o))
+      : [];
+
+    // Obtenemos pedidos mock
+    const mockOrders = await listWaiterOrdersMock();
+
+    // Combinamos ambos
+    const allOrders = mergeOrdersByIdOrSource(backendOrders, mockOrders);
+
+    return allOrders.filter((o: TableOrder) => 
+      o.estado !== 'PAGADO' && 
+      o.estado !== 'CANCELADO' && 
+      (validIds.size === 0 || validIds.has(o.tableId))
+    );
   },
 
   /**
@@ -60,14 +93,27 @@ export const ordersApi = {
    * Obtiene los pedidos abiertos de una mesa
    */
   async getOpenOrdersByTable(tableId: number): Promise<TableOrder[]> {
-    const data = await tryJson<any>(`${API_URL}/api/pedidos/mesa/${tableId}`);
-    if (data) {
-      const rawArray = Array.isArray(data) ? data : [data];
-      return rawArray
-        .map(o => mapBackendOrderToWaiterFrontend(o))
-        .filter(o => o.estado !== 'PAGADO' && o.estado !== 'CANCELADO');
-    }
-    return getOpenOrdersByTableMock(tableId);
+    // Validar que la mesa exista (usando la lista general para evitar 405 en endpoint individual)
+    const tables = await tryJson<any[]>(`${API_URL}/api/mesas`);
+    const tableExists = Array.isArray(tables)
+      ? tables.some((t) => Number(t.id_mesa ?? t.id) === Number(tableId))
+      : true; // Si no podemos validar, no bloqueamos
+
+    if (!tableExists) return [];
+
+    // Pedidos de backend
+    const backendData = await tryJson<any>(`${API_URL}/api/pedidos/mesa/${tableId}`);
+    const backendOrders: TableOrder[] = backendData 
+      ? (Array.isArray(backendData) ? backendData : [backendData]).map(o => mapBackendOrderToWaiterFrontend(o))
+      : [];
+
+    // Pedidos mock
+    const mockOrders = await getOpenOrdersByTableMock(tableId);
+
+    // Combinamos
+    const combined = mergeOrdersByIdOrSource(backendOrders, mockOrders);
+
+    return combined.filter(o => o.estado !== 'PAGADO' && o.estado !== 'CANCELADO');
   },
 
   /**

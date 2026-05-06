@@ -366,6 +366,7 @@ function createItem(
     precioUnitario: product.precio,
     tiempoPreparacion: product.tiempoPreparacion,
     subtotal: product.precio * cantidad,
+    imagen: product.imagen ?? null,
   };
 }
 
@@ -507,8 +508,14 @@ let orders: TableOrder[] = [
 ];
 
 
-orders = readStorage(ORDERS_STORAGE_KEY, orders);
-nextOrderId = Math.max(nextOrderId, ...orders.map((order) => order.id + 1));
+function syncOrdersFromStorage() {
+  orders = readStorage(ORDERS_STORAGE_KEY, orders);
+  if (orders.length > 0) {
+    nextOrderId = Math.max(nextOrderId, ...orders.map((order) => order.id)) + 1;
+  }
+}
+
+syncOrdersFromStorage();
 
 
 function findOrderIndexByTable(tableId: number) {
@@ -564,6 +571,7 @@ async function buildItemFromPayload(itemId: number, payload: AddOrderItemPayload
     precioUnitario: selectedProduct.precio,
     tiempoPreparacion: selectedProduct.tiempoPreparacion,
     subtotal: selectedProduct.precio * payload.cantidad,
+    imagen: selectedProduct.imagen ?? null,
   };
 }
 
@@ -585,6 +593,7 @@ export async function searchOrderCustomerByCiMock(ci: string): Promise<TableOrde
 }
 
 export async function listWaiterOrdersMock(): Promise<TableOrder[]> {
+  syncOrdersFromStorage();
   await delay();
   return orders
     .filter((o) => o.estado !== 'PAGADO' && o.estado !== 'CANCELADO')
@@ -593,6 +602,7 @@ export async function listWaiterOrdersMock(): Promise<TableOrder[]> {
 }
 
 export async function getOpenOrdersByTableMock(tableId: number): Promise<TableOrder[]> {
+  syncOrdersFromStorage();
   await delay();
   return orders
     .filter((o) => o.tableId === tableId && o.estado !== 'PAGADO' && o.estado !== 'CANCELADO')
@@ -600,12 +610,14 @@ export async function getOpenOrdersByTableMock(tableId: number): Promise<TableOr
 }
 
 export async function getOpenOrderByTableMock(tableId: number): Promise<TableOrder | null> {
+  syncOrdersFromStorage();
   const all = await getOpenOrdersByTableMock(tableId);
   if (all.length === 0) return null;
   return all.find((o) => o.estado === 'REGISTRADO') || all[0];
 }
 
 export async function saveOrderCustomerMock(tableId: number, customer: TableOrderCustomer, waiterUserId?: number): Promise<TableOrder> {
+  syncOrdersFromStorage();
   if (!customer.nombre.trim()) throw new Error('El nombre del cliente es obligatorio');
   await delay();
 
@@ -651,6 +663,7 @@ export async function saveOrderCustomerMock(tableId: number, customer: TableOrde
 }
 
 export async function createExtraOrderMock(tableId: number, customer: TableOrderCustomer, waiterUserId?: number): Promise<TableOrder> {
+  syncOrdersFromStorage();
   await delay();
   const normalizedCi = normalizeCi(customer.ci) || '0';
   const registered = normalizedCi === '0' ? null : registeredCustomersMock.find((c) => c.ci === normalizedCi) || null;
@@ -684,6 +697,7 @@ export async function createExtraOrderMock(tableId: number, customer: TableOrder
 }
 
 export async function addOrderItemToTableMock(tableId: number, payload: AddOrderItemPayload): Promise<TableOrder> {
+  syncOrdersFromStorage();
   await delay();
   const index = findOrderIndexByTable(tableId);
   if (index === -1) throw new Error('No hay un pedido activo para esta mesa. Guarde los datos del cliente primero.');
@@ -701,6 +715,7 @@ export async function addOrderItemToTableMock(tableId: number, payload: AddOrder
 }
 
 export async function updateOrderItemInTableMock(tableId: number, itemId: number, payload: AddOrderItemPayload): Promise<TableOrder> {
+  syncOrdersFromStorage();
   await delay();
   const index = findOrderIndexByTable(tableId);
   if (index === -1) throw new Error('No hay un pedido activo');
@@ -722,6 +737,7 @@ export async function updateOrderItemInTableMock(tableId: number, itemId: number
 }
 
 export async function removeOrderItemFromTableMock(tableId: number, itemId: number): Promise<void> {
+  syncOrdersFromStorage();
   await delay();
   const index = findOrderIndexByTable(tableId);
   if (index === -1) return;
@@ -735,6 +751,7 @@ export async function removeOrderItemFromTableMock(tableId: number, itemId: numb
 }
 
 export async function updateOrderStatusForTableMock(tableId: number, status: TableOrderStatus): Promise<void> {
+  syncOrdersFromStorage();
   await delay();
   const index = findOrderIndexByTable(tableId);
   if (index === -1) return;
@@ -744,5 +761,6 @@ export async function updateOrderStatusForTableMock(tableId: number, status: Tab
 }
 
 export async function requestBillForTableMock(tableId: number): Promise<void> {
+  syncOrdersFromStorage();
   await updateOrderStatusForTableMock(tableId, 'ENTREGADO');
 }
