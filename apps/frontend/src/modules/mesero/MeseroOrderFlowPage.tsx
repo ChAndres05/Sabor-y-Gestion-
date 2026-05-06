@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import { ordersApi } from '../../shared/api/orders.api';
 import {
-  searchOrderCustomerByCiMock,
   requestBillForTableMock,
 } from '../../shared/mocks/table-orders.mock';
 import { menuApi } from '../menu/menu.api';
@@ -260,7 +259,10 @@ export default function MeseroOrderFlowPage({
         setTable(tableData);
         setCategories(categoriesData);
         setActiveOrders(ordersData);
-        setSelectedCategoryId(categoriesData[0]?.id ?? 0);
+        
+        if (categoriesData.length > 0 && !selectedCategoryId) {
+          setSelectedCategoryId(categoriesData[0].id);
+        }
 
         const currentOrder = ordersData.find(o => o.estado === 'REGISTRADO') || ordersData[0] || null;
         setOrder(currentOrder);
@@ -317,13 +319,13 @@ export default function MeseroOrderFlowPage({
 
       try {
         const productsDataRaw = await menuApi.getProductos();
-        const mappedProducts = productsDataRaw
+        const mappedProducts = (productsDataRaw as import('../../shared/mappers/menu.mapper').BackendProduct[])
           .map(mapProductFromBackend)
-          .filter((p: any) => p.categoryId === selectedCategoryId && p.disponible);
+          .filter((p: OrderCatalogProduct) => p.categoryId === selectedCategoryId && p.disponible);
           
-        setProducts(mappedProducts as any);
+        setProducts(mappedProducts as OrderCatalogProduct[]);
         setSelectedProductId((currentProductId) =>
-          mappedProducts.some((product: any) => product.id === currentProductId)
+          mappedProducts.some((product: OrderCatalogProduct) => product.id === currentProductId)
             ? currentProductId
             : mappedProducts[0]?.id ?? 0
         );
@@ -378,7 +380,7 @@ export default function MeseroOrderFlowPage({
     setIsSearchingCustomer(true);
 
     try {
-      const foundCustomer = await searchOrderCustomerByCiMock(customerCi);
+      const foundCustomer = await ordersApi.searchCustomerByCi(customerCi);
 
       if (!foundCustomer) {
         setCustomerFound(false);

@@ -17,7 +17,10 @@ import {
   listTablesMock,
 } from '../../shared/mocks/tables.mock';
 import { ordersApi } from '../../shared/api/orders.api';
-import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
+import {
+  RESTAURANT_STATE_CHANGED_EVENT,
+  RESTAURANT_STATE_CHANGED_STORAGE_KEY,
+} from '../../shared/utils/events';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { ClientNavigationKey } from '../../shared/types/client-flow.types';
 import { clientFlowApi } from '../../shared/api/client-flow.api';
@@ -63,16 +66,6 @@ type BackendZone = {
   activa?: boolean;
 };
 
-type BackendTable = {
-  id_mesa: number;
-  numero: number;
-  capacidad: number;
-  id_zona?: number | null;
-  estado: TableStatus;
-  activa?: boolean;
-  activo?: boolean;
-};
-
 function getStatusLabel(status: TableStatus) {
   switch (status) {
     case 'LIBRE':
@@ -93,17 +86,6 @@ function mapBackendZone(zone: BackendZone): Zone {
     id: zone.id_zona,
     nombre: zone.nombre,
     activo: zone.activo ?? zone.activa ?? true,
-  };
-}
-
-function mapBackendTable(table: BackendTable): RestaurantTable {
-  return {
-    id: table.id_mesa,
-    numero: table.numero,
-    capacidad: table.capacidad,
-    zoneId: table.id_zona ?? 0,
-    estado: table.estado,
-    activo: table.activa ?? table.activo ?? true,
   };
 }
 
@@ -163,36 +145,16 @@ export default function TableManagementPage({
   const loadTables = useCallback(async () => {
     setIsTablesLoading(true);
     try {
-      let data: any[] = [];
-      
-      // Intentar obtener mesas del backend
-      try {
-        const endpoint = isAdmin ? `${API_URL}/api/admin/mesas` : `${API_URL}/api/mesas`;
-        const response = await fetch(endpoint);
-        if (response.ok) {
-          const rawData = await response.json();
-          data = rawData.map((t: any) => {
-            if (t.id_mesa && !t.id) return mapBackendTable(t as BackendTable);
-            return t as RestaurantTable;
-          });
-        } else {
-          data = await listTablesMock();
-        }
-      } catch {
-        data = await listTablesMock();
-      }
+      const baseTables = (await listTablesMock()).filter((table) => table.activo);
 
-      const backendTables = data.filter((table) => table.activo);
-
-      // Cargar datos operativos para calcular el estado efectivo
       const [activeOrders, reservations] = await Promise.all([
         ordersApi.listActiveOrders(),
-        clientFlowApi.listAllReservations()
+        clientFlowApi.listAllReservations(),
       ]);
 
-      const updatedTables = backendTables.map(table => ({
+      const updatedTables = baseTables.map((table) => ({
         ...table,
-        estado: getEffectiveTableStatus(table, activeOrders, reservations)
+        estado: getEffectiveTableStatus(table, activeOrders, reservations),
       }));
 
       setTables(updatedTables);
@@ -205,7 +167,8 @@ export default function TableManagementPage({
     } finally {
       setIsTablesLoading(false);
     }
-  }, [API_URL, isAdmin]);
+  }, []);
+
 
   useEffect(() => {
     void loadZones();
@@ -217,8 +180,8 @@ export default function TableManagementPage({
       void loadTables();
     };
 
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key?.startsWith('gestionysabor_')) {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === RESTAURANT_STATE_CHANGED_STORAGE_KEY) {
         void loadTables();
       }
     };
@@ -421,20 +384,8 @@ export default function TableManagementPage({
           await clientFlowApi.cancelActiveReservationsByTable(table.id);
         }
 
-        // 3. Intentar actualizar en el backend si es ADMIN
-        if (isAdmin) {
-          try {
-            await fetch(`${API_URL}/api/admin/mesas/${table.id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ estado: nextStatus }),
-            });
-          } catch (e) {
-            console.warn('Backend update failed, using local sync fallback', e);
-          }
-        }
-
-        // 4. SIEMPRE sincronizar localmente y emitir evento (Fundamental para sincronización total)
+        // Actualizar una sola fuente común para Admin/Mesero/Cliente.
+        // updateTableStatusMock intenta backend general, actualiza overlay local y emite evento.
         await updateTableStatusMock(table.id, nextStatus);
 
         setFeedback({

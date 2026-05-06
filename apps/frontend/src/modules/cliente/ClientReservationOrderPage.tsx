@@ -84,7 +84,7 @@ export default function ClientReservationOrderPage({
         ]);
 
         setCategories(categoriesData);
-        if (categoriesData.length > 0) {
+        if (categoriesData.length > 0 && !selectedCategoryId) {
           setSelectedCategoryId(categoriesData[0].id);
         }
 
@@ -106,7 +106,7 @@ export default function ClientReservationOrderPage({
       }
     };
     void loadPage();
-  }, [user.id, reservationId]);
+  }, [user.id, reservationId, selectedCategoryId]);
 
   useEffect(() => {
     const loadProducts = async () => {

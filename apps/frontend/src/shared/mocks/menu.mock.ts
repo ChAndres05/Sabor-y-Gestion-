@@ -72,6 +72,7 @@ let products: MenuProduct[] = [
     imagen: null,
     activo: true,
     disponible: true,
+    ingredientes: [],
   },
   {
     id: 2,
@@ -83,6 +84,7 @@ let products: MenuProduct[] = [
     imagen: null,
     activo: true,
     disponible: true,
+    ingredientes: [],
   },
   {
     id: 3,
@@ -94,6 +96,7 @@ let products: MenuProduct[] = [
     imagen: null,
     activo: true,
     disponible: true,
+    ingredientes: [],
   },
   {
     id: 4,
@@ -105,6 +108,7 @@ let products: MenuProduct[] = [
     imagen: null,
     activo: true,
     disponible: true,
+    ingredientes: [],
   },
   {
     id: 5,
@@ -116,6 +120,7 @@ let products: MenuProduct[] = [
     imagen: null,
     activo: true,
     disponible: true,
+    ingredientes: [],
   },
   {
     id: 6,
@@ -127,6 +132,7 @@ let products: MenuProduct[] = [
     imagen: null,
     activo: false,
     disponible: false,
+    ingredientes: [],
   },
   {
     id: 7,
@@ -138,6 +144,7 @@ let products: MenuProduct[] = [
     imagen: null,
     activo: true,
     disponible: true,
+    ingredientes: [],
   },
 ];
 
@@ -342,6 +349,7 @@ export async function createProductMock(
     imagen: normalizeImage(payload.imagen),
     activo: true,
     disponible: payload.disponible,
+    ingredientes: [],
   };
 
   products = [...products, newProduct];

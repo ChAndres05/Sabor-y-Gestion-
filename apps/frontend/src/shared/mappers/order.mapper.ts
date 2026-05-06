@@ -1,55 +1,93 @@
-import type { 
-  TableOrder, 
+import type {
+  TableOrder,
+  TableOrderItemIngredient,
   TableOrderStatus,
-  TableOrderItemIngredient
 } from '../../modules/tables/types/table-order.types';
 
-export function mapBackendOrderToWaiterFrontend(backendOrder: any, simulatedStatuses: Record<number, TableOrderStatus> = {}): TableOrder {
-  const customer = backendOrder.usuarios_pedidos_id_usuario_clienteTousuarios;
-  const originalStatus = backendOrder.estado === 'COCINA' ? 'EN_PREPARACION' : backendOrder.estado;
-  
+type UnknownRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): UnknownRecord {
+  return value && typeof value === 'object' ? (value as UnknownRecord) : {};
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function stringValue(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function numberValue(value: unknown, fallback = 0): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+export function mapBackendOrderToWaiterFrontend(
+  rawBackendOrder: unknown,
+  simulatedStatuses: Record<number, TableOrderStatus> = {}
+): TableOrder {
+  const backendOrder = asRecord(rawBackendOrder);
+  const customer = asRecord(backendOrder.usuarios_pedidos_id_usuario_clienteTousuarios);
+  const waiter = asRecord(backendOrder.usuario_mesero);
+  const table = asRecord(backendOrder.mesas ?? backendOrder.mesa);
+  const orderId = numberValue(backendOrder.id_pedido ?? backendOrder.id, 0);
+  const originalStatus = stringValue(backendOrder.estado, 'REGISTRADO') === 'COCINA'
+    ? 'EN_PREPARACION'
+    : stringValue(backendOrder.estado, 'REGISTRADO');
+
+  const customerName = customer.nombre
+    ? `${stringValue(customer.nombre)} ${stringValue(customer.apellido)}`.trim()
+    : stringValue(backendOrder.cliente_nombre, 'Cliente general');
+
   return {
-    id: backendOrder.id_pedido,
-    tableId: backendOrder.id_mesa || 0,
+    id: orderId,
+    tableId: numberValue(backendOrder.id_mesa ?? backendOrder.tableId, 0),
+    tableNumber: numberValue(table.numero ?? backendOrder.numero_mesa ?? backendOrder.tableNumber, 0),
     tipoPedido: 'MESA',
-    estado: simulatedStatuses[backendOrder.id_pedido] || originalStatus,
-    waiterName: backendOrder.usuario_mesero 
-      ? `${backendOrder.usuario_mesero.nombre} ${backendOrder.usuario_mesero.apellido || ''}`.trim() 
+    estado: simulatedStatuses[orderId] || (originalStatus as TableOrderStatus),
+    waiterName: waiter.nombre
+      ? `${stringValue(waiter.nombre)} ${stringValue(waiter.apellido)}`.trim()
       : 'Mesero',
     customer: {
-      idUsuario: customer ? customer.id_usuario : null,
-      nombre: customer ? `${customer.nombre} ${customer.apellido || ''}`.trim() : (backendOrder.cliente_nombre || 'Cliente general'),
-      telefono: customer?.telefono || '00000000',
-      ci: customer ? String(customer.usuario_ci) : '0',
+      idUsuario: customer.id_usuario ? numberValue(customer.id_usuario) : null,
+      nombre: customerName,
+      telefono: stringValue(customer.telefono, '00000000'),
+      ci: customer.usuario_ci ? String(customer.usuario_ci) : '0',
     },
-    items: (backendOrder.detalles_pedido || []).map((detalle: any) => {
-      const pres = detalle.presentacion_producto || {};
-      const prod = pres.producto || {};
-      const cat = prod.categoria || {};
+    items: asArray(backendOrder.detalles_pedido).map((rawDetail) => {
+      const detalle = asRecord(rawDetail);
+      const pres = asRecord(detalle.presentacion_producto ?? detalle.presentacionProducto);
+      const prod = asRecord(pres.producto ?? detalle.producto);
+      const cat = asRecord(prod.categoria ?? prod.categorias);
+
       return {
-        id: detalle.id_detalle_pedido,
-        productoId: pres.id_presentacion_producto || 0,
-        nombreProducto: prod.nombre || 'Producto',
-        categoriaId: cat.id_categoria || 0,
-        categoriaNombre: cat.nombre || 'Categoría',
-        cantidad: detalle.cantidad,
-        observacion: detalle.observaciones || '',
-        ingredientes: (detalle.ingredientes_detalle || []).map((ing: any) => ({
-          nombre: ing.nombre,
-          incluido: ing.incluido
-        })) as TableOrderItemIngredient[],
-        precioUnitario: Number(detalle.precio_unitario || 0),
-        tiempoPreparacion: pres.tiempo_preparacion_minutos || 0,
-        subtotal: Number(detalle.subtotal || 0),
-        imagen: prod.imagen_url || prod.imagen || null,
+        id: numberValue(detalle.id_detalle_pedido ?? detalle.id, 0),
+        productoId: numberValue(pres.id_presentacion_producto ?? prod.id_producto ?? detalle.id_presentacion_producto, 0),
+        nombreProducto: stringValue(prod.nombre ?? detalle.nombreProducto, 'Producto'),
+        categoriaId: numberValue(cat.id_categoria ?? prod.id_categoria, 0),
+        categoriaNombre: stringValue(cat.nombre, 'Sin categoría'),
+        cantidad: numberValue(detalle.cantidad, 1),
+        observacion: stringValue(detalle.observaciones ?? detalle.observacion),
+        ingredientes: asArray(detalle.ingredientes_detalle ?? detalle.ingredientes).map((rawIngredient) => {
+          const ingredient = asRecord(rawIngredient);
+          return {
+            nombre: stringValue(ingredient.nombre),
+            incluido: Boolean(ingredient.incluido),
+          };
+        }) as TableOrderItemIngredient[],
+        precioUnitario: numberValue(detalle.precio_unitario ?? detalle.precioUnitario, 0),
+        tiempoPreparacion: numberValue(pres.tiempo_preparacion_minutos ?? prod.tiempo_preparacion, 0),
+        subtotal: numberValue(detalle.subtotal, 0),
+        imagen: stringValue(prod.imagen_url ?? prod.imagen, '') || null,
       };
     }),
-    subtotal: Number(backendOrder.subtotal || 0),
+    subtotal: numberValue(backendOrder.subtotal, 0),
     impuesto: 0,
     descuento: 0,
-    total: Number(backendOrder.total || backendOrder.subtotal || 0),
-    tiempoEstimadoMinutos: backendOrder.tiempo_estimado_minutos || 0,
-    observaciones: backendOrder.observaciones || '',
-    fechaCreacion: backendOrder.fecha_hora_pedido || new Date().toISOString(),
+    total: numberValue(backendOrder.total ?? backendOrder.subtotal, 0),
+    tiempoEstimadoMinutos: numberValue(backendOrder.tiempo_estimado_minutos ?? backendOrder.tiempoEstimadoMinutos, 0),
+    observaciones: stringValue(backendOrder.observaciones),
+    fechaCreacion: stringValue(backendOrder.fecha_hora_pedido ?? backendOrder.fechaCreacion, new Date().toISOString()),
   };
 }

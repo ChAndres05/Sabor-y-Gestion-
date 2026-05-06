@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { ordersApi } from '../../shared/api/orders.api';
-import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
+import {
+  RESTAURANT_STATE_CHANGED_EVENT,
+  RESTAURANT_STATE_CHANGED_STORAGE_KEY,
+} from '../../shared/utils/events';
 import type { KitchenOrder } from '../../shared/types/kitchen.types';
 
 interface MonitorCocinaPageProps {
@@ -46,12 +49,18 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
       setCurrentTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
     }, 60000);
 
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === RESTAURANT_STATE_CHANGED_STORAGE_KEY) {
+        handleStateChange();
+      }
+    };
+
     window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
-    window.addEventListener('storage', handleStateChange);
+    window.addEventListener('storage', handleStorageChange);
 
     return () => {
       window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
-      window.removeEventListener('storage', handleStateChange);
+      window.removeEventListener('storage', handleStorageChange);
       clearInterval(timer);
     };
   }, []);
@@ -80,7 +89,7 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
       });
       const isAnyChecked = newItems.some(it => it.checked);
       const newStatus = isAnyChecked ? 'preparing' : 'pending';
-      return { ...o, items: newItems, status: newStatus as any };
+      return { ...o, items: newItems, status: newStatus as KitchenOrder['status'] };
     });
 
     setOrders(updatedOrders);

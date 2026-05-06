@@ -16,12 +16,36 @@ import {
   addOrderItemToTableMock,
   removeOrderItemFromTableMock,
   updateOrderStatusForTableMock,
-  updateOrderItemInTableMock
+  updateOrderItemInTableMock,
+  searchOrderCustomerByCiMock
 } from '../mocks/table-orders.mock';
 import { listClientOrdersMock } from '../mocks/client-flow.mock';
 import { emitRestaurantStateChanged } from '../utils/events';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+type BackendTableRecord = { id_mesa?: number | string; id?: number | string };
+type BackendOrderRecord = Record<string, unknown>;
+
+const SIMULATED_STATUSES_STORAGE_KEY = 'gestionysabor_simulated_statuses';
+
+function readSimulatedStatuses(): Record<number, TableOrderStatus> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const value = window.localStorage.getItem(SIMULATED_STATUSES_STORAGE_KEY);
+    return value ? (JSON.parse(value) as Record<number, TableOrderStatus>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSimulatedStatus(orderId: number, status: TableOrderStatus) {
+  if (typeof window === 'undefined' || orderId <= 0) return;
+  const statuses = readSimulatedStatuses();
+  statuses[orderId] = status;
+  window.localStorage.setItem(SIMULATED_STATUSES_STORAGE_KEY, JSON.stringify(statuses));
+}
+
 
 async function tryJson<T>(url: string, init?: RequestInit): Promise<T | null> {
   try {
@@ -52,17 +76,18 @@ export const ordersApi = {
    */
   async listActiveOrders(): Promise<TableOrder[]> {
     // Obtener mesas válidas para filtrar pedidos huérfanos del mock
-    const tables = await tryJson<any[]>(`${API_URL}/api/mesas`);
+    const tables = await tryJson<BackendTableRecord[]>(`${API_URL}/api/mesas`);
     const validIds = new Set(
       Array.isArray(tables) 
-        ? tables.map((t: any) => Number(t.id_mesa ?? t.id)) 
+        ? tables.map((t) => Number(t.id_mesa ?? t.id)) 
         : []
     );
 
     // Intentamos obtener pedidos de backend
-    const backendData = await tryJson<any[]>(`${API_URL}/api/pedidos/activos`);
+    const backendData = await tryJson<BackendOrderRecord[]>(`${API_URL}/api/pedidos/activos`);
+    const simulatedStatuses = readSimulatedStatuses();
     const backendOrders = Array.isArray(backendData)
-      ? backendData.map(o => mapBackendOrderToWaiterFrontend(o))
+      ? backendData.map(o => mapBackendOrderToWaiterFrontend(o, simulatedStatuses))
       : [];
 
     // Obtenemos pedidos mock
@@ -79,10 +104,38 @@ export const ordersApi = {
   },
 
   /**
+   * Busca un cliente por CI en backend o mock
+   */
+  async searchCustomerByCi(ci: string): Promise<TableOrderCustomer | null> {
+    if (!ci || ci === '0') return null;
+
+    try {
+      const response = await fetch(`${API_URL}/api/clientes/ci/${ci}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data) {
+          // El backend puede devolver diferentes formatos según el endpoint
+          return {
+            idUsuario: data.id_usuario ?? data.id ?? null,
+            nombre: data.nombre ? `${data.nombre} ${data.apellido || ''}`.trim() : 'Cliente registrado',
+            telefono: data.telefono || data.celular || '00000000',
+            ci: String(data.usuario_ci ?? data.ci ?? data.documento ?? ci),
+          };
+        }
+      }
+    } catch (error) {
+      console.error('Error searching customer by CI in backend:', error);
+    }
+
+    // Fallback al mock
+    return searchOrderCustomerByCiMock(ci);
+  },
+
+  /**
    * Lista pedidos asociados a un cliente específico
    */
   async listOrdersByClient(userId: number): Promise<ClientOrder[]> {
-    const data = await tryJson<any[]>(`${API_URL}/api/pedidos/cliente/${userId}`);
+    const data = await tryJson<BackendOrderRecord[]>(`${API_URL}/api/pedidos/cliente/${userId}`);
     if (Array.isArray(data)) {
       return data.map((order) => mapBackendOrder(order, userId));
     }
@@ -94,7 +147,7 @@ export const ordersApi = {
    */
   async getOpenOrdersByTable(tableId: number): Promise<TableOrder[]> {
     // Validar que la mesa exista (usando la lista general para evitar 405 en endpoint individual)
-    const tables = await tryJson<any[]>(`${API_URL}/api/mesas`);
+    const tables = await tryJson<BackendTableRecord[]>(`${API_URL}/api/mesas`);
     const tableExists = Array.isArray(tables)
       ? tables.some((t) => Number(t.id_mesa ?? t.id) === Number(tableId))
       : true; // Si no podemos validar, no bloqueamos
@@ -102,9 +155,10 @@ export const ordersApi = {
     if (!tableExists) return [];
 
     // Pedidos de backend
-    const backendData = await tryJson<any>(`${API_URL}/api/pedidos/mesa/${tableId}`);
+    const backendData = await tryJson<BackendOrderRecord | BackendOrderRecord[]>(`${API_URL}/api/pedidos/mesa/${tableId}`);
+    const simulatedStatuses = readSimulatedStatuses();
     const backendOrders: TableOrder[] = backendData 
-      ? (Array.isArray(backendData) ? backendData : [backendData]).map(o => mapBackendOrderToWaiterFrontend(o))
+      ? (Array.isArray(backendData) ? backendData : [backendData]).map(o => mapBackendOrderToWaiterFrontend(o, simulatedStatuses))
       : [];
 
     // Pedidos mock
@@ -137,19 +191,22 @@ export const ordersApi = {
       observaciones: 'Pedido creado desde flujo de mesa'
     };
 
-    const data = await tryJson<any>(`${API_URL}/api/pedidos`, {
+    const data = await tryJson<BackendOrderRecord>(`${API_URL}/api/pedidos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
 
     if (data) {
+      emitRestaurantStateChanged();
       // Re-consultar para obtener el objeto completo con relaciones si es necesario
       const fullOrder = await this.getActiveOrder(tableId);
       if (fullOrder) return fullOrder;
     }
 
-    return saveOrderCustomerMock(tableId, customer, waiterUserId);
+    const mockOrder = await saveOrderCustomerMock(tableId, customer, waiterUserId);
+    emitRestaurantStateChanged();
+    return mockOrder;
   },
 
   /**
@@ -230,17 +287,32 @@ export const ordersApi = {
    * Actualiza el estado de un pedido
    */
   async updateOrderStatus(orderId: number, status: TableOrderStatus, tableId: number): Promise<void> {
-    const res = await fetch(`${API_URL}/api/pedidos/${orderId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado: status })
-    });
+    let backendUpdated = false;
 
-    if (res.ok) {
-      emitRestaurantStateChanged();
-    } else {
-      await updateOrderStatusForTableMock(tableId, status);
+    if (orderId > 0) {
+      try {
+        const res = await fetch(`${API_URL}/api/pedidos/${orderId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: status })
+        });
+        backendUpdated = res.ok;
+      } catch {
+        backendUpdated = false;
+      }
+
+      // Overlay local para que las pantallas operativas no dependan de que el endpoint esté completo.
+      writeSimulatedStatus(orderId, status);
     }
+
+    await updateOrderStatusForTableMock(tableId, status);
+
+    if (!backendUpdated) {
+      // El flujo mock es temporal mientras backend completa pedidos/cocina.
+      // No lanzamos error porque el cambio debe seguir reflejándose entre roles.
+    }
+
+    emitRestaurantStateChanged();
   },
 
   /**
@@ -272,7 +344,7 @@ export const ordersApi = {
                 o.estado === 'EN_PREPARACION' ? 'preparing' : 'ready',
         isToggled: o.estado !== 'REGISTRADO',
         source: o.customer?.nombre?.toLowerCase().includes('reserva') ? 'reserva' : 'mesa',
-        tableNumber: o.tableId,
+        tableNumber: o.tableNumber || 0,
         customerName: o.customer?.nombre || 'Cliente Genérico'
       }));
   }

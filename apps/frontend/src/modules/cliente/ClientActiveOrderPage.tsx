@@ -3,6 +3,8 @@ import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import { getMockIngredientsForProduct } from '../../shared/mocks/menu-ingredients.mock';
 import { ordersApi } from '../../shared/api/orders.api';
 import { menuApi } from '../menu/menu.api';
+import { mapProductFromBackend } from '../../shared/mappers/menu.mapper';
+import type { MenuProduct } from '../menu/types/menu.types';
 import {
   requestBillForTableMock,
 } from '../../shared/mocks/table-orders.mock';
@@ -182,7 +184,9 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
         const currentOrder = ordersData.find(o => o.estado === 'REGISTRADO') || ordersData[0] || null;
         setOrder(currentOrder);
         
-        setSelectedCategoryId(categoriesData[0]?.id ?? 0);
+        if (categoriesData.length > 0 && !selectedCategoryId) {
+          setSelectedCategoryId(categoriesData[0].id);
+        }
       } catch (error) {
         setFeedback({
           type: 'error',
@@ -204,23 +208,17 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
     return () => {
       window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
     };
-  }, [tableId, refreshPageState]);
+  }, [tableId, refreshPageState, selectedCategoryId]);
 
   useEffect(() => {
     const loadProducts = async () => {
       if (!selectedCategoryId) return;
       try {
         const productsDataRaw = await menuApi.getProductos();
-        const categoryProducts = productsDataRaw
-          .map((p: any) => ({
-            ...p,
-            id: p.id_producto || p.id,
-            categoryId: p.id_categoria || p.categoryId,
-            imagen: p.imagen_url || p.imagen || (p as any).url_imagen || (p as any).foto || null,
-            precio: Number(p.precio || 0),
-            tiempoPreparacion: Number(p.tiempo_preparacion || p.tiempoPreparacion || 0)
-          }))
-          .filter((p: any) => p.categoryId === selectedCategoryId && (p.disponible ?? true));
+        const mappedProducts = productsDataRaw.map(mapProductFromBackend);
+        const categoryProducts = mappedProducts.filter(
+          (p: MenuProduct) => p.categoryId === selectedCategoryId && (p.disponible ?? true)
+        );
 
         setProducts(categoryProducts);
         if (!skipNextIngredientHydration.current) {
@@ -294,7 +292,7 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
         title: 'Cuenta solicitada',
         message: 'Tu cuenta ha sido solicitada. El personal se acercará pronto.',
       });
-    } catch (error) {
+    } catch {
       setFeedback({
         type: 'error',
         title: 'Error',

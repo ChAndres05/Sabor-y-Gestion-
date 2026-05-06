@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import { ordersApi } from '../../shared/api/orders.api';
 import {
@@ -6,7 +6,10 @@ import {
 } from '../../shared/mocks/table-orders.mock';
 import { pusherClient } from '../../shared/utils/pusher';
 import { listTablesMock, updateTableStatusMock } from '../../shared/mocks/tables.mock';
-import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
+import {
+  RESTAURANT_STATE_CHANGED_EVENT,
+  RESTAURANT_STATE_CHANGED_STORAGE_KEY,
+} from '../../shared/utils/events';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { RestaurantTable } from '../tables/types/table.types';
 import type { TableOrder, TableOrderStatus } from '../tables/types/table-order.types';
@@ -104,7 +107,7 @@ export default function MeseroOrdersPage({
   const readyCount = orders.filter((order) => order.estado === 'LISTO').length;
   const completedCount = orders.filter(isCompletedOrder).length;
 
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     setIsLoading(true);
 
     try {
@@ -123,7 +126,7 @@ export default function MeseroOrdersPage({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadOrders();
@@ -135,18 +138,20 @@ export default function MeseroOrdersPage({
     const channel = pusherClient.subscribe('orders-channel');
     channel.bind('order-updated', handleStateChange);
 
-    window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
-    window.addEventListener('storage', (e) => {
-      if (e.key?.startsWith('gestionysabor_')) {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === RESTAURANT_STATE_CHANGED_STORAGE_KEY) {
         handleStateChange();
       }
-    });
+    };
+
+    window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+    window.addEventListener('storage', handleStorageChange);
 
     return () => {
       channel.unbind('order-updated');
       pusherClient.unsubscribe('orders-channel');
       window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
-      window.removeEventListener('storage', handleStateChange);
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, [loadOrders]);
 

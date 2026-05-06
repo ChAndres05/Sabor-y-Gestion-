@@ -16,7 +16,7 @@ export interface MenuProduct {
   imagen: string | null;
   activo: boolean;
   disponible: boolean;
-  ingredientes?: Array<{
+  ingredientes: Array<{
     id: number;
     nombre: string;
     incluidoPorDefecto: boolean;

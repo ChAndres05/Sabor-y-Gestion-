@@ -49,7 +49,7 @@ function getYesterdayDate() {
   return date.toISOString().slice(0, 10);
 }
 
-function buildDefaultReservations(userId: number): ClientReservation[] {
+export function buildDefaultReservations(userId: number): ClientReservation[] {
   return [
     {
       id: 9001 + userId,
@@ -80,23 +80,17 @@ function buildDefaultReservations(userId: number): ClientReservation[] {
   ];
 }
 
-function readReservations(userId: number) {
-  const stored = readStorage<ClientReservation[]>(RESERVATIONS_STORAGE_KEY, []);
-  const hasUserReservations = stored.some((reservation) => reservation.userId === userId);
-
-  if (hasUserReservations) return stored;
-
-  const seeded = [...stored, ...buildDefaultReservations(userId)];
-  writeStorage(RESERVATIONS_STORAGE_KEY, seeded);
-  return seeded;
+function readReservations() {
+  return readStorage<ClientReservation[]>(RESERVATIONS_STORAGE_KEY, []);
 }
+
 
 function mapTableToClientOrder(order: TableOrder): ClientOrder {
   return {
     id: order.id,
     orderNumber: `P-${order.id}`,
     userId: order.customer?.idUsuario || 0,
-    tableNumber: order.tableId,
+    tableNumber: order.tableNumber ?? order.tableId,
     source: 'MESA_MESERO',
     status: order.estado,
     items: (order.items || []).map((item) => ({
@@ -117,7 +111,7 @@ function mapTableToClientOrder(order: TableOrder): ClientOrder {
 
 export async function listClientReservationsMock(userId: number): Promise<ClientReservation[]> {
   await delay();
-  return readReservations(userId)
+  return readReservations()
     .filter((reservation) => reservation.userId === userId)
     .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
 }
@@ -137,7 +131,7 @@ export async function createClientReservationMock(
     throw new Error('La cantidad de personas debe ser mayor a 0');
   }
 
-  const current = readReservations(payload.userId);
+  const current = readReservations();
   
   // Validar conflicto de reserva (misma mesa, fecha y hora aproximada)
   const hasConflict = current.some(r => 
@@ -176,7 +170,7 @@ export async function cancelClientReservationMock(
 ): Promise<ClientReservation> {
   await delay();
 
-  const current = readReservations(userId);
+  const current = readReservations();
   const found = current.find(
     (reservation) => reservation.id === reservationId && reservation.userId === userId
   );
@@ -226,7 +220,7 @@ export async function createPreparedReservationOrderMock(
 ): Promise<ClientOrder> {
   await delay();
 
-  const reservations = readReservations(payload.userId);
+  const reservations = readReservations();
   const reservation = reservations.find(
     (item) => item.id === payload.reservationId && item.userId === payload.userId
   );
@@ -243,6 +237,7 @@ export async function createPreparedReservationOrderMock(
   const newOrder: TableOrder = {
     id: nextId,
     tableId: reservation.tableId,
+    tableNumber: reservation.tableNumber,
     tipoPedido: 'MESA',
     estado: 'REGISTRADO',
     waiterName: 'Autoservicio',

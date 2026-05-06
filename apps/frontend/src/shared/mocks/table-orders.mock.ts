@@ -11,7 +11,7 @@ import type {
 } from '../../modules/tables/types/table-order.types';
 import { emitRestaurantStateChanged } from '../utils/events';
 
-let nextOrderId = 5;
+let nextOrderId = 1;
 
 const delay = (ms = 220) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -340,7 +340,7 @@ function normalizeIngredients(
   });
 }
 
-function createItem(
+export function createItem(
   id: number,
   productoId: number,
   cantidad: number,
@@ -395,117 +395,7 @@ function recalculateOrder(order: TableOrder): TableOrder {
   };
 }
 
-let orders: TableOrder[] = [
-  recalculateOrder({
-    id: 1,
-    tableId: 2,
-    tipoPedido: 'MESA',
-    estado: 'REGISTRADO',
-    waiterName: 'María López',
-    customer: {
-      idUsuario: 22,
-      nombre: 'Roberto García',
-      telefono: '70011223',
-      ci: '234531',
-    },
-    items: [
-      createItem(1, 3, 2, 'Sin locoto', [
-        { nombre: 'Carne', incluido: true },
-        { nombre: 'Salchicha', incluido: true },
-        { nombre: 'Huevo', incluido: true },
-        { nombre: 'Papas', incluido: true },
-        { nombre: 'Locoto', incluido: false },
-        { nombre: 'Mayonesa', incluido: true },
-        { nombre: 'Kétchup', incluido: true },
-      ]),
-      createItem(2, 5, 2, 'Sin hielo', [
-        { nombre: 'Hielo', incluido: false },
-        { nombre: 'Limón', incluido: false },
-        { nombre: 'Vaso', incluido: true },
-      ]),
-    ],
-    subtotal: 0,
-    impuesto: 0,
-    descuento: 0,
-    total: 0,
-    tiempoEstimadoMinutos: 0,
-    observaciones: 'Cliente en mesa, pedido tomado por mesero.',
-    fechaCreacion: new Date().toISOString(),
-  }),
-  recalculateOrder({
-    id: 2,
-    tableId: 6,
-    tipoPedido: 'MESA',
-    estado: 'EN_PREPARACION',
-    waiterName: 'María López',
-    customer: {
-      nombre: 'Familia Flores',
-      telefono: '71234567',
-      ci: '0',
-    },
-    items: [createItem(3, 4, 1, 'Término medio'), createItem(4, 6, 3)],
-    subtotal: 0,
-    impuesto: 0,
-    descuento: 0,
-    total: 0,
-    tiempoEstimadoMinutos: 0,
-    observaciones: 'Pedido enviado a cocina.',
-    fechaCreacion: new Date().toISOString(),
-  }),
-  recalculateOrder({
-    id: 3,
-    tableId: 10,
-    tipoPedido: 'MESA',
-    estado: 'LISTO',
-    waiterName: 'Carlos Méndez',
-    customer: {
-      nombre: 'Mesa sin registro',
-      telefono: '00000000',
-      ci: '0',
-    },
-    items: [
-      createItem(5, 1, 2, 'Sin cebolla', [
-        { nombre: 'Lechuga', incluido: true },
-        { nombre: 'Tomate', incluido: true },
-        { nombre: 'Pepino', incluido: true },
-        { nombre: 'Cebolla', incluido: false },
-        { nombre: 'Aceitunas', incluido: false },
-        { nombre: 'Queso', incluido: true },
-        { nombre: 'Aderezo', incluido: true },
-      ]),
-      createItem(6, 8, 2),
-    ],
-    subtotal: 0,
-    impuesto: 0,
-    descuento: 0,
-    total: 0,
-    tiempoEstimadoMinutos: 0,
-    observaciones: 'Listo para entregar en mesa.',
-    fechaCreacion: new Date().toISOString(),
-  }),
-  recalculateOrder({
-    id: 4,
-    tableId: 4,
-    tipoPedido: 'MESA',
-    estado: 'ENTREGADO',
-    waiterName: 'Carlos Méndez',
-    customer: {
-      idUsuario: 21,
-      nombre: 'Ana Vargas',
-      telefono: '76543210',
-      ci: '5678123',
-    },
-    items: [createItem(7, 3, 1), createItem(8, 7, 1)],
-    subtotal: 0,
-    impuesto: 0,
-    descuento: 0,
-    total: 0,
-    tiempoEstimadoMinutos: 0,
-    observaciones: 'Pedido entregado, listo para solicitar cuenta.',
-    fechaCreacion: new Date().toISOString(),
-    fechaEntrega: new Date().toISOString(),
-  }),
-];
+let orders: TableOrder[] = [];
 
 
 function syncOrdersFromStorage() {

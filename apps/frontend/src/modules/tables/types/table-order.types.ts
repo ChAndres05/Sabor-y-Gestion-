@@ -43,6 +43,7 @@ export interface TableOrderItem {
 export interface TableOrder {
   id: number;
   tableId: number;
+  tableNumber?: number;
   tipoPedido: 'MESA';
   estado: TableOrderStatus;
   waiterName: string;

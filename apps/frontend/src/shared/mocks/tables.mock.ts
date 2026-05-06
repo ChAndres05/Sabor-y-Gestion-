@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type {
   RestaurantTable,
   TableFormValues,
@@ -98,7 +97,7 @@ function writeStatusOverlay(overlay: Record<string, TableStatus>) {
 
 function saveStatusOverlay(tableId: number, status: TableStatus) {
   const overlay = readStatusOverlay();
-  // Guardamos siempre el estado para que actúe como override manual (incluyendo LIBRE)
+  // Guardamos el estado manual para que todos los roles usen el mismo override local.
   overlay[String(tableId)] = status;
   writeStatusOverlay(overlay);
 }
@@ -109,32 +108,41 @@ function cloneTable(table: RestaurantTable): RestaurantTable {
 
 export function getEffectiveTableStatus(
   table: RestaurantTable,
-  activeOrders: any[],
-  activeReservations: any[]
+  activeOrders: Array<{ tableId?: number; id_mesa?: number; estado?: string }>,
+  activeReservations: Array<{ tableId?: number; id_mesa?: number; status?: string; estado?: string }>
 ): TableStatus {
-  // 1. Prioridad Máxima: Pedido activo (OCUPADA) - Siempre manda si hay consumo
-  const tableOrders = activeOrders.filter(o => o.tableId === table.id && o.estado !== 'PAGADO' && o.estado !== 'CANCELADO');
-  if (tableOrders.some(o => ['REGISTRADO', 'EN_PREPARACION', 'LISTO', 'ENTREGADO'].includes(o.estado))) {
+  const tableOrders = activeOrders.filter((order) => {
+    const orderTableId = Number(order.tableId ?? order.id_mesa ?? 0);
+    return orderTableId === table.id && order.estado !== 'PAGADO' && order.estado !== 'CANCELADO';
+  });
+
+  if (
+    tableOrders.some((order) =>
+      ['REGISTRADO', 'EN_PREPARACION', 'LISTO', 'ENTREGADO'].includes(String(order.estado))
+    )
+  ) {
     return 'OCUPADA';
   }
 
-  // 2. Prioridad: Overlay manual (Admin/Mesero) - Permite correcciones manuales
   const overlay = readStatusOverlay();
   const overlayStatus = overlay[String(table.id)];
   if (overlayStatus) return overlayStatus;
 
-  // 3. Prioridad: Reserva confirmada (RESERVADA)
-  const tableReservations = activeReservations.filter(r => r.tableId === table.id && r.status === 'CONFIRMADA');
+  const tableReservations = activeReservations.filter((reservation) => {
+    const reservationTableId = Number(reservation.tableId ?? reservation.id_mesa ?? 0);
+    const reservationStatus = reservation.status ?? reservation.estado;
+    return reservationTableId === table.id && reservationStatus === 'CONFIRMADA';
+  });
+
   if (tableReservations.length > 0) {
     return 'RESERVADA';
   }
 
-  // 4. Prioridad: Estado explícito CUENTA_SOLICITADA
   if (table.estado === 'CUENTA_SOLICITADA') return 'CUENTA_SOLICITADA';
 
-  // 5. Prioridad Final: Estado backend base
   return table.estado;
 }
+
 
 export function applyWaiterTableStatusOverlayMock(
   tablesToApply: RestaurantTable[]
@@ -185,14 +193,20 @@ export async function listTablesMock(): Promise<RestaurantTable[]> {
     const res = await fetch(`${import.meta.env.VITE_API_URL}/api/mesas`);
     if (res.ok) {
       const data = await res.json();
-      return data.map((t: any) => ({
-        id: t.id_mesa,
-        numero: t.numero,
-        capacidad: t.capacidad,
-        zoneId: t.id_zona,
-        estado: t.estado,
-        activo: t.activa,
-      }));
+      if (Array.isArray(data)) {
+        const backendTables = data.map((t) => ({
+          id: Number(t.id_mesa ?? t.id),
+          numero: Number(t.numero),
+          capacidad: Number(t.capacidad ?? 0),
+          zoneId: Number(t.id_zona ?? t.zoneId ?? 0),
+          estado: (t.estado ?? 'LIBRE') as TableStatus,
+          activo: Boolean(t.activa ?? t.activo ?? true),
+        }));
+
+        return applyWaiterTableStatusOverlayMock(backendTables)
+          .sort((a, b) => a.numero - b.numero)
+          .map(cloneTable);
+      }
     }
   } catch (error) {
     console.error('API fail, using mock data for tables', error);
@@ -203,6 +217,7 @@ export async function listTablesMock(): Promise<RestaurantTable[]> {
     .sort((a, b) => a.numero - b.numero)
     .map(cloneTable);
 }
+
 
 export async function createTableMock(
   payload: TableFormValues
@@ -356,21 +371,24 @@ export async function updateTableStatusMock(
   tableId: number,
   status: TableStatus
 ): Promise<RestaurantTable> {
+  let backendTable: RestaurantTable | null = null;
+
   try {
     const res = await fetch(`${import.meta.env.VITE_API_URL}/api/mesas/${tableId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ estado: status })
     });
+
     if (res.ok) {
       const updated = await res.json();
-      return {
-        id: updated.id_mesa,
-        numero: updated.numero,
-        capacidad: updated.capacidad,
-        zoneId: updated.id_zona,
-        estado: updated.estado,
-        activo: updated.activa,
+      backendTable = {
+        id: Number(updated.id_mesa ?? updated.id ?? tableId),
+        numero: Number(updated.numero ?? tableId),
+        capacidad: Number(updated.capacidad ?? 4),
+        zoneId: Number(updated.id_zona ?? updated.zoneId ?? 0),
+        estado: (updated.estado ?? status) as TableStatus,
+        activo: Boolean(updated.activa ?? updated.activo ?? true),
       };
     }
   } catch (error) {
@@ -380,34 +398,27 @@ export async function updateTableStatusMock(
   await delay();
 
   const foundTable = tables.find((table) => table.id === tableId);
+  const updatedTable: RestaurantTable = backendTable ?? (foundTable
+    ? { ...foundTable, estado: status }
+    : {
+        id: tableId,
+        numero: tableId,
+        capacidad: 4,
+        zoneId: 0,
+        estado: status,
+        activo: true,
+      });
 
-  if (!foundTable) {
-    const fallbackTable: RestaurantTable = {
-      id: tableId,
-      numero: tableId,
-      capacidad: 4,
-      zoneId: 0,
-      estado: status,
-      activo: true,
-    };
-
-    saveStatusOverlay(tableId, status);
-    emitRestaurantStateChanged();
-    return fallbackTable;
+  if (foundTable) {
+    tables = tables.map((table) => (table.id === tableId ? updatedTable : table));
+    persistTables();
   }
 
-  const updatedTable: RestaurantTable = {
-    ...foundTable,
-    estado: status,
-  };
-
-  tables = tables.map((table) => (table.id === tableId ? updatedTable : table));
-  persistTables();
   saveStatusOverlay(tableId, status);
   emitRestaurantStateChanged();
-
   return cloneTable(updatedTable);
 }
+
 
 export async function deleteTableMock(tableId: number): Promise<void> {
   try {
@@ -438,24 +449,11 @@ export async function deleteTableMock(tableId: number): Promise<void> {
 export async function getTableByIdMock(
   tableId: number
 ): Promise<RestaurantTable> {
-  try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/mesas/${tableId}`);
-    if (res.ok) {
-      const data = await res.json();
-      return {
-        id: data.id_mesa,
-        numero: data.numero,
-        capacidad: data.capacidad,
-        zoneId: data.id_zona,
-        estado: data.estado,
-        activo: data.activa,
-      };
-    }
-  } catch (error) {
-    console.error('API fail for getTableById', error);
-  }
-
   await delay();
+
+  const listedTables = await listTablesMock();
+  const foundFromList = listedTables.find((table) => table.id === tableId);
+  if (foundFromList) return cloneTable(foundFromList);
 
   const overlay = readStatusOverlay();
   const foundTable = tables.find((table) => table.id === tableId);

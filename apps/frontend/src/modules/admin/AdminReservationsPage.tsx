@@ -5,7 +5,10 @@ import type {
   ClientReservation,
   ClientReservationStatus,
 } from '../../shared/types/client-flow.types';
-import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
+import {
+  RESTAURANT_STATE_CHANGED_EVENT,
+  RESTAURANT_STATE_CHANGED_STORAGE_KEY,
+} from '../../shared/utils/events';
 
 interface AdminReservationsPageProps {
   onBack: () => void;
@@ -84,16 +87,18 @@ export default function AdminReservationsPage({
       void loadReservations();
     };
 
-    window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
-    window.addEventListener('storage', (e) => {
-      if (e.key?.startsWith('gestionysabor_')) {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === RESTAURANT_STATE_CHANGED_STORAGE_KEY) {
         handleStateChange();
       }
-    });
+    };
+
+    window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+    window.addEventListener('storage', handleStorageChange);
 
     return () => {
       window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
-      window.removeEventListener('storage', handleStateChange);
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, [loadReservations]);
 
