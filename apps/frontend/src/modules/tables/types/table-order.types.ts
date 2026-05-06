@@ -71,6 +71,7 @@ export interface OrderCatalogProduct {
   tiempoPreparacion: number;
   disponible: boolean;
   ingredientes: OrderProductIngredient[];
+  imagen?: string | null;
 }
 
 export interface AddOrderItemPayload {

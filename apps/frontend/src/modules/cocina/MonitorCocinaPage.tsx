@@ -1,157 +1,74 @@
-import { useState } from 'react';
-
-interface OrderItem {
-  name: string;
-  quantity: number;
-  checked: boolean;
-}
-
-interface Order {
-  id: number;
-  orderNumber: number;
-  items: OrderItem[];
-  status: 'pending' | 'preparing' | 'ready';
-  isToggled: boolean;
-  source?: 'mesa' | 'reserva';
-  tableNumber?: number;
-  customerName?: string;
-  reservationTime?: string;
-  prepareFrom?: string;
-}
-
-const initialOrders: Order[] = [
-  {
-    id: 1,
-    orderNumber: 1,
-    items: [
-      { name: 'piques', quantity: 2, checked: true },
-      { name: 'mojito', quantity: 1, checked: true },
-    ],
-    status: 'pending',
-    isToggled: false,
-  },
-  {
-    id: 2,
-    orderNumber: 16,
-    items: [
-      { name: 'piques', quantity: 2, checked: true },
-      { name: 'mojito', quantity: 1, checked: true },
-    ],
-    status: 'pending',
-    isToggled: false,
-  },
-  {
-    id: 3,
-    orderNumber: 3,
-    items: [
-      { name: 'piques', quantity: 2, checked: true },
-      { name: 'mojito', quantity: 1, checked: true },
-    ],
-    status: 'preparing',
-    isToggled: true,
-  },
-  {
-    id: 4,
-    orderNumber: 4,
-    items: [
-      { name: 'piques', quantity: 2, checked: true },
-      { name: 'mojito', quantity: 1, checked: true },
-    ],
-    status: 'preparing',
-    isToggled: true,
-  },
-  {
-    id: 5,
-    orderNumber: 5,
-    items: [
-      { name: 'piques', quantity: 2, checked: false },
-      { name: 'mojito', quantity: 1, checked: false },
-    ],
-    status: 'pending',
-    isToggled: false,
-  },
-  {
-    id: 6,
-    orderNumber: 2,
-    items: [
-      { name: 'piques', quantity: 2, checked: false },
-      { name: 'mojito', quantity: 1, checked: false },
-    ],
-    status: 'pending',
-    isToggled: false,
-  },
-  {
-    id: 7,
-    orderNumber: 21,
-    source: 'reserva',
-    tableNumber: 5,
-    customerName: 'Juan Pérez',
-    reservationTime: '20:00',
-    prepareFrom: '19:30',
-    items: [
-      { name: 'pique macho especial', quantity: 2, checked: false },
-      { name: 'jugo natural', quantity: 2, checked: false },
-    ],
-    status: 'pending',
-    isToggled: false,
-  },
-];
+import { useEffect, useState } from 'react';
+import {
+  listKitchenOrdersMock,
+  toggleKitchenOrderMock,
+  toggleKitchenOrderItemMock,
+  updateKitchenOrderStatusMock,
+} from '../../shared/mocks/kitchen.mock';
+import type { KitchenOrder } from '../../shared/types/kitchen.types';
 
 interface MonitorCocinaPageProps {
   onBack: () => void;
 }
 
 export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [orders, setOrders] = useState<KitchenOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const toggleOrder = (id: number) => {
-    setOrders(
-      orders.map((order) =>
-        order.id === id ? { ...order, isToggled: !order.isToggled } : order
-      )
-    );
+  useEffect(() => {
+    async function load() {
+      setIsLoading(true);
+      try {
+        const data = await listKitchenOrdersMock();
+        setOrders(data);
+      } catch (error) {
+        console.error('Error loading kitchen orders:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    void load();
+  }, []);
+
+  const toggleOrder = async (id: number) => {
+    try {
+      const updated = await toggleKitchenOrderMock(id);
+      setOrders(updated);
+    } catch (error) {
+      console.error('Error toggling order:', error);
+    }
   };
 
-  const toggleItemChecked = (orderId: number, itemIndex: number) => {
-    setOrders(
-      orders.map((order) => {
-        if (order.id !== orderId) return order;
-        if (order.status === 'ready') return order;
-
-        const updatedItems = order.items.map((item, idx) =>
-          idx === itemIndex ? { ...item, checked: !item.checked } : item
-        );
-
-        const hasCheckedItem = updatedItems.some((item) => item.checked);
-        let newStatus = order.status;
-        
-        if (hasCheckedItem && order.status === 'pending') {
-          newStatus = 'preparing';
-        } else if (!hasCheckedItem && order.status === 'preparing') {
-          newStatus = 'pending';
-        }
-
-        return {
-          ...order,
-          items: updatedItems,
-          status: newStatus,
-        };
-      })
-    );
+  const toggleItemChecked = async (orderId: number, itemIndex: number) => {
+    try {
+      const updated = await toggleKitchenOrderItemMock(orderId, itemIndex);
+      setOrders(updated);
+    } catch (error) {
+      console.error('Error toggling item:', error);
+    }
   };
 
-  const setReady = (id: number) => {
-    setOrders(
-      orders.map((order) =>
-        order.id === id ? { ...order, status: 'ready' } : order
-      )
-    );
+  const setReady = async (id: number) => {
+    try {
+      const updated = await updateKitchenOrderStatusMock(id, 'ready');
+      setOrders(updated);
+    } catch (error) {
+      console.error('Error setting order ready:', error);
+    }
   };
 
   const pendingCount = orders.filter((order) => order.status === 'pending').length;
   const preparingCount = orders.filter((order) => order.status === 'preparing').length;
   const readyCount = orders.filter((order) => order.status === 'ready').length;
   const reservationCount = orders.filter((order) => order.source === 'reserva').length;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen font-sans p-4 sm:p-6 md:p-8 text-[#1c1c1c] bg-[#F2E9DC] flex items-center justify-center">
+        <p className="text-xl font-bold">Cargando monitor de cocina...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen font-sans p-4 sm:p-6 md:p-8 text-[#1c1c1c] bg-[#F2E9DC]">
@@ -243,7 +160,7 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
                   <li 
                     key={idx} 
                     className={`flex justify-between items-center group ${order.status === 'ready' ? 'cursor-default' : 'cursor-pointer'}`}
-                    onClick={() => order.status !== 'ready' && toggleItemChecked(order.id, idx)}
+                    onClick={() => order.status !== 'ready' && void toggleItemChecked(order.id, idx)}
                   >
                     <span className={`text-[15px] font-bold transition-colors ${item.checked ? 'text-[#8c8c8c] line-through' : 'text-[#1c1c1c]'}`}>
                       {item.quantity} {item.name}
@@ -263,7 +180,7 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
 
             <div className="flex justify-between items-center mt-auto pt-2">
               <button
-                onClick={() => toggleOrder(order.id)}
+                onClick={() => void toggleOrder(order.id)}
                 disabled={order.status === 'ready' || !order.items.every((item) => item.checked)}
                 className={`w-[46px] h-[24px] rounded-full flex items-center p-1 transition-colors ${
                   order.isToggled ? 'bg-[#182033]' : 'bg-[#a3aab8]'
@@ -277,7 +194,7 @@ export default function MonitorCocinaPage({ onBack }: MonitorCocinaPageProps) {
               </button>
 
               <button
-                onClick={() => setReady(order.id)}
+                onClick={() => void setReady(order.id)}
                 disabled={order.status === 'ready' || !order.items.every((item) => item.checked) || !order.isToggled}
                 className={`text-[11px] font-bold px-4 py-1.5 rounded-[8px] transition-colors border-2 ${
                   order.isToggled

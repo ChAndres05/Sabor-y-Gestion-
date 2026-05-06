@@ -632,7 +632,8 @@ export async function listOrderProductsByCategoryMock(
         precio: Number(presentacion.precio || 0),
         tiempoPreparacion: Number(presentacion.tiempo_preparacion_minutos || 0),
         disponible: prod.disponible,
-        ingredientes
+        ingredientes,
+        imagen: prod.imagen_url || prod.imagen || null
       };
     });
   }

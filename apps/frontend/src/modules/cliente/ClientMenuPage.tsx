@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AuthUser } from '../auth/types/auth.types';
-import ClientMenuProductCard from './components/ClientMenuProductCard';
-import ClientLayout from './components/ClientLayout';
+import ClientMenuProductCard from '../../components/client/ClientMenuProductCard';
+import ClientLayout from '../../components/client/ClientLayout';
 import { menuApi } from '../menu/menu.api';
 import type { MenuCategory, MenuProduct } from '../menu/types/menu.types';
-import type { ClientNavigationKey } from './types/client-flow.types';
+import type { ClientNavigationKey } from '../../shared/types/client-flow.types';
 
 interface ClientMenuPageProps {
   user: AuthUser;

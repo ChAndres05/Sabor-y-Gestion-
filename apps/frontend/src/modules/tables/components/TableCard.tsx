@@ -1,7 +1,7 @@
 import type { RestaurantTable, TableStatus, Zone } from '../types/table.types';
 
 interface TableCardProps {
-  role: 'ADMIN' | 'MESERO';
+  role: 'ADMIN' | 'MESERO' | 'CLIENTE';
   table: RestaurantTable;
   zone?: Zone;
   menuOpen: boolean;
@@ -64,8 +64,9 @@ export function TableCard({
   onChangeStatus,
 }: TableCardProps) {
   const isAdmin = role === 'ADMIN';
-  const availableStatuses = isAdmin ? ADMIN_STATUSES : WAITER_STATUSES;
-  const canManageOrder = table.estado !== 'FUERA_DE_SERVICIO';
+  const isClient = role === 'CLIENTE';
+  const availableStatuses = isAdmin ? ADMIN_STATUSES : isClient ? (table.estado === 'LIBRE' ? ['RESERVADA'] as TableStatus[] : []) : WAITER_STATUSES;
+  const canManageOrder = !isClient && table.estado !== 'FUERA_DE_SERVICIO';
 
   return (
     <article
@@ -121,7 +122,7 @@ export function TableCard({
             </button>
           )}
 
-          {table.estado === 'RESERVADA' && availableStatuses.includes('RESERVADA') && (
+          {!isClient && table.estado === 'RESERVADA' && availableStatuses.includes('RESERVADA') && (
             <button
               type="button"
               onClick={() => onChangeStatus('RESERVADA')}

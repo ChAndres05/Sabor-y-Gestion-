@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import type { AuthUser } from '../../auth/types/auth.types';
-import type { ClientNavigationKey } from '../types/client-flow.types';
+import type { AuthUser } from '../../modules/auth/types/auth.types';
+import type { ClientNavigationKey } from '../../shared/types/client-flow.types';
 
 interface ClientLayoutProps {
   user: AuthUser;

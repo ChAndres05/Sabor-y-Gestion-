@@ -5,6 +5,7 @@ import {
   requestBillForTableMock,
   updateOrderStatusForTableMock,
 } from '../../shared/mocks/table-orders.mock';
+import { pusherClient } from '../../shared/utils/pusher';
 import { listTablesMock, updateTableStatusMock } from '../../shared/mocks/tables.mock';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { RestaurantTable } from '../tables/types/table.types';
@@ -126,6 +127,16 @@ export default function MeseroOrdersPage({
 
   useEffect(() => {
     void loadOrders();
+
+    const channel = pusherClient.subscribe('orders-channel');
+    channel.bind('order-updated', () => {
+      void loadOrders();
+    });
+
+    return () => {
+      channel.unbind('order-updated');
+      pusherClient.unsubscribe('orders-channel');
+    };
   }, []);
 
   const handleChangeOrderStatus = async (tableId: number, status: TableOrderStatus) => {

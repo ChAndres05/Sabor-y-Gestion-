@@ -14,6 +14,9 @@ import {
   updateTableMock,
 } from '../../shared/mocks/tables.mock';
 import { pusherClient } from '../../shared/utils/pusher';
+import type { AuthUser } from '../auth/types/auth.types';
+import type { ClientNavigationKey } from '../../shared/types/client-flow.types';
+import { clientFlowApi } from '../../shared/api/client-flow.api';
 import type {
   RestaurantTable,
   TableFormValues,
@@ -24,9 +27,11 @@ import type {
 } from './types/table.types';
 
 interface TableManagementPageProps {
-  role: 'ADMIN' | 'MESERO';
+  role: 'ADMIN' | 'MESERO' | 'CLIENTE';
   onBack: () => void;
-  onOpenTableOrder: (tableId: number) => void;
+  onOpenTableOrder?: (tableId: number) => void;
+  user?: AuthUser;
+  onNavigate?: (screen: ClientNavigationKey) => void;
 }
 
 type FeedbackState = {
@@ -102,9 +107,15 @@ export default function TableManagementPage({
   role,
   onBack,
   onOpenTableOrder,
+  user,
+  onNavigate,
 }: TableManagementPageProps) {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const isAdmin = role === 'ADMIN';
+  const isClient = role === 'CLIENTE';
+
+  const [filterPeople, setFilterPeople] = useState<number | ''>(2);
+  const [filterOnlyAvailable, setFilterOnlyAvailable] = useState<boolean>(true);
 
   const [zones, setZones] = useState<Zone[]>([]);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
@@ -218,10 +229,23 @@ export default function TableManagementPage({
   }, []);
 
   const filteredTables = useMemo(() => {
-    return tables.filter((table) =>
-      selectedZoneId === 'ALL' ? true : table.zoneId === selectedZoneId
-    );
-  }, [tables, selectedZoneId]);
+    let result = tables;
+    
+    if (selectedZoneId !== 'ALL') {
+      result = result.filter((table) => table.zoneId === selectedZoneId);
+    }
+    
+    if (isClient) {
+      if (filterPeople !== '') {
+        result = result.filter((table) => table.capacidad >= filterPeople);
+      }
+      if (filterOnlyAvailable) {
+        result = result.filter((table) => table.estado === 'LIBRE');
+      }
+    }
+    
+    return result;
+  }, [tables, selectedZoneId, isClient, filterPeople, filterOnlyAvailable]);
 
   const handleCreateZone = async (values: ZoneFormValues) => {
     setIsSubmittingZoneForm(true);
@@ -395,11 +419,27 @@ export default function TableManagementPage({
     }
   };
 
-  const handleReservationConfirm = async () => {
+  const handleReservationConfirm = async (mes: string, dia: string, horaInicio: string) => {
     if (!reservingTable) return;
     setIsConfirming(true);
 
     try {
+      if (role === 'CLIENTE' && user) {
+        const currentYear = new Date().getFullYear();
+        const monthIndex = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'].indexOf(mes) + 1;
+        const formattedDate = `${currentYear}-${String(monthIndex).padStart(2, '0')}-${dia.padStart(2, '0')}`;
+        
+        await clientFlowApi.createReservation({
+          userId: user.id,
+          table: reservingTable,
+          zone: zones.find(z => z.id === reservingTable.zoneId),
+          people: reservingTable.capacidad,
+          date: formattedDate,
+          time: horaInicio,
+          observations: 'Reserva creada desde el panel de mesas general.',
+        });
+      }
+
       const response = await fetch(`${API_URL}/api/admin/mesas/${reservingTable.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -414,6 +454,12 @@ export default function TableManagementPage({
       });
       setReservingTable(null);
       await loadTables();
+
+      if (role === 'CLIENTE' && onNavigate) {
+        setTimeout(() => {
+          onNavigate('reservations');
+        }, 1500);
+      }
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -480,19 +526,66 @@ export default function TableManagementPage({
             )}
           </div>
 
-          <div className="mt-4">
-            {isZonesLoading ? (
-              <div className="rounded-2xl bg-white px-4 py-3 text-[14px] text-gray-500 shadow-sm">
-                Cargando zonas...
+          {isClient ? (
+            <div className="mt-4 rounded-[1.5rem] bg-white p-4 shadow-sm">
+              <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+                <label className="block">
+                  <span className="text-[12px] font-bold uppercase tracking-wide text-gray-500">
+                    CANTIDAD DE PERSONAS
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={filterPeople}
+                    onChange={(e) => setFilterPeople(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="mt-2 w-full rounded-2xl border border-gray-200 px-4 py-3 text-[14px] font-medium outline-none transition-colors focus:border-primary"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-[12px] font-bold uppercase tracking-wide text-gray-500">
+                    ZONA
+                  </span>
+                  <select
+                    value={selectedZoneId}
+                    onChange={(e) => setSelectedZoneId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                    className="mt-2 w-full rounded-2xl border border-gray-200 px-4 py-3 text-[14px] font-medium outline-none transition-colors focus:border-primary bg-white"
+                  >
+                    <option value="ALL">Todas las zonas</option>
+                    {zones.map((z) => (
+                      <option key={z.id} value={z.id}>
+                        {z.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="flex h-[50px] items-center gap-3 rounded-2xl bg-background px-4 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={filterOnlyAvailable}
+                    onChange={(e) => setFilterOnlyAvailable(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <span className="text-[14px] font-bold text-text">Solo disponibles</span>
+                </label>
               </div>
-            ) : (
-              <ZoneFilterChips
-                zones={zones}
-                selectedZoneId={selectedZoneId}
-                onSelectZone={setSelectedZoneId}
-              />
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="mt-4">
+              {isZonesLoading ? (
+                <div className="rounded-2xl bg-white px-4 py-3 text-[14px] text-gray-500 shadow-sm">
+                  Cargando zonas...
+                </div>
+              ) : (
+                <ZoneFilterChips
+                  zones={zones}
+                  selectedZoneId={selectedZoneId}
+                  onSelectZone={setSelectedZoneId}
+                />
+              )}
+            </div>
+          )}
 
           <div className="mt-4 flex items-center justify-between">
             <h2 className="text-subtitle font-bold text-text">Mesas</h2>
@@ -531,8 +624,10 @@ export default function TableManagementPage({
                     )
                   }
                   onManageOrder={() => {
-                    setOpenActionMenuId(null);
-                    onOpenTableOrder(table.id);
+                    if (onOpenTableOrder) {
+                      setOpenActionMenuId(null);
+                      onOpenTableOrder(table.id);
+                    }
                   }}
                   onEdit={() => {
                     setOpenActionMenuId(null);

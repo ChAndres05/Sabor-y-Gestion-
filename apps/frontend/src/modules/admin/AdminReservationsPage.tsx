@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
-import type { AuthUser } from '../auth/types/auth.types';
-import ClientLayout from '../../components/client/ClientLayout';
 import { clientFlowApi } from '../../shared/api/client-flow.api';
-import type { ClientNavigationKey, ClientReservation, ClientReservationStatus } from '../../shared/types/client-flow.types';
+import type {
+  ClientReservation,
+  ClientReservationStatus,
+} from '../../shared/types/client-flow.types';
 
-interface ClientReservationsPageProps {
-  user: AuthUser;
-  onLogout: () => void;
-  onNavigate: (screen: ClientNavigationKey) => void;
+interface AdminReservationsPageProps {
+  onBack: () => void;
   onOpenReservationOrder?: (reservationId: number) => void;
-  onBack?: () => void;
+  onViewOrder?: (tableId: number) => void;
 }
 
 type FeedbackState = {
@@ -20,8 +19,6 @@ type FeedbackState = {
 } | null;
 
 type ReservationTab = 'active' | 'history';
-
-
 
 function getStatusLabel(status: ClientReservationStatus) {
   switch (status) {
@@ -51,15 +48,11 @@ function formatDate(value: string) {
   return `${day}/${month}/${year}`;
 }
 
-
-
-export default function ClientReservationsPage({
-  user,
-  onLogout,
-  onNavigate,
-  onOpenReservationOrder,
-  onBack,
-}: ClientReservationsPageProps) {
+export default function AdminReservationsPage({ 
+  onBack, 
+  onOpenReservationOrder, 
+  onViewOrder 
+}: AdminReservationsPageProps) {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const [reservations, setReservations] = useState<ClientReservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,7 +64,7 @@ export default function ClientReservationsPage({
   const loadReservations = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await clientFlowApi.listReservations(user.id);
+      const data = await clientFlowApi.listAllReservations();
       setReservations(data);
     } catch (error) {
       setFeedback({
@@ -82,7 +75,7 @@ export default function ClientReservationsPage({
     } finally {
       setIsLoading(false);
     }
-  }, [user.id]);
+  }, []);
 
   useEffect(() => {
     void loadReservations();
@@ -103,15 +96,14 @@ export default function ClientReservationsPage({
   const handleCancelReservation = async (reservation: ClientReservation) => {
     setIsSubmitting(true);
     try {
-      await clientFlowApi.cancelReservation(user.id, reservation.id);
-
-      // Liberar la mesa para que otros puedan reservarla
+      await clientFlowApi.cancelReservation(reservation.userId, reservation.id);
+      
       const response = await fetch(`${API_URL}/api/admin/mesas/${reservation.tableId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estado: 'LIBRE' }),
       });
-
+      
       if (!response.ok) {
         console.warn('No se pudo liberar la mesa en el backend de mesas.');
       }
@@ -134,56 +126,59 @@ export default function ClientReservationsPage({
   };
 
   return (
-    <ClientLayout
-      user={user}
-      active="reservations"
-      title="Mis reservas"
-      onNavigate={onNavigate}
-      onLogout={onLogout}
-      onBack={onBack}
-    >
-      <div className="flex h-full flex-col overflow-hidden">
-        <div className="shrink-0 rounded-[1.5rem] bg-white p-2 shadow-sm">
-          <div className="grid grid-cols-2 gap-2">
+    <main className="min-h-screen bg-background px-3 py-5 text-text md:px-6 md:py-8">
+      <div className="mx-auto w-full max-w-[430px] md:max-w-5xl">
+        <div className="mb-4 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-[28px] leading-none text-text"
+            aria-label="Volver"
+          >
+            ←
+          </button>
+        </div>
+
+        <header className="mb-4">
+          <h1 className="text-title font-bold text-text">Gestión de reservas</h1>
+          <p className="mt-1 text-[13px] leading-5 text-gray-500">
+            Vista administrativa de todas las reservas registradas.
+          </p>
+        </header>
+
+        <div className="mb-4 rounded-2xl bg-white/60 p-1 shadow-sm md:w-max">
+          <div className="grid grid-cols-2 gap-1 md:flex md:gap-2">
             <button
               type="button"
               onClick={() => setActiveTab('active')}
-              className={`rounded-2xl px-4 py-3 text-[14px] font-bold transition-colors ${activeTab === 'active' ? 'bg-primary text-white' : 'text-text hover:bg-black/5'
-                }`}
+              className={`rounded-xl px-4 py-2 text-[12px] font-bold transition-colors md:px-6 ${
+                activeTab === 'active' ? 'bg-white text-text shadow-sm' : 'text-gray-500 hover:bg-white/60'
+              }`}
             >
               Activas ({activeReservations.length})
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('history')}
-              className={`rounded-2xl px-4 py-3 text-[14px] font-bold transition-colors ${activeTab === 'history' ? 'bg-primary text-white' : 'text-text hover:bg-black/5'
-                }`}
+              className={`rounded-xl px-4 py-2 text-[12px] font-bold transition-colors md:px-6 ${
+                activeTab === 'history' ? 'bg-white text-text shadow-sm' : 'text-gray-500 hover:bg-white/60'
+              }`}
             >
               Historial ({historyReservations.length})
             </button>
           </div>
         </div>
 
-        <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="mt-4">
           {isLoading ? (
-            <div className="rounded-2xl bg-white p-5 text-[14px] text-gray-500 shadow-sm">
+            <div className="rounded-[1.5rem] bg-white p-5 text-[14px] text-gray-500 shadow-sm">
               Cargando reservas...
             </div>
           ) : visibleReservations.length === 0 ? (
-            <div className="rounded-2xl bg-white p-5 text-center shadow-sm">
+            <div className="rounded-[1.5rem] bg-white p-5 text-center shadow-sm">
               <p className="text-[16px] font-semibold text-text">
-                {activeTab === 'active' ? 'No tienes reservas activas' : 'No hay historial de reservas'}
+                {activeTab === 'active' ? 'No hay reservas activas en el sistema' : 'No hay historial de reservas'}
               </p>
-              <p className="mt-2 text-[14px] leading-6 text-gray-500">
-                Puedes crear una reserva desde la opción Reservar mesa.
-              </p>
-              <button
-                type="button"
-                onClick={() => onNavigate('reserve-table')}
-                className="mt-4 rounded-2xl bg-primary px-5 py-3 text-[14px] font-bold text-white transition-colors hover:bg-primary-hover"
-              >
-                Reservar mesa
-              </button>
             </div>
           ) : (
             <div className="grid gap-3 lg:grid-cols-2">
@@ -193,7 +188,7 @@ export default function ClientReservationsPage({
                     <div>
                       <p className="text-[20px] font-bold text-text">Mesa {reservation.tableNumber}</p>
                       <p className="mt-1 text-[13px] font-medium text-gray-500">
-                        {reservation.zoneName} · {reservation.people} personas
+                        Usuario ID: {reservation.userId} · {reservation.zoneName} · {reservation.people} personas
                       </p>
                     </div>
                     <span
@@ -248,7 +243,9 @@ export default function ClientReservationsPage({
                     {reservation.linkedOrderId && (
                       <button
                         type="button"
-                        onClick={() => onNavigate('orders')}
+                        onClick={() => {
+                          if (onViewOrder) onViewOrder(reservation.tableId);
+                        }}
                         className="rounded-2xl bg-info/10 px-4 py-2 text-[13px] font-bold text-info transition-colors hover:bg-info/20"
                       >
                         Ver pedido asociado
@@ -272,6 +269,7 @@ export default function ClientReservationsPage({
               <p>Fecha y hora: {formatDate(selectedReservation.date)} · {selectedReservation.time}</p>
               <p>Personas: {selectedReservation.people}</p>
               <p>Estado: {getStatusLabel(selectedReservation.status)}</p>
+              <p>Usuario ID: {selectedReservation.userId}</p>
               <p>Observaciones: {selectedReservation.observations || 'Sin observaciones'}</p>
             </div>
             <button
@@ -285,8 +283,6 @@ export default function ClientReservationsPage({
         </div>
       )}
 
-
-
       <FeedbackModal
         open={Boolean(feedback)}
         title={feedback?.title ?? ''}
@@ -294,6 +290,6 @@ export default function ClientReservationsPage({
         type={feedback?.type ?? 'info'}
         onClose={() => setFeedback(null)}
       />
-    </ClientLayout>
+    </main>
   );
 }

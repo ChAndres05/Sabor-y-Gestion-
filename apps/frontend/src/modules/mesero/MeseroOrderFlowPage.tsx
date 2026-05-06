@@ -12,6 +12,7 @@ import {
   updateOrderItemInTableMock,
   updateOrderStatusForTableMock,
 } from '../../shared/mocks/table-orders.mock';
+import { pusherClient } from '../../shared/utils/pusher';
 import { getTableByIdMock, updateTableStatusMock } from '../../shared/mocks/tables.mock';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { RestaurantTable } from '../tables/types/table.types';
@@ -174,7 +175,8 @@ export default function MeseroOrderFlowPage({
   const canEditItems =
     Boolean(order) &&
     !isBillRequested &&
-    (order?.estado === 'REGISTRADO' || order?.estado === 'EN_PREPARACION');
+    order?.estado !== 'PAGADO' &&
+    order?.estado !== 'CANCELADO';
   const canSaveCustomer = table?.estado !== 'FUERA_DE_SERVICIO' && !isBillRequested;
   const hasItems = (order?.items.length ?? 0) > 0;
   const removedFromCurrentSelection = ingredientSelections.filter(
@@ -279,6 +281,17 @@ export default function MeseroOrderFlowPage({
     };
 
     void loadPage();
+
+    const channel = pusherClient.subscribe('orders-channel');
+    channel.bind('order-updated', () => {
+      void refreshPageState();
+    });
+
+    return () => {
+      channel.unbind('order-updated');
+      pusherClient.unsubscribe('orders-channel');
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableId]);
 
   useEffect(() => {

@@ -183,6 +183,12 @@ export async function listClientReservationsMock(userId: number): Promise<Client
     .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
 }
 
+export async function listAllReservationsMock(): Promise<ClientReservation[]> {
+  await delay();
+  const stored = readStorage<ClientReservation[]>(RESERVATIONS_STORAGE_KEY, []);
+  return stored.sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
+}
+
 export async function createClientReservationMock(
   payload: ClientReservationRequest
 ): Promise<ClientReservation> {
@@ -253,7 +259,7 @@ export async function createPreparedReservationOrderMock(
   }
 
   const currentOrders = readOrders(payload.userId);
-  const subtotal = payload.items.reduce((total, item) => total + item.subtotal, 0);
+  const subtotal = payload.items.reduce((total: number, item: ClientOrderItem) => total + item.subtotal, 0);
   const nextId = getNextId(currentOrders, 3000);
 
   const newOrder: ClientOrder = {

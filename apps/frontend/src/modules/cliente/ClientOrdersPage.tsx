@@ -2,15 +2,17 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { TableOrderStatus } from '../tables/types/table-order.types';
-import ClientLayout from './components/ClientLayout';
-import { clientFlowApi } from './api/client-flow.api';
-import type { ClientNavigationKey, ClientOrder, ClientOrderStep } from './types/client-flow.types';
+import ClientLayout from '../../components/client/ClientLayout';
+import { clientFlowApi } from '../../shared/api/client-flow.api';
+import { pusherClient } from '../../shared/utils/pusher';
+import type { ClientNavigationKey, ClientOrder, ClientOrderStep, ClientOrderItem } from '../../shared/types/client-flow.types';
 
 interface ClientOrdersPageProps {
   user: AuthUser;
   onLogout: () => void;
   onNavigate: (screen: ClientNavigationKey) => void;
   onBack?: () => void;
+  onManageOrder?: (tableId: number) => void;
 }
 
 type FeedbackState = {
@@ -87,7 +89,7 @@ function buildSteps(status: TableOrderStatus): ClientOrderStep[] {
   }));
 }
 
-export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack }: ClientOrdersPageProps) {
+export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, onManageOrder }: ClientOrdersPageProps) {
   const [orders, setOrders] = useState<ClientOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<OrdersTab>('active');
@@ -112,6 +114,16 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack }:
 
   useEffect(() => {
     void loadOrders();
+
+    const channel = pusherClient.subscribe('orders-channel');
+    channel.bind('order-updated', () => {
+      void loadOrders();
+    });
+
+    return () => {
+      channel.unbind('order-updated');
+      pusherClient.unsubscribe('orders-channel');
+    };
   }, [loadOrders]);
 
   const activeOrders = useMemo(
@@ -231,13 +243,25 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack }:
                       {order.prepareFrom && <p>Preparar desde: {order.prepareFrom}</p>}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setSelectedOrder(order)}
-                      className="mt-4 rounded-2xl bg-primary px-4 py-2 text-[13px] font-bold text-white transition-colors hover:bg-primary-hover"
-                    >
-                      Ver detalle
-                    </button>
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOrder(order)}
+                        className="flex-1 rounded-2xl bg-white border border-primary px-4 py-2 text-[13px] font-bold text-primary transition-colors hover:bg-black/5"
+                      >
+                        Ver detalle
+                      </button>
+                      
+                      {!['ENTREGADO', 'PAGADO', 'CANCELADO'].includes(order.status) && onManageOrder && order.tableNumber && (
+                        <button
+                          type="button"
+                          onClick={() => onManageOrder(Number(order.tableNumber))}
+                          className="flex-1 rounded-2xl bg-primary px-4 py-2 text-[13px] font-bold text-white transition-colors hover:bg-primary-hover"
+                        >
+                          Añadir platos
+                        </button>
+                      )}
+                    </div>
                   </article>
                 );
               })}
@@ -266,7 +290,7 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack }:
             </div>
 
             <div className="mt-5 space-y-3">
-              {selectedOrder.items.map((item) => (
+              {selectedOrder.items.map((item: ClientOrderItem) => (
                 <div key={item.id} className="rounded-2xl bg-background p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -296,13 +320,28 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack }:
               <span>{formatCurrency(selectedOrder.total)}</span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setSelectedOrder(null)}
-              className="mt-5 w-full rounded-2xl bg-primary px-4 py-3 text-[14px] font-bold text-white transition-colors hover:bg-primary-hover"
-            >
-              Cerrar
-            </button>
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedOrder(null)}
+                className="w-full rounded-2xl bg-white border border-gray-300 px-4 py-3 text-[14px] font-bold text-text transition-colors hover:bg-black/5"
+              >
+                Cerrar
+              </button>
+
+              {!['ENTREGADO', 'PAGADO', 'CANCELADO'].includes(selectedOrder.status) && onManageOrder && selectedOrder.tableNumber && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onManageOrder(Number(selectedOrder.tableNumber));
+                    setSelectedOrder(null);
+                  }}
+                  className="w-full rounded-2xl bg-primary px-4 py-3 text-[14px] font-bold text-white transition-colors hover:bg-primary-hover"
+                >
+                  Añadir platos
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

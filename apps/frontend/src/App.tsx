@@ -9,17 +9,19 @@ import MeseroHomePage from './modules/mesero/MeseroHomePage';
 import MeseroOrderFlowPage from './modules/mesero/MeseroOrderFlowPage';
 import MeseroOrdersPage from './modules/mesero/MeseroOrdersPage';
 import CajeroHomePage from './modules/cajero/CajeroHomePage';
-import ClienteHomePage from './modules/cliente/ClienteHomePage';
+import ClientHomePage from './modules/cliente/ClienteHomePage';
 import ClientMenuPage from './modules/cliente/ClientMenuPage';
 import ClientProductDetailPage from './modules/cliente/ClientProductDetailPage';
-import ClientReserveTablePage from './modules/cliente/ClientReserveTablePage';
 import ClientReservationsPage from './modules/cliente/ClientReservationsPage';
+import ClientReservationOrderPage from './modules/cliente/ClientReservationOrderPage';
 import ClientOrdersPage from './modules/cliente/ClientOrdersPage';
+import ClientActiveOrderPage from './modules/cliente/ClientActiveOrderPage';
 import UsersPage from './modules/users/UsersPage';
 import MenuManagementPage from './modules/menu/MenuManagementPage';
 import TableManagementPage from './modules/tables/TableManagementPage';
 import MonitorCocinaPage from './modules/cocina/MonitorCocinaPage';
-import type { ClientNavigationKey } from './modules/cliente/types/client-flow.types';
+import AdminReservationsPage from './modules/admin/AdminReservationsPage';
+import type { ClientNavigationKey } from './shared/types/client-flow.types';
 
 type AppScreen =
   | 'login'
@@ -42,7 +44,11 @@ type AppScreen =
   | 'client-product-detail'
   | 'client-reserve-table'
   | 'client-reservations'
+  | 'client-reservation-order'
   | 'client-orders'
+  | 'client-manage-order'
+  | 'admin-reservations'
+  | 'admin-orders'
   | 'admin-kitchen-monitor';
 
 const AUTH_STORAGE_KEY = 'gestionysabor_auth';
@@ -84,18 +90,21 @@ function App() {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [selectedClientProductId, setSelectedClientProductId] = useState<number | null>(null);
   const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
+  const [selectedReservationId, setSelectedReservationId] = useState<number | null>(null);
 
   const setScreen = useCallback((
     newScreen: AppScreen,
-    options?: { tableId?: number | null; productId?: number | null; replace?: boolean }
+    options?: { tableId?: number | null; productId?: number | null; reservationId?: number | null; replace?: boolean }
   ) => {
     const nextTableId = options?.tableId !== undefined ? options.tableId : selectedTableId;
     const nextProductId = options?.productId !== undefined ? options.productId : selectedClientProductId;
+    const nextReservationId = options?.reservationId !== undefined ? options.reservationId : selectedReservationId;
 
     const newState = {
       screen: newScreen,
       selectedTableId: nextTableId,
       selectedClientProductId: nextProductId,
+      selectedReservationId: nextReservationId,
     };
 
     if (options?.replace) {
@@ -107,7 +116,8 @@ function App() {
     setScreenState(newScreen);
     if (options?.tableId !== undefined) setSelectedTableId(nextTableId);
     if (options?.productId !== undefined) setSelectedClientProductId(nextProductId);
-  }, [selectedTableId, selectedClientProductId]);
+    if (options?.reservationId !== undefined) setSelectedReservationId(nextReservationId);
+  }, [selectedTableId, selectedClientProductId, selectedReservationId]);
 
   const navigateClient = useCallback(
     (screen: ClientNavigationKey) => {
@@ -122,6 +132,7 @@ function App() {
         screen?: AppScreen;
         selectedTableId?: number | null;
         selectedClientProductId?: number | null;
+        selectedReservationId?: number | null;
       } | null;
 
       if (state?.screen) {
@@ -129,6 +140,9 @@ function App() {
         if (state.selectedTableId !== undefined) setSelectedTableId(state.selectedTableId);
         if (state.selectedClientProductId !== undefined) {
           setSelectedClientProductId(state.selectedClientProductId);
+        }
+        if (state.selectedReservationId !== undefined) {
+          setSelectedReservationId(state.selectedReservationId);
         }
       } else {
         const hash = window.location.hash.replace('#', '') as AppScreen;
@@ -206,6 +220,22 @@ function App() {
           onOpenMenuManagement={() => setScreen('menu-management')}
           onOpenTableManagement={() => setScreen('table-management')}
           onOpenKitchenMonitor={() => setScreen('admin-kitchen-monitor')}
+          onOpenReservations={() => setScreen('admin-reservations')}
+          onOpenOrders={() => setScreen('admin-orders')}
+        />
+      )}
+      {screenState === 'admin-reservations' && sessionUser && accessToken && (
+        <AdminReservationsPage 
+          onBack={() => setScreen('admin-menu')} 
+          onOpenReservationOrder={(resId) => setScreen('client-reservation-order', { reservationId: resId })}
+          onViewOrder={(tableId) => setScreen('table-order', { tableId })}
+        />
+      )}
+      {screenState === 'admin-orders' && sessionUser && accessToken && (
+        <MeseroOrdersPage 
+          user={sessionUser} 
+          onBack={() => setScreen('admin-menu')} 
+          onOpenOrder={(tableId) => setScreen('table-order', { tableId })} 
         />
       )}
       {screenState === 'admin-users' && sessionUser && accessToken && <UsersPage onBack={() => setScreen('admin-menu')} />}
@@ -234,7 +264,7 @@ function App() {
       {screenState === 'cocina-home' && sessionUser && accessToken && <MonitorCocinaPage onBack={handleLogout} />}
       {screenState === 'cajero-home' && sessionUser && accessToken && <CajeroHomePage user={sessionUser} onLogout={handleLogout} />}
       {screenState === 'cliente-home' && sessionUser && accessToken && (
-        <ClienteHomePage
+        <ClientHomePage
           user={sessionUser}
           onLogout={handleLogout}
           onNavigate={navigateClient}
@@ -259,13 +289,45 @@ function App() {
         />
       )}
       {screenState === 'client-reserve-table' && sessionUser && accessToken && (
-        <ClientReserveTablePage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onBack={() => setScreen('cliente-home')} />
+        <TableManagementPage 
+          role="CLIENTE" 
+          user={sessionUser} 
+          onNavigate={navigateClient} 
+          onBack={() => setScreen('cliente-home')} 
+        />
       )}
       {screenState === 'client-reservations' && sessionUser && accessToken && (
-        <ClientReservationsPage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onBack={() => setScreen('cliente-home')} />
+        <ClientReservationsPage 
+          user={sessionUser} 
+          onLogout={handleLogout} 
+          onNavigate={navigateClient} 
+          onBack={() => setScreen('cliente-home')}
+          onOpenReservationOrder={(resId) => setScreen('client-reservation-order', { reservationId: resId })}
+        />
+      )}
+      {screenState === 'client-reservation-order' && sessionUser && accessToken && selectedReservationId !== null && (
+        <ClientReservationOrderPage
+          user={sessionUser}
+          reservationId={selectedReservationId}
+          onBack={() => setScreen('client-reservations')}
+          onNavigateToOrders={() => navigateClient('orders')}
+        />
       )}
       {screenState === 'client-orders' && sessionUser && accessToken && (
-        <ClientOrdersPage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onBack={() => setScreen('cliente-home')} />
+        <ClientOrdersPage 
+          user={sessionUser} 
+          onLogout={handleLogout} 
+          onNavigate={navigateClient} 
+          onBack={() => setScreen('cliente-home')} 
+          onManageOrder={(tableId) => setScreen('client-manage-order', { tableId })}
+        />
+      )}
+      {screenState === 'client-manage-order' && sessionUser && accessToken && selectedTableId !== null && (
+        <ClientActiveOrderPage
+          user={sessionUser}
+          tableId={selectedTableId}
+          onBack={() => navigateClient('orders')}
+        />
       )}
     </main>
   );
