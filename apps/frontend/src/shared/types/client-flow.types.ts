@@ -1,5 +1,5 @@
-import type { TableOrderStatus } from '../../tables/types/table-order.types';
-import type { RestaurantTable, Zone } from '../../tables/types/table.types';
+import type { TableOrderStatus } from '../../modules/tables/types/table-order.types';
+import type { RestaurantTable, Zone } from '../../modules/tables/types/table.types';
 
 export type ClientNavigationKey = 'menu' | 'reserve-table' | 'reservations' | 'orders';
 
@@ -32,11 +32,17 @@ export interface ClientReservationRequest {
 
 export type ClientOrderSource = 'MESA_MESERO' | 'RESERVA_PREPARADA';
 
+export interface ClientOrderIngredient {
+  name: string;
+  included: boolean;
+}
+
 export interface ClientOrderItem {
   id: number;
   name: string;
   quantity: number;
   notes?: string;
+  ingredients?: ClientOrderIngredient[];
   unitPrice: number;
   subtotal: number;
 }

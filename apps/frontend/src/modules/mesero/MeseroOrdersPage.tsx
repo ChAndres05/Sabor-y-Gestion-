@@ -1,11 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
+import { ordersApi } from '../../shared/api/orders.api';
 import {
-  listWaiterOrdersMock,
   requestBillForTableMock,
-  updateOrderStatusForTableMock,
 } from '../../shared/mocks/table-orders.mock';
+import { pusherClient } from '../../shared/utils/pusher';
 import { listTablesMock, updateTableStatusMock } from '../../shared/mocks/tables.mock';
+import {
+  RESTAURANT_STATE_CHANGED_EVENT,
+  RESTAURANT_STATE_CHANGED_STORAGE_KEY,
+} from '../../shared/utils/events';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { RestaurantTable } from '../tables/types/table.types';
 import type { TableOrder, TableOrderStatus } from '../tables/types/table-order.types';
@@ -103,12 +107,12 @@ export default function MeseroOrdersPage({
   const readyCount = orders.filter((order) => order.estado === 'LISTO').length;
   const completedCount = orders.filter(isCompletedOrder).length;
 
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     setIsLoading(true);
 
     try {
       const [ordersData, tablesData] = await Promise.all([
-        listWaiterOrdersMock(),
+        ordersApi.listActiveOrders(),
         listTablesMock(),
       ]);
       setOrders(ordersData);
@@ -122,17 +126,45 @@ export default function MeseroOrdersPage({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadOrders();
-  }, []);
+
+    const handleStateChange = () => {
+      void loadOrders();
+    };
+
+    const channel = pusherClient.subscribe('orders-channel');
+    channel.bind('order-updated', handleStateChange);
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === RESTAURANT_STATE_CHANGED_STORAGE_KEY) {
+        handleStateChange();
+      }
+    };
+
+    window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      channel.unbind('order-updated');
+      pusherClient.unsubscribe('orders-channel');
+      window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [loadOrders]);
 
   const handleChangeOrderStatus = async (tableId: number, status: TableOrderStatus) => {
     setBusyTableId(tableId);
 
     try {
-      await updateOrderStatusForTableMock(tableId, status);
+      const orderToUpdate = orders.find(o => o.tableId === tableId && !isCompletedOrder(o));
+      if (orderToUpdate) {
+        await ordersApi.updateOrderStatus(orderToUpdate.id, status, tableId);
+      } else {
+        await ordersApi.updateOrderStatus(0, status, tableId);
+      }
       await updateTableStatusMock(tableId, 'OCUPADA');
       await loadOrders();
       setFeedback({
@@ -292,14 +324,9 @@ export default function MeseroOrdersPage({
                     )}
 
                     {order.estado === 'EN_PREPARACION' && (
-                      <button
-                        type="button"
-                        onClick={() => void handleChangeOrderStatus(order.tableId, 'LISTO')}
-                        disabled={isBusy}
-                        className="w-full rounded-xl bg-info px-4 py-3 text-[13px] font-bold text-white disabled:opacity-60"
-                      >
-                        Simular cocina: listo para entregar
-                      </button>
+                      <div className="w-full rounded-xl bg-gray-100 px-4 py-3 text-[13px] font-bold text-gray-500 text-center">
+                        En preparación...
+                      </div>
                     )}
 
                     {(order.estado === 'LISTO' || order.estado === 'EN_CAMINO') && (

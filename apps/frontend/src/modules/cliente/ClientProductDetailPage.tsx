@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AuthUser } from '../auth/types/auth.types';
-import ClientLayout from './components/ClientLayout';
+import ClientLayout from '../../components/client/ClientLayout';
 import { menuApi } from '../menu/menu.api';
 import type { MenuCategory, MenuProduct } from '../menu/types/menu.types';
-import type { ClientNavigationKey } from './types/client-flow.types';
+import { mapProductFromBackend } from '../../shared/mappers/menu.mapper';
+import type { ClientNavigationKey } from '../../shared/types/client-flow.types';
 
 interface ClientProductDetailPageProps {
   user: AuthUser;
@@ -17,36 +18,7 @@ function formatPrice(value: number) {
   return `${value.toFixed(2)} Bs`;
 }
 
-interface BackendProduct {
-  id?: number;
-  id_producto?: number;
-  categoryId?: number;
-  id_categoria?: number;
-  nombre: string;
-  descripcion?: string;
-  precio?: string | number;
-  tiempo_preparacion?: string | number;
-  tiempoPreparacion?: string | number;
-  imagen_url?: string;
-  imagen?: string;
-  activo?: boolean;
-  disponible?: boolean;
-}
 
-function mapProductFromBackend(product: BackendProduct): MenuProduct {
-  return {
-    id: Number(product.id_producto || product.id || 0),
-    categoryId: Number(product.id_categoria || product.categoryId || 0),
-    nombre: product.nombre,
-    descripcion: product.descripcion || '',
-    precio: Number(product.precio) || 0,
-    tiempoPreparacion:
-      Number(product.tiempo_preparacion) || Number(product.tiempoPreparacion) || 0,
-    imagen: product.imagen_url || product.imagen || null,
-    activo: product.activo ?? true,
-    disponible: product.disponible ?? true,
-  };
-}
 
 export default function ClientProductDetailPage({
   user,
@@ -157,9 +129,8 @@ export default function ClientProductDetailPage({
                 </span>
 
                 <span
-                  className={`text-[14px] font-semibold ${
-                    product.disponible && product.activo ? 'text-success' : 'text-alert'
-                  }`}
+                  className={`text-[14px] font-semibold ${product.disponible && product.activo ? 'text-success' : 'text-alert'
+                    }`}
                 >
                   {product.disponible && product.activo ? 'Disponible' : 'No disponible'}
                 </span>
@@ -172,9 +143,6 @@ export default function ClientProductDetailPage({
                 </p>
               </div>
 
-              <div className="mt-5 rounded-2xl bg-background p-4 text-[13px] leading-5 text-gray-600">
-                Flujo preparado: el cliente puede añadir este plato a un carrito, a una reserva o a un pedido cuando backend exponga ese endpoint.
-              </div>
 
               <button
                 type="button"

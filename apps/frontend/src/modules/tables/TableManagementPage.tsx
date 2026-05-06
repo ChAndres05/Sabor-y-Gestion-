@@ -12,8 +12,18 @@ import {
   createZoneMock,
   deleteTableMock,
   updateTableMock,
+  getEffectiveTableStatus,
+  updateTableStatusMock,
+  listTablesMock,
 } from '../../shared/mocks/tables.mock';
-import { pusherClient } from '../../shared/utils/pusher';
+import { ordersApi } from '../../shared/api/orders.api';
+import {
+  RESTAURANT_STATE_CHANGED_EVENT,
+  RESTAURANT_STATE_CHANGED_STORAGE_KEY,
+} from '../../shared/utils/events';
+import type { AuthUser } from '../auth/types/auth.types';
+import type { ClientNavigationKey } from '../../shared/types/client-flow.types';
+import { clientFlowApi } from '../../shared/api/client-flow.api';
 import type {
   RestaurantTable,
   TableFormValues,
@@ -24,9 +34,11 @@ import type {
 } from './types/table.types';
 
 interface TableManagementPageProps {
-  role: 'ADMIN' | 'MESERO';
+  role: 'ADMIN' | 'MESERO' | 'CLIENTE';
   onBack: () => void;
-  onOpenTableOrder: (tableId: number) => void;
+  onOpenTableOrder?: (tableId: number) => void;
+  user?: AuthUser;
+  onNavigate?: (screen: ClientNavigationKey) => void;
 }
 
 type FeedbackState = {
@@ -58,16 +70,6 @@ type BackendZone = {
   activa?: boolean;
 };
 
-type BackendTable = {
-  id_mesa: number;
-  numero: number;
-  capacidad: number;
-  id_zona?: number | null;
-  estado: TableStatus;
-  activa?: boolean;
-  activo?: boolean;
-};
-
 function getStatusLabel(status: TableStatus) {
   switch (status) {
     case 'LIBRE':
@@ -91,24 +93,19 @@ function mapBackendZone(zone: BackendZone): Zone {
   };
 }
 
-function mapBackendTable(table: BackendTable): RestaurantTable {
-  return {
-    id: table.id_mesa,
-    numero: table.numero,
-    capacidad: table.capacidad,
-    zoneId: table.id_zona ?? 0,
-    estado: table.estado,
-    activo: table.activa ?? table.activo ?? true,
-  };
-}
-
 export default function TableManagementPage({
   role,
   onBack,
   onOpenTableOrder,
+  user,
+  onNavigate,
 }: TableManagementPageProps) {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const isAdmin = role === 'ADMIN';
+  const isClient = role === 'CLIENTE';
+
+  const [filterPeople, setFilterPeople] = useState<number | ''>(2);
+  const [filterOnlyAvailable, setFilterOnlyAvailable] = useState<boolean>(true);
 
   const [zones, setZones] = useState<Zone[]>([]);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
@@ -152,19 +149,19 @@ export default function TableManagementPage({
   const loadTables = useCallback(async () => {
     setIsTablesLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/admin/mesas`);
-      if (!response.ok) throw new Error('Error al cargar mesas desde backend');
+      const baseTables = (await listTablesMock()).filter((table) => table.activo);
 
-      const data = await response.json();
-      if (!Array.isArray(data)) {
-        throw new Error('El servidor no devolvió una lista válida de mesas');
-      }
+      const [activeOrders, reservations] = await Promise.all([
+        ordersApi.listActiveOrders(),
+        clientFlowApi.listAllReservations(),
+      ]);
 
-      const backendTables = data
-        .map(mapBackendTable)
-        .filter((table) => table.activo);
+      const updatedTables = baseTables.map((table) => ({
+        ...table,
+        estado: getEffectiveTableStatus(table, activeOrders, reservations),
+      }));
 
-      setTables(backendTables);
+      setTables(updatedTables);
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -174,7 +171,7 @@ export default function TableManagementPage({
     } finally {
       setIsTablesLoading(false);
     }
-  }, [API_URL]);
+  }, []);
 
   useEffect(() => {
     void loadZones();
@@ -182,53 +179,48 @@ export default function TableManagementPage({
   }, [loadZones, loadTables]);
 
   useEffect(() => {
-    const channel = pusherClient.subscribe('tables-channel');
-    
-    channel.bind('table-updated', (updatedBackendTable: BackendTable) => {
-      const mappedTable = mapBackendTable(updatedBackendTable);
-      
-      setTables((currentTables) => {
-        if (mappedTable.activo) {
-          const exists = currentTables.some((t) => t.id === mappedTable.id);
-          if (exists) {
-            return currentTables.map((t) => (t.id === mappedTable.id ? mappedTable : t));
-          }
-          return [...currentTables, mappedTable];
-        } else {
-          return currentTables.filter((t) => t.id !== mappedTable.id);
-        }
-      });
-    });
+    const handleStateChange = () => {
+      void loadTables();
+    };
 
-    channel.bind('zone-updated', (updatedBackendZone: BackendZone) => {
-      const mappedZone = mapBackendZone(updatedBackendZone);
-      
-      setZones((currentZones) => {
-        if (mappedZone.activo) {
-          const exists = currentZones.some((z) => z.id === mappedZone.id);
-          if (exists) {
-            return currentZones.map((z) => (z.id === mappedZone.id ? mappedZone : z));
-          }
-          return [...currentZones, mappedZone];
-        } else {
-          return currentZones.filter((z) => z.id !== mappedZone.id);
-        }
-      });
-    });
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === RESTAURANT_STATE_CHANGED_STORAGE_KEY) {
+        void loadTables();
+      }
+    };
+
+    window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+    window.addEventListener('storage', handleStorageChange);
 
     return () => {
-      pusherClient.unsubscribe('tables-channel');
+      window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
+      window.removeEventListener('storage', handleStorageChange);
     };
-  }, []);
+  }, [loadTables]);
 
   const filteredTables = useMemo(() => {
-    return tables.filter((table) =>
-      selectedZoneId === 'ALL' ? true : table.zoneId === selectedZoneId
-    );
-  }, [tables, selectedZoneId]);
+    let result = tables;
+
+    if (selectedZoneId !== 'ALL') {
+      result = result.filter((table) => table.zoneId === selectedZoneId);
+    }
+
+    if (isClient) {
+      if (filterPeople !== '') {
+        result = result.filter((table) => table.capacidad >= filterPeople);
+      }
+
+      if (filterOnlyAvailable) {
+        result = result.filter((table) => table.estado === 'LIBRE');
+      }
+    }
+
+    return result;
+  }, [tables, selectedZoneId, isClient, filterPeople, filterOnlyAvailable]);
 
   const handleCreateZone = async (values: ZoneFormValues) => {
     setIsSubmittingZoneForm(true);
+
     try {
       if (isAdmin) {
         const response = await fetch(`${API_URL}/api/admin/zonas`, {
@@ -247,6 +239,7 @@ export default function TableManagementPage({
 
       setIsCreateZoneOpen(false);
       await loadZones();
+
       setFeedback({
         type: 'success',
         title: 'Zona creada',
@@ -267,6 +260,7 @@ export default function TableManagementPage({
 
   const handleCreateTable = async (values: TableFormValues) => {
     setIsSubmittingTableForm(true);
+
     try {
       if (isAdmin) {
         const response = await fetch(`${API_URL}/api/admin/mesas`, {
@@ -290,6 +284,7 @@ export default function TableManagementPage({
 
       setIsCreateTableOpen(false);
       await loadTables();
+
       setFeedback({
         type: 'success',
         title: 'Mesa creada',
@@ -310,7 +305,9 @@ export default function TableManagementPage({
 
   const handleEditTable = async (values: TableFormValues) => {
     if (!editingTable) return;
+
     setIsSubmittingTableForm(true);
+
     try {
       if (isAdmin) {
         const response = await fetch(`${API_URL}/api/admin/mesas/${editingTable.id}`, {
@@ -330,6 +327,7 @@ export default function TableManagementPage({
 
       setEditingTable(null);
       await loadTables();
+
       setFeedback({
         type: 'success',
         title: 'Mesa actualizada',
@@ -350,6 +348,7 @@ export default function TableManagementPage({
 
   const handleConfirmAction = async () => {
     if (!confirmState) return;
+
     setIsConfirming(true);
 
     try {
@@ -358,6 +357,7 @@ export default function TableManagementPage({
           const response = await fetch(`${API_URL}/api/admin/mesas/${confirmState.table.id}`, {
             method: 'DELETE',
           });
+
           if (!response.ok) throw new Error('Error al eliminar mesa');
         } else {
           await deleteTableMock(confirmState.table.id);
@@ -375,6 +375,7 @@ export default function TableManagementPage({
           const response = await fetch(`${API_URL}/api/zonas/${confirmState.zone.id}`, {
             method: 'DELETE',
           });
+
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             throw new Error(errorData.error || 'Error al eliminar zona');
@@ -388,29 +389,50 @@ export default function TableManagementPage({
           title: 'Zona eliminada',
           message: `La zona "${confirmState.zone.nombre}" y todas sus mesas fueron eliminadas.`,
         });
-        
+
         if (selectedZoneId === confirmState.zone.id) {
           setSelectedZoneId('ALL');
         }
       }
 
       if (confirmState.type === 'status') {
-        const response = await fetch(`${API_URL}/api/admin/mesas/${confirmState.table.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ estado: confirmState.nextStatus }),
-        });
-        if (!response.ok) throw new Error('Error al actualizar estado');
+        const { table, nextStatus } = confirmState;
+
+        if (nextStatus === 'LIBRE') {
+          const activeOrders = await ordersApi.listActiveOrders();
+          const hasActiveOrders = activeOrders.some(
+            (order) =>
+              order.tableId === table.id &&
+              ['REGISTRADO', 'EN_PREPARACION', 'LISTO', 'ENTREGADO'].includes(order.estado)
+          );
+
+          if (hasActiveOrders) {
+            setFeedback({
+              type: 'error',
+              title: 'No se puede liberar',
+              message: 'La mesa tiene un pedido activo en curso.',
+            });
+
+            setConfirmState(null);
+            setIsConfirming(false);
+            return;
+          }
+
+          await clientFlowApi.cancelActiveReservationsByTable(table.id);
+        }
+
+        await updateTableStatusMock(table.id, nextStatus);
 
         setFeedback({
           type: 'success',
           title: 'Estado actualizado',
-          message: `La mesa ${confirmState.table.numero} ahora está ${getStatusLabel(confirmState.nextStatus)}.`,
+          message: `La mesa ${table.numero} ahora está ${getStatusLabel(nextStatus)}.`,
         });
       }
 
       setConfirmState(null);
       setOpenActionMenuId(null);
+
       await loadZones();
       await loadTables();
     } catch (error) {
@@ -424,25 +446,59 @@ export default function TableManagementPage({
     }
   };
 
-  const handleReservationConfirm = async () => {
+  const handleReservationConfirm = async (mes: string, dia: string, horaInicio: string) => {
     if (!reservingTable) return;
+
     setIsConfirming(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/admin/mesas/${reservingTable.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: 'RESERVADA' }),
+      const currentYear = new Date().getFullYear();
+      const monthIndex =
+        [
+          'ENERO',
+          'FEBRERO',
+          'MARZO',
+          'ABRIL',
+          'MAYO',
+          'JUNIO',
+          'JULIO',
+          'AGOSTO',
+          'SEPTIEMBRE',
+          'OCTUBRE',
+          'NOVIEMBRE',
+          'DICIEMBRE',
+        ].indexOf(mes) + 1;
+
+      const formattedDate = `${currentYear}-${String(monthIndex).padStart(2, '0')}-${dia.padStart(2, '0')}`;
+      const userId = user?.id || 1;
+
+      await clientFlowApi.createReservation({
+        userId,
+        table: reservingTable,
+        zone: zones.find((zone) => zone.id === reservingTable.zoneId),
+        people: reservingTable.capacidad,
+        date: formattedDate,
+        time: horaInicio,
+        observations:
+          role === 'CLIENTE'
+            ? 'Reserva creada desde el panel de cliente.'
+            : 'Reserva creada por personal del restaurante.',
       });
-      if (!response.ok) throw new Error('Error al actualizar estado');
 
       setFeedback({
         type: 'success',
         title: 'Mesa reservada',
         message: `La mesa ${reservingTable.numero} ha sido reservada con éxito.`,
       });
+
       setReservingTable(null);
       await loadTables();
+
+      if (role === 'CLIENTE' && onNavigate) {
+        setTimeout(() => {
+          onNavigate('reservations');
+        }, 1500);
+      }
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -467,6 +523,7 @@ export default function TableManagementPage({
           </button>
 
           <h1 className="text-title font-bold text-text">Gestión de mesas</h1>
+
           <p className="mt-1 text-[14px] leading-5 text-gray-500">
             Administra el salón y gestiona pedidos utilizando los datos del backend.
           </p>
@@ -509,23 +566,83 @@ export default function TableManagementPage({
             )}
           </div>
 
-          <div className="mt-4">
-            {isZonesLoading ? (
-              <div className="rounded-2xl bg-white px-4 py-3 text-[14px] text-gray-500 shadow-sm">
-                Cargando zonas...
+          {isClient ? (
+            <div className="mt-4 rounded-[1.5rem] bg-white p-4 shadow-sm">
+              <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+                <label className="block">
+                  <span className="text-[12px] font-bold uppercase tracking-wide text-gray-500">
+                    CANTIDAD DE PERSONAS
+                  </span>
+
+                  <input
+                    type="number"
+                    min="1"
+                    value={filterPeople}
+                    onChange={(event) =>
+                      setFilterPeople(event.target.value === '' ? '' : Number(event.target.value))
+                    }
+                    className="mt-2 w-full rounded-2xl border border-gray-200 px-4 py-3 text-[14px] font-medium outline-none transition-colors focus:border-primary"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-[12px] font-bold uppercase tracking-wide text-gray-500">
+                    ZONA
+                  </span>
+
+                  <select
+                    value={selectedZoneId}
+                    onChange={(event) =>
+                      setSelectedZoneId(
+                        event.target.value === 'ALL' ? 'ALL' : Number(event.target.value)
+                      )
+                    }
+                    className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] font-medium outline-none transition-colors focus:border-primary"
+                  >
+                    <option value="ALL">Todas las zonas</option>
+
+                    {zones.map((zone) => (
+                      <option key={zone.id} value={zone.id}>
+                        {zone.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="flex h-[50px] cursor-pointer items-center gap-3 rounded-2xl bg-background px-4">
+                  <input
+                    type="checkbox"
+                    checked={filterOnlyAvailable}
+                    onChange={(event) => setFilterOnlyAvailable(event.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+
+                  <span className="text-[14px] font-bold text-text">Solo disponibles</span>
+                </label>
               </div>
-            ) : (
-              <ZoneFilterChips
-                zones={zones}
-                selectedZoneId={selectedZoneId}
-                onSelectZone={setSelectedZoneId}
-                onDeleteZone={isAdmin ? (zone) => setConfirmState({ type: 'deleteZone', zone }) : undefined}
-              />
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="mt-4">
+              {isZonesLoading ? (
+                <div className="rounded-2xl bg-white px-4 py-3 text-[14px] text-gray-500 shadow-sm">
+                  Cargando zonas...
+                </div>
+              ) : (
+                <ZoneFilterChips
+                  zones={zones}
+                  selectedZoneId={selectedZoneId}
+                  onSelectZone={setSelectedZoneId}
+                  onDeleteZone={
+                    isAdmin ? (zone) => setConfirmState({ type: 'deleteZone', zone }) : undefined
+                  }
+                />
+              )}
+            </div>
+          )}
 
           <div className="mt-4 flex items-center justify-between">
             <h2 className="text-subtitle font-bold text-text">Mesas</h2>
+
             <span className="text-[13px] font-medium text-gray-500">
               {filteredTables.length} resultados
             </span>
@@ -539,9 +656,8 @@ export default function TableManagementPage({
             </div>
           ) : filteredTables.length === 0 ? (
             <div className="rounded-2xl bg-white p-5 text-center shadow-sm">
-              <p className="text-[16px] font-semibold text-text">
-                No hay mesas en esta zona
-              </p>
+              <p className="text-[16px] font-semibold text-text">No hay mesas en esta zona</p>
+
               <p className="mt-2 text-[14px] leading-6 text-gray-500">
                 Prueba con otra zona o registra una nueva mesa.
               </p>
@@ -561,8 +677,10 @@ export default function TableManagementPage({
                     )
                   }
                   onManageOrder={() => {
-                    setOpenActionMenuId(null);
-                    onOpenTableOrder(table.id);
+                    if (onOpenTableOrder) {
+                      setOpenActionMenuId(null);
+                      onOpenTableOrder(table.id);
+                    }
                   }}
                   onEdit={() => {
                     setOpenActionMenuId(null);
@@ -574,6 +692,7 @@ export default function TableManagementPage({
                   }}
                   onChangeStatus={(nextStatus) => {
                     setOpenActionMenuId(null);
+
                     if (nextStatus === 'RESERVADA') {
                       setReservingTable(table);
                     } else {
@@ -596,6 +715,7 @@ export default function TableManagementPage({
             onClose={() => setIsCreateZoneOpen(false)}
             onSubmit={handleCreateZone}
           />
+
           <TableFormModal
             key={isCreateTableOpen ? 'table-create-open' : 'table-create-closed'}
             open={isCreateTableOpen}
@@ -605,6 +725,7 @@ export default function TableManagementPage({
             onClose={() => setIsCreateTableOpen(false)}
             onSubmit={handleCreateTable}
           />
+
           <TableFormModal
             key={editingTable ? `table-edit-${editingTable.id}` : 'table-edit-closed'}
             open={Boolean(editingTable)}
@@ -624,19 +745,23 @@ export default function TableManagementPage({
           confirmState?.type === 'delete'
             ? '¿Eliminar mesa?'
             : confirmState?.type === 'deleteZone'
-            ? '¿Eliminar zona?'
-            : '¿Cambiar estado de la mesa?'
+              ? '¿Eliminar zona?'
+              : '¿Cambiar estado de la mesa?'
         }
         description={
           confirmState?.type === 'delete'
             ? 'Esta acción no se puede deshacer.'
             : confirmState?.type === 'deleteZone'
-            ? 'Esta acción eliminará la zona y todas las mesas asociadas a ella. No se puede deshacer.'
-            : confirmState
-            ? `La mesa ${confirmState.table.numero} cambiará a estado ${getStatusLabel(confirmState.nextStatus)}.`
-            : ''
+              ? 'Esta acción eliminará la zona y todas las mesas asociadas a ella. No se puede deshacer.'
+              : confirmState
+                ? `La mesa ${confirmState.table.numero} cambiará a estado ${getStatusLabel(confirmState.nextStatus)}.`
+                : ''
         }
-        confirmLabel={confirmState?.type === 'delete' || confirmState?.type === 'deleteZone' ? 'Eliminar' : 'Confirmar'}
+        confirmLabel={
+          confirmState?.type === 'delete' || confirmState?.type === 'deleteZone'
+            ? 'Eliminar'
+            : 'Confirmar'
+        }
         isLoading={isConfirming}
         onClose={() => setConfirmState(null)}
         onConfirm={handleConfirmAction}

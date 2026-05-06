@@ -8,14 +8,14 @@ import type {
   TableOrderItem,
   TableOrderItemIngredient,
   TableOrderStatus,
-  UpdateOrderItemPayload,
 } from '../../modules/tables/types/table-order.types';
+import { emitRestaurantStateChanged } from '../utils/events';
 
-let nextOrderId = 5;
+let nextOrderId = 1;
 
 const delay = (ms = 220) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const ORDERS_STORAGE_KEY = 'gestionysabor_waiter_mock_orders';
+const ORDERS_STORAGE_KEY = 'gestionysabor_unified_orders_mock';
 
 function hasLocalStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
@@ -26,7 +26,12 @@ function readStorage<T>(key: string, fallback: T): T {
 
   try {
     const value = window.localStorage.getItem(key);
-    return value ? (JSON.parse(value) as T) : fallback;
+    if (!value) return fallback;
+    const parsed = JSON.parse(value);
+    if (key === ORDERS_STORAGE_KEY) {
+      return migrateUnifiedOrdersStorage(parsed) as unknown as T;
+    }
+    return parsed as T;
   } catch {
     return fallback;
   }
@@ -34,36 +39,73 @@ function readStorage<T>(key: string, fallback: T): T {
 
 function writeStorage<T>(key: string, value: T) {
   if (!hasLocalStorage()) return;
-
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
 function persistOrders() {
   writeStorage(ORDERS_STORAGE_KEY, orders);
+  emitRestaurantStateChanged();
 }
 
-let cachedMenu: any[] | null = null;
 
-async function getMenuFromAPI() {
-  if (cachedMenu) return cachedMenu;
-  try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/menu`);
-    if (res.ok) {
-      cachedMenu = await res.json();
+function migrateUnifiedOrdersStorage(data: any[]): TableOrder[] {
+  if (!Array.isArray(data)) return [];
+
+  const migrated: TableOrder[] = data.map((item: any) => {
+    // Detectar si es ClientOrder (usa 'status' y 'orderNumber' y 'items[0].name')
+    const isClientOrder = item.status && item.orderNumber && (!item.items || item.items.length === 0 || item.items[0].name);
+
+    if (isClientOrder) {
+      return {
+        id: item.id,
+        tableId: item.tableNumber || 0,
+        tipoPedido: 'MESA',
+        estado: item.status,
+        waiterName: 'Mesero',
+        customer: {
+          idUsuario: item.userId || null,
+          nombre: 'Cliente registrado',
+          telefono: '00000000',
+          ci: '0'
+        },
+        items: (item.items || []).map((oi: any) => ({
+          id: oi.id,
+          productoId: 0,
+          nombreProducto: oi.name || 'Producto',
+          categoriaId: 0,
+          categoriaNombre: 'General',
+          cantidad: oi.quantity,
+          observacion: oi.notes || '',
+          ingredientes: [],
+          precioUnitario: oi.unitPrice || 0,
+          tiempoPreparacion: 0,
+          subtotal: oi.subtotal || 0
+        })),
+        subtotal: item.subtotal || 0,
+        impuesto: 0,
+        descuento: 0,
+        total: item.total || 0,
+        tiempoEstimadoMinutos: item.estimatedMinutes || 0,
+        observaciones: item.notes || '',
+        fechaCreacion: item.createdAt || new Date().toISOString()
+      };
     }
-  } catch (error) {
-    console.error('Error fetching menu API:', error);
-  }
-  return cachedMenu || [];
+
+    // Si es TableOrder, asegurar integridad de items.ingredientes
+    if (item.items) {
+      item.items = item.items.map((oi: any) => ({
+        ...oi,
+        ingredientes: oi.ingredientes ?? []
+      }));
+    }
+
+    return item as TableOrder;
+  });
+
+  return migrated;
 }
 
-const SIMULATED_STATUSES_KEY = 'gestionysabor_simulated_statuses';
 
-const simulatedStatuses: Record<number, TableOrderStatus> = readStorage(SIMULATED_STATUSES_KEY, {});
-
-function persistSimulatedStatuses() {
-  writeStorage(SIMULATED_STATUSES_KEY, simulatedStatuses);
-}
 
 export function mapBackendOrderToFrontend(backendOrder: any): TableOrder {
   const customer = backendOrder.usuarios_pedidos_id_usuario_clienteTousuarios;
@@ -72,7 +114,7 @@ export function mapBackendOrderToFrontend(backendOrder: any): TableOrder {
     id: backendOrder.id_pedido,
     tableId: backendOrder.id_mesa || 0,
     tipoPedido: 'MESA',
-    estado: simulatedStatuses[backendOrder.id_pedido] || originalStatus,
+    estado: originalStatus,
     waiterName: backendOrder.usuario_mesero ? `${backendOrder.usuario_mesero.nombre} ${backendOrder.usuario_mesero.apellido || ''}`.trim() : 'Mesero',
     customer: {
       idUsuario: customer ? customer.id_usuario : null,
@@ -298,7 +340,7 @@ function normalizeIngredients(
   });
 }
 
-function createItem(
+export function createItem(
   id: number,
   productoId: number,
   cantidad: number,
@@ -324,6 +366,7 @@ function createItem(
     precioUnitario: product.precio,
     tiempoPreparacion: product.tiempoPreparacion,
     subtotal: product.precio * cantidad,
+    imagen: product.imagen ?? null,
   };
 }
 
@@ -352,124 +395,26 @@ function recalculateOrder(order: TableOrder): TableOrder {
   };
 }
 
-let orders: TableOrder[] = [
-  recalculateOrder({
-    id: 1,
-    tableId: 2,
-    tipoPedido: 'MESA',
-    estado: 'REGISTRADO',
-    waiterName: 'María López',
-    customer: {
-      idUsuario: 22,
-      nombre: 'Roberto García',
-      telefono: '70011223',
-      ci: '234531',
-    },
-    items: [
-      createItem(1, 3, 2, 'Sin locoto', [
-        { nombre: 'Carne', incluido: true },
-        { nombre: 'Salchicha', incluido: true },
-        { nombre: 'Huevo', incluido: true },
-        { nombre: 'Papas', incluido: true },
-        { nombre: 'Locoto', incluido: false },
-        { nombre: 'Mayonesa', incluido: true },
-        { nombre: 'Kétchup', incluido: true },
-      ]),
-      createItem(2, 5, 2, 'Sin hielo', [
-        { nombre: 'Hielo', incluido: false },
-        { nombre: 'Limón', incluido: false },
-        { nombre: 'Vaso', incluido: true },
-      ]),
-    ],
-    subtotal: 0,
-    impuesto: 0,
-    descuento: 0,
-    total: 0,
-    tiempoEstimadoMinutos: 0,
-    observaciones: 'Cliente en mesa, pedido tomado por mesero.',
-    fechaCreacion: new Date().toISOString(),
-  }),
-  recalculateOrder({
-    id: 2,
-    tableId: 6,
-    tipoPedido: 'MESA',
-    estado: 'EN_PREPARACION',
-    waiterName: 'María López',
-    customer: {
-      nombre: 'Familia Flores',
-      telefono: '71234567',
-      ci: '0',
-    },
-    items: [createItem(3, 4, 1, 'Término medio'), createItem(4, 6, 3)],
-    subtotal: 0,
-    impuesto: 0,
-    descuento: 0,
-    total: 0,
-    tiempoEstimadoMinutos: 0,
-    observaciones: 'Pedido enviado a cocina.',
-    fechaCreacion: new Date().toISOString(),
-  }),
-  recalculateOrder({
-    id: 3,
-    tableId: 10,
-    tipoPedido: 'MESA',
-    estado: 'LISTO',
-    waiterName: 'Carlos Méndez',
-    customer: {
-      nombre: 'Mesa sin registro',
-      telefono: '00000000',
-      ci: '0',
-    },
-    items: [
-      createItem(5, 1, 2, 'Sin cebolla', [
-        { nombre: 'Lechuga', incluido: true },
-        { nombre: 'Tomate', incluido: true },
-        { nombre: 'Pepino', incluido: true },
-        { nombre: 'Cebolla', incluido: false },
-        { nombre: 'Aceitunas', incluido: false },
-        { nombre: 'Queso', incluido: true },
-        { nombre: 'Aderezo', incluido: true },
-      ]),
-      createItem(6, 8, 2),
-    ],
-    subtotal: 0,
-    impuesto: 0,
-    descuento: 0,
-    total: 0,
-    tiempoEstimadoMinutos: 0,
-    observaciones: 'Listo para entregar en mesa.',
-    fechaCreacion: new Date().toISOString(),
-  }),
-  recalculateOrder({
-    id: 4,
-    tableId: 4,
-    tipoPedido: 'MESA',
-    estado: 'ENTREGADO',
-    waiterName: 'Carlos Méndez',
-    customer: {
-      idUsuario: 21,
-      nombre: 'Ana Vargas',
-      telefono: '76543210',
-      ci: '5678123',
-    },
-    items: [createItem(7, 3, 1), createItem(8, 7, 1)],
-    subtotal: 0,
-    impuesto: 0,
-    descuento: 0,
-    total: 0,
-    tiempoEstimadoMinutos: 0,
-    observaciones: 'Pedido entregado, listo para solicitar cuenta.',
-    fechaCreacion: new Date().toISOString(),
-    fechaEntrega: new Date().toISOString(),
-  }),
-];
+let orders: TableOrder[] = [];
 
 
-orders = readStorage(ORDERS_STORAGE_KEY, orders);
-nextOrderId = Math.max(nextOrderId, ...orders.map((order) => order.id + 1));
+function syncOrdersFromStorage() {
+  orders = readStorage(ORDERS_STORAGE_KEY, orders);
+  if (orders.length > 0) {
+    nextOrderId = Math.max(nextOrderId, ...orders.map((order) => order.id)) + 1;
+  }
+}
+
+syncOrdersFromStorage();
 
 
 function findOrderIndexByTable(tableId: number) {
+  // Priorizar pedidos en estado REGISTRADO para ser editados
+  const regIndex = orders.findIndex(
+    (order) => order.tableId === tableId && order.estado === 'REGISTRADO'
+  );
+  if (regIndex !== -1) return regIndex;
+
   return orders.findIndex(
     (order) =>
       order.tableId === tableId &&
@@ -490,93 +435,19 @@ function cloneOrder(order: TableOrder): TableOrder {
 }
 
 function ensureEditable(order: TableOrder) {
-  if (order.estado === 'PAGADO' || order.estado === 'CANCELADO') {
-    throw new Error('No puedes editar un pedido pagado o cancelado');
-  }
-
-  if (
-    order.estado === 'LISTO' ||
-    order.estado === 'EN_CAMINO' ||
-    order.estado === 'ENTREGADO'
-  ) {
-    throw new Error('No puedes editar items cuando el pedido ya está listo o entregado');
+  if (order.estado !== 'REGISTRADO') {
+    throw new Error('Solo se pueden editar pedidos en estado REGISTRADO');
   }
 }
 
 async function buildItemFromPayload(itemId: number, payload: AddOrderItemPayload): Promise<TableOrderItem> {
-  const menu = await getMenuFromAPI();
-  if (menu && menu.length > 0) {
-    const selectedCategory = menu.find((cat: any) => cat.id_categoria === payload.categoriaId);
-    if (!selectedCategory) throw new Error('La categoría seleccionada no existe en la base de datos');
-    
-    const selectedProduct = selectedCategory.productos.find((prod: any) => {
-      const presentacion = prod.presentaciones?.[0] || {};
-      const id = presentacion.id_presentacion_producto || prod.id_producto;
-      return id === payload.productoId && prod.disponible;
-    });
+  const selectedCategory = categories.find((category) => category.id === payload.categoriaId);
+  if (!selectedCategory) throw new Error('La categoría seleccionada no existe');
 
-    if (!selectedProduct) throw new Error('El producto seleccionado no existe o no está disponible en la BD');
+  const selectedProduct = products.find((product) => product.id === payload.productoId && product.categoryId === payload.categoriaId && product.disponible);
+  if (!selectedProduct) throw new Error('El producto seleccionado no existe o no está disponible');
 
-    if (!Number.isFinite(payload.cantidad) || payload.cantidad <= 0) {
-      throw new Error('La cantidad debe ser mayor a 0');
-    }
-
-    const presentacion = selectedProduct.presentaciones?.[0] || {};
-    const precioUnitario = Number(presentacion.precio || selectedProduct.precio || 0);
-    const tiempoPreparacion = Number(presentacion.tiempo_preparacion_minutos || selectedProduct.tiempo_preparacion || 0);
-
-    const ingredientesBase = (presentacion.recetas_presentaciones || []).map((receta: any) => ({
-      nombre: receta.insumo.nombre,
-      incluidoPorDefecto: true
-    }));
-
-    let normalizedIngredients: TableOrderItemIngredient[];
-    if (!payload.ingredientes || payload.ingredientes.length === 0) {
-      normalizedIngredients = ingredientesBase.map((i: any) => ({ nombre: i.nombre, incluido: i.incluidoPorDefecto }));
-    } else {
-      normalizedIngredients = ingredientesBase.map((i: any) => {
-        const selected = payload.ingredientes!.find((item) => item.nombre.toLowerCase() === i.nombre.toLowerCase());
-        return { nombre: i.nombre, incluido: selected?.incluido ?? i.incluidoPorDefecto };
-      });
-    }
-
-    return {
-      id: itemId,
-      productoId: payload.productoId,
-      nombreProducto: selectedProduct.nombre,
-      categoriaId: selectedCategory.id_categoria,
-      categoriaNombre: selectedCategory.nombre,
-      cantidad: payload.cantidad,
-      observacion: payload.observacion.trim(),
-      ingredientes: normalizedIngredients,
-      precioUnitario,
-      tiempoPreparacion,
-      subtotal: precioUnitario * payload.cantidad,
-    };
-  }
-
-  const selectedCategory = categories.find(
-    (category) => category.id === payload.categoriaId
-  );
-
-  if (!selectedCategory) {
-    throw new Error('La categoría seleccionada no existe');
-  }
-
-  const selectedProduct = products.find(
-    (product) =>
-      product.id === payload.productoId &&
-      product.categoryId === payload.categoriaId &&
-      product.disponible
-  );
-
-  if (!selectedProduct) {
-    throw new Error('El producto seleccionado no existe o no está disponible');
-  }
-
-  if (!Number.isFinite(payload.cantidad) || payload.cantidad <= 0) {
-    throw new Error('La cantidad debe ser mayor a 0');
-  }
+  if (!Number.isFinite(payload.cantidad) || payload.cantidad <= 0) throw new Error('La cantidad debe ser mayor a 0');
 
   return {
     id: itemId,
@@ -590,196 +461,68 @@ async function buildItemFromPayload(itemId: number, payload: AddOrderItemPayload
     precioUnitario: selectedProduct.precio,
     tiempoPreparacion: selectedProduct.tiempoPreparacion,
     subtotal: selectedProduct.precio * payload.cantidad,
+    imagen: selectedProduct.imagen ?? null,
   };
 }
 
 export async function listOrderCategoriesMock(): Promise<OrderCatalogCategory[]> {
-  const menu = await getMenuFromAPI();
-  if (menu.length > 0) {
-    return menu.map((cat: any) => ({
-      id: cat.id_categoria,
-      nombre: cat.nombre,
-    }));
-  }
-
   await delay();
   return [...categories];
 }
 
-export async function listOrderProductsByCategoryMock(
-  categoryId: number
-): Promise<OrderCatalogProduct[]> {
-  const menu = await getMenuFromAPI();
-  if (menu.length > 0) {
-    const category = menu.find((cat: any) => cat.id_categoria === categoryId);
-    if (!category) return [];
-
-    return category.productos
-      .filter((prod: any) => prod.presentaciones && prod.presentaciones.length > 0)
-      .map((prod: any) => {
-      const presentacion = prod.presentaciones[0];
-      const ingredientes = (presentacion.recetas_presentaciones || []).map((receta: any) => ({
-        id: receta.insumo.id_insumo,
-        nombre: receta.insumo.nombre,
-        incluidoPorDefecto: true
-      }));
-
-      return {
-        id: presentacion.id_presentacion_producto,
-        categoryId: category.id_categoria,
-        nombre: prod.nombre,
-        descripcion: prod.descripcion || '',
-        precio: Number(presentacion.precio || 0),
-        tiempoPreparacion: Number(presentacion.tiempo_preparacion_minutos || 0),
-        disponible: prod.disponible,
-        ingredientes
-      };
-    });
-  }
-
+export async function listOrderProductsByCategoryMock(categoryId: number): Promise<OrderCatalogProduct[]> {
   await delay();
-  return products
-    .filter((product) => product.categoryId === categoryId && product.disponible)
-    .map(cloneProduct);
+  return products.filter((p) => p.categoryId === categoryId && p.disponible).map(cloneProduct);
 }
 
-
-export async function searchOrderCustomerByCiMock(
-  ci: string
-): Promise<TableOrderCustomer | null> {
-  try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/clientes/ci/${ci}`);
-    if (res.ok) {
-      const data = await res.json();
-      return {
-        idUsuario: data.id_usuario,
-        nombre: `${data.nombre} ${data.apellido || ''}`.trim(),
-        telefono: data.telefono || '00000000',
-        ci: String(data.usuario_ci),
-      };
-    }
-  } catch (error) {
-    console.error('API fail, using mock data for customer search', error);
-  }
-
+export async function searchOrderCustomerByCiMock(ci: string): Promise<TableOrderCustomer | null> {
   await delay();
   const normalizedCi = normalizeCi(ci);
-  const foundCustomer = registeredCustomersMock.find(
-    (customer) => customer.ci === normalizedCi
-  );
-
-  return foundCustomer ? { ...foundCustomer } : null;
+  const found = registeredCustomersMock.find((c) => c.ci === normalizedCi);
+  return found ? { ...found } : null;
 }
 
 export async function listWaiterOrdersMock(): Promise<TableOrder[]> {
-  try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/pedidos/activos`);
-    if (res.ok) {
-      const data = await res.json();
-      return data.map(mapBackendOrderToFrontend).filter((o: TableOrder) => o.estado !== 'PAGADO' && o.estado !== 'CANCELADO');
-    }
-  } catch (error) {
-    console.error('API fail, using mock data for list waiter orders', error);
-  }
-
+  syncOrdersFromStorage();
   await delay();
-
   return orders
-    .filter((order) => order.estado !== 'PAGADO' && order.estado !== 'CANCELADO')
-    .sort(
-      (a, b) =>
-        new Date(b.fechaCreacion).getTime() - new Date(a.fechaCreacion).getTime()
-    )
+    .filter((o) => o.estado !== 'PAGADO' && o.estado !== 'CANCELADO')
+    .sort((a, b) => new Date(b.fechaCreacion).getTime() - new Date(a.fechaCreacion).getTime())
     .map(cloneOrder);
 }
 
-export async function getOpenOrderByTableMock(
-  tableId: number
-): Promise<TableOrder | null> {
-  try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/pedidos/mesa/${tableId}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data) {
-        const mapped = mapBackendOrderToFrontend(data);
-        if (mapped.estado === 'PAGADO' || mapped.estado === 'CANCELADO') return null;
-        return mapped;
-      }
-      return null;
-    }
-  } catch (error) {
-    console.error('API fail, using mock data for open order', error);
-  }
-
+export async function getOpenOrdersByTableMock(tableId: number): Promise<TableOrder[]> {
+  syncOrdersFromStorage();
   await delay();
-
-  const order = orders.find(
-    (item) =>
-      item.tableId === tableId &&
-      item.estado !== 'PAGADO' &&
-      item.estado !== 'CANCELADO'
-  );
-
-  return order ? cloneOrder(order) : null;
+  return orders
+    .filter((o) => o.tableId === tableId && o.estado !== 'PAGADO' && o.estado !== 'CANCELADO')
+    .map(cloneOrder);
 }
 
-export async function saveOrderCustomerMock(
-  tableId: number,
-  customer: TableOrderCustomer,
-  waiterUserId?: number
-): Promise<TableOrder> {
-  if (!customer.nombre.trim()) {
-    throw new Error('El nombre del cliente es obligatorio');
-  }
+export async function getOpenOrderByTableMock(tableId: number): Promise<TableOrder | null> {
+  syncOrdersFromStorage();
+  const all = await getOpenOrdersByTableMock(tableId);
+  if (all.length === 0) return null;
+  return all.find((o) => o.estado === 'REGISTRADO') || all[0];
+}
 
-  try {
-    const openOrderRes = await fetch(`${import.meta.env.VITE_API_URL}/api/pedidos/mesa/${tableId}`);
-    if (openOrderRes.ok) {
-      const openOrder = await openOrderRes.json();
-      if (openOrder) return mapBackendOrderToFrontend(openOrder);
-    }
-
-    const body = {
-      id_mesa: tableId,
-      id_usuario_mesero: waiterUserId ?? 20,
-      id_usuario_cliente: customer.idUsuario ?? null,
-      observaciones: 'Pedido creado desde flujo de mesa'
-    };
-
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/pedidos`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-
-    if (res.ok) {
-      const fullRes = await fetch(`${import.meta.env.VITE_API_URL}/api/pedidos/mesa/${tableId}`);
-      if (fullRes.ok) {
-        const fullOrder = await fullRes.json();
-        return mapBackendOrderToFrontend(fullOrder);
-      }
-    }
-  } catch (error) {
-    console.error('API fail, using mock data for save order customer', error);
-  }
-
+export async function saveOrderCustomerMock(tableId: number, customer: TableOrderCustomer, waiterUserId?: number): Promise<TableOrder> {
+  syncOrdersFromStorage();
+  if (!customer.nombre.trim()) throw new Error('El nombre del cliente es obligatorio');
   await delay();
 
-  const index = findOrderIndexByTable(tableId);
   const normalizedCi = normalizeCi(customer.ci) || '0';
-  const registeredCustomer =
-    normalizedCi === '0'
-      ? null
-      : registeredCustomersMock.find((item) => item.ci === normalizedCi) ?? null;
+  const registered = normalizedCi === '0' ? null : registeredCustomersMock.find((c) => c.ci === normalizedCi) || null;
   const normalizedCustomer: TableOrderCustomer = {
-    idUsuario: customer.idUsuario ?? registeredCustomer?.idUsuario ?? null,
+    idUsuario: customer.idUsuario ?? registered?.idUsuario ?? null,
     nombre: customer.nombre.trim(),
-    telefono: customer.telefono.trim() || registeredCustomer?.telefono || '00000000',
+    telefono: customer.telefono.trim() || registered?.telefono || '00000000',
     ci: normalizedCi,
   };
 
+  const index = findOrderIndexByTable(tableId);
   if (index === -1) {
-    const newOrder: TableOrder = recalculateOrder({
+    const newOrder = recalculateOrder({
       id: nextOrderId++,
       tableId,
       tipoPedido: 'MESA',
@@ -795,305 +538,119 @@ export async function saveOrderCustomerMock(
       observaciones: 'Pedido creado desde flujo de mesa.',
       fechaCreacion: new Date().toISOString(),
     });
-
     orders = [...orders, newOrder];
     persistOrders();
     return cloneOrder(newOrder);
   }
 
-  const currentOrder = orders[index];
+  const current = orders[index];
+  if (current.estado === 'PAGADO' || current.estado === 'CANCELADO') throw new Error('No puedes editar un pedido finalizado');
 
-  if (currentOrder.estado === 'PAGADO' || currentOrder.estado === 'CANCELADO') {
-    throw new Error('No puedes editar un pedido pagado o cancelado');
-  }
+  const updated: TableOrder = { ...current, customer: normalizedCustomer };
+  orders = orders.map((o, idx) => (idx === index ? updated : o));
+  persistOrders();
+  return cloneOrder(updated);
+}
 
-  const updatedOrder: TableOrder = {
-    ...currentOrder,
-    customer: normalizedCustomer,
+export async function createExtraOrderMock(tableId: number, customer: TableOrderCustomer, waiterUserId?: number): Promise<TableOrder> {
+  syncOrdersFromStorage();
+  await delay();
+  const normalizedCi = normalizeCi(customer.ci) || '0';
+  const registered = normalizedCi === '0' ? null : registeredCustomersMock.find((c) => c.ci === normalizedCi) || null;
+  const normalizedCustomer: TableOrderCustomer = {
+    idUsuario: customer.idUsuario ?? registered?.idUsuario ?? null,
+    nombre: customer.nombre.trim(),
+    telefono: customer.telefono.trim() || registered?.telefono || '00000000',
+    ci: normalizedCi,
   };
 
-  orders = orders.map((order, orderIndex) =>
-    orderIndex === index ? updatedOrder : order
-  );
-  persistOrders();
+  const newOrder = recalculateOrder({
+    id: nextOrderId++,
+    tableId,
+    tipoPedido: 'MESA',
+    estado: 'REGISTRADO',
+    waiterName: waiterUserId ? `Mesero ${waiterUserId}` : 'Mesero asignado',
+    customer: normalizedCustomer,
+    items: [],
+    subtotal: 0,
+    impuesto: 0,
+    descuento: 0,
+    total: 0,
+    tiempoEstimadoMinutos: 0,
+    observaciones: 'Comanda adicional creada.',
+    fechaCreacion: new Date().toISOString(),
+  });
 
+  orders = [...orders, newOrder];
+  persistOrders();
+  return cloneOrder(newOrder);
+}
+
+export async function addOrderItemToTableMock(tableId: number, payload: AddOrderItemPayload): Promise<TableOrder> {
+  syncOrdersFromStorage();
+  await delay();
+  const index = findOrderIndexByTable(tableId);
+  if (index === -1) throw new Error('No hay un pedido activo para esta mesa. Guarde los datos del cliente primero.');
+
+  const order = orders[index];
+  ensureEditable(order);
+
+  const nextItemId = order.items.length > 0 ? Math.max(...order.items.map((i) => i.id)) + 1 : 1;
+  const newItem = await buildItemFromPayload(nextItemId, payload);
+  const updatedOrder = recalculateOrder({ ...order, items: [...order.items, newItem] });
+
+  orders = orders.map((o, idx) => (idx === index ? updatedOrder : o));
+  persistOrders();
   return cloneOrder(updatedOrder);
 }
 
-export async function addOrderItemToTableMock(
-  tableId: number,
-  payload: AddOrderItemPayload
-): Promise<TableOrder> {
-  const orderRes = await fetch(`${import.meta.env.VITE_API_URL}/api/pedidos/mesa/${tableId}`);
-  if (!orderRes.ok) {
-    throw new Error('Primero guarda los datos del cliente para crear el pedido o no hay conexión');
-  }
-  
-  const order = await orderRes.json();
-  if (!order) {
-    throw new Error('No hay pedido activo en esta mesa');
-  }
-
-  const itemBody = {
-    id_presentacion_producto: payload.productoId,
-    cantidad: payload.cantidad,
-    observaciones: payload.observacion
-  };
-  
-  const addRes = await fetch(`${import.meta.env.VITE_API_URL}/api/pedidos/${order.id_pedido}/detalles`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(itemBody)
-  });
-  
-  if (!addRes.ok) {
-    const errData = await addRes.json().catch(() => ({}));
-    throw new Error(errData.error || 'Error al agregar el detalle al pedido en la base de datos');
-  }
-
-  const fullRes = await fetch(`${import.meta.env.VITE_API_URL}/api/pedidos/mesa/${tableId}`);
-  if (fullRes.ok) {
-    return mapBackendOrderToFrontend(await fullRes.json());
-  }
-  
-  throw new Error('Error recuperando el pedido actualizado');
-}
-
-export async function updateOrderItemInTableMock(
-  tableId: number,
-  itemId: number,
-  payload: UpdateOrderItemPayload
-): Promise<TableOrder> {
+export async function updateOrderItemInTableMock(tableId: number, itemId: number, payload: AddOrderItemPayload): Promise<TableOrder> {
+  syncOrdersFromStorage();
   await delay();
+  const index = findOrderIndexByTable(tableId);
+  if (index === -1) throw new Error('No hay un pedido activo');
 
-  const orderIndex = findOrderIndexByTable(tableId);
+  const order = orders[index];
+  ensureEditable(order);
 
-  if (orderIndex === -1) {
-    throw new Error('Pedido no encontrado');
-  }
-
-  const currentOrder = orders[orderIndex];
-  ensureEditable(currentOrder);
-
-  const foundItem = currentOrder.items.find((item) => item.id === itemId);
-
-  if (!foundItem) {
-    throw new Error('Item no encontrado');
-  }
+  const itemIdx = order.items.findIndex((i) => i.id === itemId);
+  if (itemIdx === -1) throw new Error('Item no encontrado');
 
   const updatedItem = await buildItemFromPayload(itemId, payload);
-  const updatedOrder = recalculateOrder({
-    ...currentOrder,
-    items: currentOrder.items.map((item) =>
-      item.id === itemId ? updatedItem : item
-    ),
-  });
+  const updatedItems = [...order.items];
+  updatedItems[itemIdx] = updatedItem;
 
-  orders = orders.map((order, index) =>
-    index === orderIndex ? updatedOrder : order
-  );
+  const updatedOrder = recalculateOrder({ ...order, items: updatedItems });
+  orders = orders.map((o, idx) => (idx === index ? updatedOrder : o));
   persistOrders();
-
   return cloneOrder(updatedOrder);
 }
 
-export async function updateOrderItemQuantityMock(
-  tableId: number,
-  itemId: number,
-  quantity: number
-): Promise<TableOrder> {
+export async function removeOrderItemFromTableMock(tableId: number, itemId: number): Promise<void> {
+  syncOrdersFromStorage();
   await delay();
+  const index = findOrderIndexByTable(tableId);
+  if (index === -1) return;
 
-  const orderIndex = findOrderIndexByTable(tableId);
+  const order = orders[index];
+  ensureEditable(order);
 
-  if (orderIndex === -1) {
-    throw new Error('Pedido no encontrado');
-  }
-
-  if (quantity <= 0) {
-    throw new Error('La cantidad debe ser mayor a 0');
-  }
-
-  const currentOrder = orders[orderIndex];
-  ensureEditable(currentOrder);
-
-  const foundItem = currentOrder.items.find((item) => item.id === itemId);
-
-  if (!foundItem) {
-    throw new Error('Item no encontrado');
-  }
-
-  const updatedItems = currentOrder.items.map((item) =>
-    item.id === itemId
-      ? {
-          ...item,
-          cantidad: quantity,
-          subtotal: item.precioUnitario * quantity,
-        }
-      : item
-  );
-
-  const updatedOrder = recalculateOrder({
-    ...currentOrder,
-    items: updatedItems,
-  });
-
-  orders = orders.map((order, index) =>
-    index === orderIndex ? updatedOrder : order
-  );
+  const updatedOrder = recalculateOrder({ ...order, items: order.items.filter((i) => i.id !== itemId) });
+  orders = orders.map((o, idx) => (idx === index ? updatedOrder : o));
   persistOrders();
-
-  return cloneOrder(updatedOrder);
 }
 
-export async function removeOrderItemFromTableMock(
-  tableId: number,
-  itemId: number
-): Promise<TableOrder> {
-  try {
-    const orderRes = await fetch(`${import.meta.env.VITE_API_URL}/api/pedidos/mesa/${tableId}`);
-    if (orderRes.ok) {
-      const order = await orderRes.json();
-      if (order) {
-        const delRes = await fetch(`${import.meta.env.VITE_API_URL}/api/pedidos/${order.id_pedido}/detalles/${itemId}`, {
-          method: 'DELETE'
-        });
-        if (delRes.ok) {
-          const fullRes = await fetch(`${import.meta.env.VITE_API_URL}/api/pedidos/mesa/${tableId}`);
-          if (fullRes.ok) return mapBackendOrderToFrontend(await fullRes.json());
-        }
-      }
-    }
-  } catch (error) {
-    console.error('API fail, using mock data for remove order item', error);
-  }
-
+export async function updateOrderStatusForTableMock(tableId: number, status: TableOrderStatus): Promise<void> {
+  syncOrdersFromStorage();
   await delay();
+  const index = findOrderIndexByTable(tableId);
+  if (index === -1) return;
 
-  const orderIndex = findOrderIndexByTable(tableId);
-
-  if (orderIndex === -1) {
-    throw new Error('Pedido no encontrado');
-  }
-
-  const currentOrder = orders[orderIndex];
-  ensureEditable(currentOrder);
-
-  const updatedItems = currentOrder.items.filter((item) => item.id !== itemId);
-
-  if (updatedItems.length === currentOrder.items.length) {
-    throw new Error('Item no encontrado');
-  }
-
-  const updatedOrder = recalculateOrder({
-    ...currentOrder,
-    items: updatedItems,
-  });
-
-  orders = orders.map((order, index) =>
-    index === orderIndex ? updatedOrder : order
-  );
+  orders = orders.map((o, idx) => (idx === index ? { ...o, estado: status } : o));
   persistOrders();
-
-  return cloneOrder(updatedOrder);
 }
 
-export async function updateOrderStatusForTableMock(
-  tableId: number,
-  status: TableOrderStatus
-): Promise<TableOrder> {
-  try {
-    const orderRes = await fetch(`${import.meta.env.VITE_API_URL}/api/pedidos/mesa/${tableId}`);
-    if (orderRes.ok) {
-      const order = await orderRes.json();
-      if (order) {
-        const mapped = mapBackendOrderToFrontend(order);
-        if (mapped.items.length === 0 && status !== 'CANCELADO') {
-          throw new Error('Agrega al menos un item antes de cambiar el estado del pedido');
-        }
-        
-        simulatedStatuses[order.id_pedido] = status;
-        persistSimulatedStatuses();
-        
-        return mapBackendOrderToFrontend(order);
-      }
-    }
-  } catch (error) {
-    console.error('API fail, using mock data for update status', error);
-  }
-
-  await delay();
-
-  const orderIndex = findOrderIndexByTable(tableId);
-
-  if (orderIndex === -1) {
-    throw new Error('No existe un pedido abierto para esta mesa');
-  }
-
-  const currentOrder = orders[orderIndex];
-
-  if (currentOrder.estado === 'PAGADO' || currentOrder.estado === 'CANCELADO') {
-    throw new Error('No puedes cambiar un pedido pagado o cancelado');
-  }
-
-  if (currentOrder.items.length === 0 && status !== 'CANCELADO') {
-    throw new Error('Agrega al menos un item antes de cambiar el estado del pedido');
-  }
-
-  const updatedOrder: TableOrder = {
-    ...currentOrder,
-    estado: status,
-    fechaEntrega:
-      status === 'ENTREGADO' ? new Date().toISOString() : currentOrder.fechaEntrega,
-  };
-
-  orders = orders.map((order, index) =>
-    index === orderIndex ? updatedOrder : order
-  );
-  persistOrders();
-
-  return cloneOrder(updatedOrder);
-}
-
-export async function requestBillForTableMock(
-  tableId: number
-): Promise<TableOrder> {
-  try {
-    const orderRes = await fetch(`${import.meta.env.VITE_API_URL}/api/pedidos/mesa/${tableId}`);
-    if (orderRes.ok) {
-      const order = await orderRes.json();
-      if (order) {
-        const mapped = mapBackendOrderToFrontend(order);
-        if (mapped.items.length === 0) {
-          throw new Error('No puedes solicitar cuenta sin items en el pedido');
-        }
-        if (mapped.estado !== 'ENTREGADO') {
-          throw new Error('Primero marca el pedido como entregado en mesa');
-        }
-        return mapped;
-      }
-    }
-  } catch (error) {
-    console.error('API fail, using mock data for request bill', error);
-  }
-
-  await delay();
-
-  const orderIndex = findOrderIndexByTable(tableId);
-
-  if (orderIndex === -1) {
-    throw new Error('No existe un pedido abierto para esta mesa');
-  }
-
-  const currentOrder = orders[orderIndex];
-
-  if (currentOrder.items.length === 0) {
-    throw new Error('No puedes solicitar cuenta sin items en el pedido');
-  }
-
-  if (currentOrder.estado !== 'ENTREGADO') {
-    throw new Error('Primero marca el pedido como entregado en mesa');
-  }
-
-  return cloneOrder(currentOrder);
+export async function requestBillForTableMock(tableId: number): Promise<void> {
+  syncOrdersFromStorage();
+  await updateOrderStatusForTableMock(tableId, 'ENTREGADO');
 }

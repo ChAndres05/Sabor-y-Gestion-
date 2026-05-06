@@ -1,5 +1,5 @@
 import type { AuthUser } from '../auth/types/auth.types';
-import type { ClientNavigationKey } from './types/client-flow.types';
+import type { ClientNavigationKey } from '../../shared/types/client-flow.types';
 
 interface ClienteHomePageProps {
   user: AuthUser;

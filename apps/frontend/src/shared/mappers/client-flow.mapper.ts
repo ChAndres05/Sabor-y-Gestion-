@@ -1,22 +1,11 @@
-import type { TableOrder, TableOrderStatus } from '../../tables/types/table-order.types';
-import type {
-  ClientOrder,
-  ClientPreparedOrderRequest,
-  ClientReservation,
-  ClientReservationRequest,
-  ClientReservationStatus,
+import type { TableOrder, TableOrderStatus } from '../../modules/tables/types/table-order.types';
+import type { 
+  ClientOrder, 
+  ClientReservation, 
+  ClientReservationStatus 
 } from '../types/client-flow.types';
-import {
-  cancelClientReservationMock,
-  createClientReservationMock,
-  createPreparedReservationOrderMock,
-  listClientOrdersMock,
-  listClientReservationsMock,
-} from '../mocks/client-flow.mock';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
-interface BackendReservation {
+export interface BackendReservation {
   id?: number;
   id_reserva?: number;
   userId?: number;
@@ -41,7 +30,7 @@ interface BackendReservation {
   createdAt?: string;
 }
 
-interface BackendOrderItem {
+export interface BackendOrderItem {
   id?: number;
   id_detalle_pedido?: number;
   precioUnitario?: number;
@@ -56,7 +45,7 @@ interface BackendOrderItem {
   subtotal?: number;
 }
 
-interface BackendOrder {
+export interface BackendOrder {
   id?: number;
   id_pedido?: number;
   orderNumber?: string | number;
@@ -84,12 +73,12 @@ interface BackendOrder {
   prepareFrom?: string;
 }
 
-function mapBackendReservation(reservation: BackendReservation): ClientReservation {
+export function mapBackendReservation(reservation: BackendReservation): ClientReservation {
   return {
     id: Number(reservation.id_reserva ?? reservation.id ?? 0),
     userId: Number(reservation.id_usuario_cliente ?? reservation.userId ?? 0),
     tableId: Number(reservation.id_mesa ?? reservation.tableId ?? 0),
-    tableNumber: Number(reservation.mesa?.numero ?? reservation.tableNumber ?? reservation.id_mesa ?? 0),
+    tableNumber: Number(reservation.mesa?.numero ?? reservation.tableNumber ?? 0),
     zoneName: String(reservation.mesa?.zona?.nombre ?? reservation.zoneName ?? 'Sin zona'),
     people: Number(reservation.cantidad_personas ?? reservation.people ?? 1),
     date: String(reservation.fecha_hora_reserva ?? reservation.date).slice(0, 10),
@@ -104,7 +93,7 @@ function mapBackendReservation(reservation: BackendReservation): ClientReservati
   };
 }
 
-function mapBackendOrder(orderParam: TableOrder | BackendOrder, userId: number): ClientOrder {
+export function mapBackendOrder(orderParam: TableOrder | BackendOrder, userId: number): ClientOrder {
   const order = orderParam as BackendOrder & TableOrder;
   const items = (order.items ?? order.detalles_pedido ?? []).map((itemParam: BackendOrderItem, index: number) => {
     const item = itemParam;
@@ -124,7 +113,7 @@ function mapBackendOrder(orderParam: TableOrder | BackendOrder, userId: number):
     id: Number(order.id ?? order.id_pedido ?? 0),
     orderNumber: String(order.orderNumber ?? order.id_pedido ?? order.id ?? ''),
     userId: Number(order.customer?.idUsuario ?? order.id_usuario_cliente ?? userId),
-    tableNumber: order.tableId ?? order.id_mesa ?? order.tableNumber ?? null,
+    tableNumber: Number(order.tableNumber ?? 0) || null,
     source: order.reservationId || order.id_reserva ? 'RESERVA_PREPARADA' : 'MESA_MESERO',
     reservationId: order.reservationId ?? order.id_reserva,
     status: String(order.estado ?? order.status ?? 'REGISTRADO') as TableOrderStatus,
@@ -138,86 +127,3 @@ function mapBackendOrder(orderParam: TableOrder | BackendOrder, userId: number):
     prepareFrom: order.prepareFrom,
   };
 }
-
-async function tryJson<T>(url: string, init?: RequestInit): Promise<T | null> {
-  try {
-    const response = await fetch(url, init);
-    if (!response.ok) return null;
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  }
-}
-
-export const clientFlowApi = {
-  async listReservations(userId: number) {
-    const data = await tryJson<BackendReservation[]>(`${API_URL}/api/reservas/cliente/${userId}`);
-
-    if (Array.isArray(data)) {
-      return data.map(mapBackendReservation);
-    }
-
-    return listClientReservationsMock(userId);
-  },
-
-  async createReservation(payload: ClientReservationRequest) {
-    const data = await tryJson<BackendReservation>(`${API_URL}/api/reservas`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id_usuario_cliente: payload.userId,
-        id_mesa: payload.table.id,
-        id_usuario_registro: payload.userId,
-        fecha_hora_reserva: `${payload.date}T${payload.time}:00`,
-        cantidad_personas: payload.people,
-        observaciones: payload.observations,
-      }),
-    });
-
-    if (data) return mapBackendReservation(data);
-    return createClientReservationMock(payload);
-  },
-
-  async cancelReservation(userId: number, reservationId: number) {
-    const data = await tryJson<BackendReservation>(`${API_URL}/api/reservas/${reservationId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado: 'CANCELADA' }),
-    });
-
-    if (data) return mapBackendReservation(data);
-    return cancelClientReservationMock(userId, reservationId);
-  },
-
-  async listOrders(userId: number) {
-    const data = await tryJson<BackendOrder[]>(`${API_URL}/api/pedidos/cliente/${userId}`);
-
-    if (Array.isArray(data)) {
-      return data.map((order) => mapBackendOrder(order, userId));
-    }
-
-    return listClientOrdersMock(userId);
-  },
-
-  async createPreparedReservationOrder(payload: ClientPreparedOrderRequest) {
-    const data = await tryJson<BackendOrder>(`${API_URL}/api/pedidos/reserva`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id_usuario_cliente: payload.userId,
-        id_reserva: payload.reservationId,
-        observaciones: payload.notes,
-        detalles: payload.items.map((item) => ({
-          nombre: item.name,
-          cantidad: item.quantity,
-          precio_unitario: item.unitPrice,
-          subtotal: item.subtotal,
-          observaciones: item.notes,
-        })),
-      }),
-    });
-
-    if (data) return mapBackendOrder(data, payload.userId);
-    return createPreparedReservationOrderMock(payload);
-  },
-};

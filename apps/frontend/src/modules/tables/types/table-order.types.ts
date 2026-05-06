@@ -37,11 +37,13 @@ export interface TableOrderItem {
   precioUnitario: number;
   tiempoPreparacion: number;
   subtotal: number;
+  imagen?: string | null;
 }
 
 export interface TableOrder {
   id: number;
   tableId: number;
+  tableNumber?: number;
   tipoPedido: 'MESA';
   estado: TableOrderStatus;
   waiterName: string;
@@ -71,6 +73,7 @@ export interface OrderCatalogProduct {
   tiempoPreparacion: number;
   disponible: boolean;
   ingredientes: OrderProductIngredient[];
+  imagen?: string | null;
 }
 
 export interface AddOrderItemPayload {

@@ -3,7 +3,7 @@ import { useState } from 'react';
 interface ReservationModalProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (mes: string, dia: string, hora: string) => void;
   isLoading?: boolean;
 }
 
@@ -138,7 +138,7 @@ export function ReservationModal({ open, onClose, onConfirm, isLoading }: Reserv
           </button>
           <button
             type="button"
-            onClick={onConfirm}
+            onClick={() => onConfirm(mes, dia, horaInicio)}
             disabled={isLoading}
             className="flex-1 rounded-[12px] border-2 border-[#c25134] bg-[#c25134] py-2.5 text-[14px] font-bold text-white transition-colors hover:bg-[#a6432b] hover:border-[#a6432b] disabled:opacity-50"
           >

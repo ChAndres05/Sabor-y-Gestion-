@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type {
   RestaurantTable,
   TableFormValues,
@@ -6,6 +5,7 @@ import type {
   Zone,
   ZoneFormValues,
 } from '../../modules/tables/types/table.types';
+import { emitRestaurantStateChanged } from '../utils/events';
 
 const ZONES_STORAGE_KEY = 'gestionysabor_waiter_mock_zones';
 const TABLES_STORAGE_KEY = 'gestionysabor_waiter_mock_tables';
@@ -97,6 +97,7 @@ function writeStatusOverlay(overlay: Record<string, TableStatus>) {
 
 function saveStatusOverlay(tableId: number, status: TableStatus) {
   const overlay = readStatusOverlay();
+  // Guardamos el estado manual para que todos los roles usen el mismo override local.
   overlay[String(tableId)] = status;
   writeStatusOverlay(overlay);
 }
@@ -105,12 +106,50 @@ function cloneTable(table: RestaurantTable): RestaurantTable {
   return { ...table };
 }
 
+export function getEffectiveTableStatus(
+  table: RestaurantTable,
+  activeOrders: Array<{ tableId?: number; id_mesa?: number; estado?: string }>,
+  activeReservations: Array<{ tableId?: number; id_mesa?: number; status?: string; estado?: string }>
+): TableStatus {
+  const tableOrders = activeOrders.filter((order) => {
+    const orderTableId = Number(order.tableId ?? order.id_mesa ?? 0);
+    return orderTableId === table.id && order.estado !== 'PAGADO' && order.estado !== 'CANCELADO';
+  });
+
+  if (
+    tableOrders.some((order) =>
+      ['REGISTRADO', 'EN_PREPARACION', 'LISTO', 'ENTREGADO'].includes(String(order.estado))
+    )
+  ) {
+    return 'OCUPADA';
+  }
+
+  const overlay = readStatusOverlay();
+  const overlayStatus = overlay[String(table.id)];
+  if (overlayStatus) return overlayStatus;
+
+  const tableReservations = activeReservations.filter((reservation) => {
+    const reservationTableId = Number(reservation.tableId ?? reservation.id_mesa ?? 0);
+    const reservationStatus = reservation.status ?? reservation.estado;
+    return reservationTableId === table.id && reservationStatus === 'CONFIRMADA';
+  });
+
+  if (tableReservations.length > 0) {
+    return 'RESERVADA';
+  }
+
+  if (table.estado === 'CUENTA_SOLICITADA') return 'CUENTA_SOLICITADA';
+
+  return table.estado;
+}
+
+
 export function applyWaiterTableStatusOverlayMock(
-  backendTables: RestaurantTable[]
+  tablesToApply: RestaurantTable[]
 ): RestaurantTable[] {
   const overlay = readStatusOverlay();
 
-  return backendTables.map((table) => ({
+  return tablesToApply.map((table) => ({
     ...table,
     estado: overlay[String(table.id)] ?? table.estado,
   }));
@@ -154,14 +193,20 @@ export async function listTablesMock(): Promise<RestaurantTable[]> {
     const res = await fetch(`${import.meta.env.VITE_API_URL}/api/mesas`);
     if (res.ok) {
       const data = await res.json();
-      return data.map((t: any) => ({
-        id: t.id_mesa,
-        numero: t.numero,
-        capacidad: t.capacidad,
-        zoneId: t.id_zona,
-        estado: t.estado,
-        activo: t.activa,
-      }));
+      if (Array.isArray(data)) {
+        const backendTables = data.map((t) => ({
+          id: Number(t.id_mesa ?? t.id),
+          numero: Number(t.numero),
+          capacidad: Number(t.capacidad ?? 0),
+          zoneId: Number(t.id_zona ?? t.zoneId ?? 0),
+          estado: (t.estado ?? 'LIBRE') as TableStatus,
+          activo: Boolean(t.activa ?? t.activo ?? true),
+        }));
+
+        return applyWaiterTableStatusOverlayMock(backendTables)
+          .sort((a, b) => a.numero - b.numero)
+          .map(cloneTable);
+      }
     }
   } catch (error) {
     console.error('API fail, using mock data for tables', error);
@@ -172,6 +217,7 @@ export async function listTablesMock(): Promise<RestaurantTable[]> {
     .sort((a, b) => a.numero - b.numero)
     .map(cloneTable);
 }
+
 
 export async function createTableMock(
   payload: TableFormValues
@@ -325,21 +371,24 @@ export async function updateTableStatusMock(
   tableId: number,
   status: TableStatus
 ): Promise<RestaurantTable> {
+  let backendTable: RestaurantTable | null = null;
+
   try {
     const res = await fetch(`${import.meta.env.VITE_API_URL}/api/mesas/${tableId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ estado: status })
     });
+
     if (res.ok) {
       const updated = await res.json();
-      return {
-        id: updated.id_mesa,
-        numero: updated.numero,
-        capacidad: updated.capacidad,
-        zoneId: updated.id_zona,
-        estado: updated.estado,
-        activo: updated.activa,
+      backendTable = {
+        id: Number(updated.id_mesa ?? updated.id ?? tableId),
+        numero: Number(updated.numero ?? tableId),
+        capacidad: Number(updated.capacidad ?? 4),
+        zoneId: Number(updated.id_zona ?? updated.zoneId ?? 0),
+        estado: (updated.estado ?? status) as TableStatus,
+        activo: Boolean(updated.activa ?? updated.activo ?? true),
       };
     }
   } catch (error) {
@@ -349,32 +398,27 @@ export async function updateTableStatusMock(
   await delay();
 
   const foundTable = tables.find((table) => table.id === tableId);
+  const updatedTable: RestaurantTable = backendTable ?? (foundTable
+    ? { ...foundTable, estado: status }
+    : {
+        id: tableId,
+        numero: tableId,
+        capacidad: 4,
+        zoneId: 0,
+        estado: status,
+        activo: true,
+      });
 
-  if (!foundTable) {
-    const fallbackTable: RestaurantTable = {
-      id: tableId,
-      numero: tableId,
-      capacidad: 4,
-      zoneId: 0,
-      estado: status,
-      activo: true,
-    };
-
-    saveStatusOverlay(tableId, status);
-    return fallbackTable;
+  if (foundTable) {
+    tables = tables.map((table) => (table.id === tableId ? updatedTable : table));
+    persistTables();
   }
 
-  const updatedTable: RestaurantTable = {
-    ...foundTable,
-    estado: status,
-  };
-
-  tables = tables.map((table) => (table.id === tableId ? updatedTable : table));
-  persistTables();
   saveStatusOverlay(tableId, status);
-
+  emitRestaurantStateChanged();
   return cloneTable(updatedTable);
 }
+
 
 export async function deleteTableMock(tableId: number): Promise<void> {
   try {
@@ -406,6 +450,10 @@ export async function getTableByIdMock(
   tableId: number
 ): Promise<RestaurantTable> {
   await delay();
+
+  const listedTables = await listTablesMock();
+  const foundFromList = listedTables.find((table) => table.id === tableId);
+  if (foundFromList) return cloneTable(foundFromList);
 
   const overlay = readStatusOverlay();
   const foundTable = tables.find((table) => table.id === tableId);
