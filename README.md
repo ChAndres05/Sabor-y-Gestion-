@@ -136,79 +136,89 @@ pnpm typecheck
 
 ## 8. ESTRUCTURA DE CARPETAS
 
-```
-## 1. RAIZ DEL PROYECTO (Workspace)
+## 8. ESTRUCTURA DE CARPETAS
+
+```text
 Sabor-y-Gestion/
-├── .github/workflows/           # Pipelines de CI/CD (GitHub Actions)
-├── apps/                        # Directorio de aplicaciones
-├── .env.example                 # Plantilla de variables de entorno
-├── .gitignore                   # Archivos ignorados por Git
-├── package.json                 # Scripts globales y dependencias de raíz
-├── pnpm-lock.yaml               # Bloqueo de versiones de pnpm
-├── pnpm-workspace.yaml          # Configuración de espacios de trabajo
-├── README.md                    # Documentación general
-└── turbo.json                   # Configuración de Turborepo
-
-## 2. BACKEND (API & Servidor)
-Ubicación: apps/backend/
-Tecnología: Next.js + Prisma
-
-Sabor-y-Gestion/apps/backend/
-├── app/api/                     # Endpoints (App Router)
-│   ├── admin/                   # Rutas administrativas
-│   │   ├── mesas/               # CRUD de mesas
-│   │   ├── usuarios/            # Gestión de staff
-│   │   └── zonas/               # Gestión de áreas
-│   ├── auth/                    # Lógica de autenticación
-│   │   ├── login/               # Inicio de sesión
-│   │   ├── register/            # Registro
-│   │   ├── forgot-password/     # Recuperación
-│   │   ├── reset-password/      # Cambio de clave
-│   │   └── verify-code/         # Verificación
-│   ├── busqueda/                # Búsqueda global
-│   ├── categorias/              # CRUD de categorías del menú
-│   ├── health/db/               # Verificación de BD
-│   └── zonas/                   # Detalle de zonas
-├── lib/                         # Librerías (prisma.ts)
-├── prisma/                      # Capa de datos
-│   └── schema.prisma            # Modelo de BD
-├── public/                      # Archivos estáticos
-├── next.config.ts               # Configuración Next
-├── package.json                 # Dependencias backend
-└── tsconfig.json                # Configuración TS
-
-## 3. FRONTEND (Interfaz de Usuario)
-Ubicación: apps/frontend/
-Tecnología: React + Vite + Tailwind
-
-Sabor-y-Gestion/apps/frontend/
-├── public/                      # Assets estáticos
-├── src/
-│   ├── assets/                  # Imágenes y recursos
-│   ├── modules/                 # Lógica por dominio y rol
-│   │   ├── admin/               # Panel admin
-│   │   ├── auth/                # Login, Register, Forgot Password
-│   │   ├── cajero/              # Interfaz de caja
-│   │   ├── cliente/             # Vista cliente/pedido
-│   │   ├── cocina/              # Vista preparación
-│   │   ├── menu/                # Gestión de carta
-│   │   ├── mesero/              # Toma de pedidos
-│   │   ├── profile/             # Perfil
-│   │   ├── tables/              # Salón y mesas
-│   │   └── users/               # Gestión staff
-│   ├── shared/                  # Core reutilizable
-│   │   ├── components/          # Botones, Modales, Inputs base
-│   │   ├── constants/           # Roles y Rutas
-│   │   ├── mocks/               # Datos simulados
-│   │   └── utils/               # Helpers y redirecciones
-│   ├── store/                   # Estado global
-│   ├── styles/                  # Estilos (globals.css)
-│   ├── App.tsx                  # Router
-│   └── main.tsx                 # Entrada React
-├── index.html                   # Entry point HTML
-├── package.json                 # Dependencias frontend
-├── tailwind.config.js           # Estilos Tailwind
-└── vite.config.ts               # Configuración Vite
+├── .github/
+│   └── workflows/               # Pipelines de CI/CD (GitHub Actions)
+├── apps/                        # Directorio de aplicaciones (Workspaces)
+│   │
+│   ├── backend/                 # API & Servidor (Next.js + Prisma)
+│   │   ├── app/                 # App Router de Next.js
+│   │   │   ├── api/             # Endpoints de la API
+│   │   │   │   ├── admin/       # Gestión de mesas, usuarios y zonas
+│   │   │   │   ├── busqueda/    # Endpoint de búsqueda global
+│   │   │   │   ├── categorias/  # CRUD y servicios de categorías
+│   │   │   │   ├── clientes/    # Búsqueda por CI y su historial
+│   │   │   │   ├── cocina/      # Monitor, armado y detalle de pedidos
+│   │   │   │   ├── forgot-password/
+│   │   │   │   ├── health/      # Healthcheck de Base de Datos
+│   │   │   │   ├── login/       # Autenticación
+│   │   │   │   ├── menu/        # Obtención de la carta
+│   │   │   │   ├── mesas/       # Obtención y estados individuales
+│   │   │   │   ├── pedidos/     # Activos, estado, historial y detalles por mesa
+│   │   │   │   ├── productos/   # CRUD y servicios de productos
+│   │   │   │   ├── register/    # Registro de usuarios
+│   │   │   │   ├── reset-password/
+│   │   │   │   ├── verify-code/ # Verificación de códigos de seguridad
+│   │   │   │   └── zonas/       # Gestión de zonas del restaurante
+│   │   │   ├── favicon.ico
+│   │   │   ├── globals.css
+│   │   │   ├── layout.tsx       # Layout base de Next
+│   │   │   └── page.tsx         # Página de inicio del backend
+│   │   ├── lib/                 # Instancias globales (prisma.ts, pusher.ts)
+│   │   ├── prisma/              # Capa de datos (schema.prisma)
+│   │   ├── public/              # Archivos estáticos del servidor (SVGs)
+│   │   ├── AGENTS.md            # Reglas y contexto para IAs (ej. Cursor)
+│   │   ├── CLAUDE.md            # Instrucciones de desarrollo
+│   │   ├── fix-presentaciones.ts# Script de corrección de datos
+│   │   ├── next.config.ts       # Configuración del framework
+│   │   ├── package.json         # Dependencias del backend
+│   │   ├── prisma.config.ts     # Configuración de Prisma
+│   │   └── tsconfig.json        # Configuración de TypeScript
+│   │
+│   └── frontend/                # Interfaz de Usuario (React + Vite + Tailwind)
+│       ├── public/              # Recursos públicos (favicon.svg, icons.svg)
+│       ├── src/                 # Código fuente
+│       │   ├── assets/          # Imágenes estáticas (hero.png, react.svg)
+│       │   ├── components/      
+│       │   │   └── client/      # Componentes aislados (ClientLayout, Card)
+│       │   ├── modules/         # Lógica de negocio dividida por dominio/rol
+│       │   │   ├── admin/       # Vistas de menú y reservaciones
+│       │   │   ├── auth/        # (api, types, formularios y vistas)
+│       │   │   ├── cajero/      # Vista central de caja
+│       │   │   ├── cliente/     # Vistas públicas: menú, detalle, pedidos activos
+│       │   │   ├── cocina/      # (api, monitor de preparación en tiempo real)
+│       │   │   ├── menu/        # (components, types, api, gestión de carta)
+│       │   │   ├── mesero/      # Vistas para toma de pedidos y flujo de atención
+│       │   │   ├── tables/      # (components, types, gestión visual de mesas)
+│       │   │   └── users/       # (api, types, mappers, administración de personal)
+│       │   ├── shared/          # Recursos transversales y reutilizables
+│       │   │   ├── api/         # Clientes Axios (client-flow, orders)
+│       │   │   ├── components/  # UI genérica (AuthLayout, BaseButton, Modals, Inputs)
+│       │   │   ├── constants/   # Definiciones inmutables (roles.ts, routes.ts)
+│       │   │   ├── mappers/     # Funciones de transformación de datos (DTOs)
+│       │   │   ├── mocks/       # Datos simulados para desarrollo sin backend
+│       │   │   ├── types/       # Interfaces y tipos TypeScript globales
+│       │   │   └── utils/       # Helpers globales (eventos, pusher, redirecciones)
+│       │   ├── styles/          # Estilos Tailwind y clases personalizadas (globals.css)
+│       │   ├── App.tsx          # Router principal de React
+│       │   ├── index.css
+│       │   └── main.tsx         # Entry point de la aplicación React
+│       ├── index.html           # Archivo HTML raíz
+│       ├── package.json         # Dependencias del frontend
+│       ├── tailwind.config.js   # Configuración visual de Tailwind CSS
+│       ├── tsconfig.json        # Configuración principal de TypeScript
+│       └── vite.config.ts       # Configuración del bundler Vite
+│
+├── .env.example                 # Plantilla base de variables de entorno
+├── .gitignore                   # Archivos ignorados en control de versiones
+├── package.json                 # Scripts de control globales (dev, build, lint)
+├── pnpm-lock.yaml               # Bloqueo estricto de dependencias
+├── pnpm-workspace.yaml          # Configuración de las aplicaciones del monorepo
+├── README.md                    # Documentación principal del repositorio
+└── turbo.json                   # Configuración del pipeline de tareas de Turborepo
 ```
 
 ---
