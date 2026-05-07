@@ -90,9 +90,66 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         const resolvedParams = await params;
         const mesaId = parseInt(resolvedParams.id);
 
-        const mesaBorrada = await prisma.mesas.delete({
+        const mesaActual = await prisma.mesas.findUnique({
             where: { id_mesa: mesaId },
+            select: { estado: true },
         });
+
+        if (!mesaActual) {
+            return NextResponse.json({ error: "La mesa especificada no existe." }, { status: 404 });
+        }
+
+        const pedidoActivo = await prisma.pedidos.findFirst({
+            where: {
+                id_mesa: mesaId,
+                estado: {
+                    notIn: ['PAGADO', 'CANCELADO'],
+                },
+            },
+            select: { id_pedido: true },
+        });
+
+        if (pedidoActivo) {
+            return NextResponse.json(
+                { error: "No se puede eliminar la mesa porque tiene pedidos activos." },
+                { status: 400 }
+            );
+        }
+
+        const reservaActiva = await prisma.reservas.findFirst({
+            where: {
+                id_mesa: mesaId,
+                estado: 'CONFIRMADA',
+            },
+            select: { id_reserva: true },
+        });
+
+        if (reservaActiva) {
+            return NextResponse.json(
+                { error: "No se puede eliminar la mesa porque tiene reservas activas." },
+                { status: 400 }
+            );
+        }
+
+        if (mesaActual.estado !== 'LIBRE') {
+            return NextResponse.json(
+                { error: `No se puede eliminar la mesa mientras esté ${mesaActual.estado}.` },
+                { status: 400 }
+            );
+        }
+
+        let mesaBorrada;
+
+        try {
+            mesaBorrada = await prisma.mesas.delete({
+                where: { id_mesa: mesaId },
+            });
+        } catch {
+            mesaBorrada = await prisma.mesas.update({
+                where: { id_mesa: mesaId },
+                data: { activa: false },
+            });
+        }
 
         await pusherServer.trigger('tables-channel', 'table-updated', { ...mesaBorrada, activa: false });
 
