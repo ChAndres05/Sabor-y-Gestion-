@@ -348,7 +348,10 @@ export default function MenuManagementPage({
         }
 
         setOpenActionMenuId(null);
-        await loadCategories(searchTerm, statusFilter);
+        await Promise.all([
+          loadCategories(searchTerm, statusFilter),
+          loadProducts(),
+        ]);
       }
 
       if (confirmState.entity === 'product') {

@@ -60,10 +60,31 @@ export async function PATCH(
 
         if (body.activo !== undefined) dataToUpdate.activo = body.activo;
 
-        const actualizada = await prisma.categorias.update({
-            where: { id_categoria: id },
-            data: dataToUpdate,
-        });
+        const shouldDeactivateProducts = body.activo === false;
+        const shouldActivateProducts = body.activo === true;
+
+        const [actualizada] = await prisma.$transaction([
+            prisma.categorias.update({
+                where: { id_categoria: id },
+                data: dataToUpdate,
+            }),
+            ...(shouldDeactivateProducts
+                ? [
+                    prisma.productos.updateMany({
+                        where: { id_categoria: id },
+                        data: { activo: false, disponible: false },
+                    }),
+                ]
+                : []),
+            ...(shouldActivateProducts
+                ? [
+                    prisma.productos.updateMany({
+                        where: { id_categoria: id },
+                        data: { activo: true, disponible: true },
+                    }),
+                ]
+                : []),
+        ]);
 
         return NextResponse.json(actualizada);
     } catch {
