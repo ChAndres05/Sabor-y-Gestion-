@@ -5,7 +5,6 @@ import type {
   AddOrderItemPayload,
 } from '../../modules/tables/types/table-order.types';
 import type { ClientOrder } from '../types/client-flow.types';
-import { mapBackendOrder } from '../mappers/client-flow.mapper';
 import { mapBackendOrderToWaiterFrontend } from '../mappers/order.mapper';
 import type { KitchenOrder } from '../types/kitchen.types';
 import {
@@ -60,7 +59,6 @@ function writeSimulatedStatus(orderId: number, status: TableOrderStatus) {
   if (typeof window === 'undefined' || orderId <= 0) return;
 
   const statuses = readSimulatedStatuses();
-
   statuses[orderId] = status;
   window.localStorage.setItem(SIMULATED_STATUSES_STORAGE_KEY, JSON.stringify(statuses));
 }
@@ -68,9 +66,7 @@ function writeSimulatedStatus(orderId: number, status: TableOrderStatus) {
 async function tryJson<T>(url: string, init?: RequestInit): Promise<T | null> {
   try {
     const response = await fetch(url, init);
-
     if (!response.ok) return null;
-
     return (await response.json()) as T;
   } catch {
     return null;
@@ -89,10 +85,8 @@ function mergeOrdersByIdOrSource(backend: TableOrder[], mock: TableOrder[]): Tab
 function getTargetOrder(orders: TableOrder[], orderId?: number): TableOrder | null {
   if (typeof orderId === 'number') {
     const selectedOrder = orders.find((order) => order.id === orderId);
-
     if (selectedOrder) return selectedOrder;
   }
-
   return orders.find((order) => order.estado === 'REGISTRADO') ?? orders[0] ?? null;
 }
 
@@ -166,12 +160,48 @@ export const ordersApi = {
 
   /**
    * Lista pedidos asociados a un cliente específico.
+   * Trae todo: Activos e Historial para que el Frontend lo clasifique.
    */
   async listOrdersByClient(userId: number): Promise<ClientOrder[]> {
-    const data = await tryJson<BackendOrderRecord[]>(`${API_URL}/api/pedidos/cliente/${userId}`);
+    const data = await tryJson<BackendOrderRecord[]>(`${API_URL}/api/clientes/pedidos/historial?id_usuario=${userId}`);
 
     if (Array.isArray(data)) {
-      return data.map((order) => mapBackendOrder(order, userId));
+      return data.map((order) => {
+        const isRawPrisma = !!order.detalles_pedido;
+        const mesa = order.mesa as Record<string, unknown> | undefined;
+        const tableNum = isRawPrisma ? mesa?.numero : order.numero_mesa;
+        const sourceVal = (isRawPrisma && mesa) || order.origen === 'MESA' ? 'MESA_MESERO' : 'RESERVA';
+
+        const rawItems = isRawPrisma ? order.detalles_pedido : order.productos;
+        const itemsList = Array.isArray(rawItems) ? rawItems : [];
+
+        const items = itemsList.map((prod: BackendOrderRecord) => {
+          const presentacion = prod.presentacion_producto as Record<string, unknown> | undefined;
+          const producto = presentacion?.producto as Record<string, unknown> | undefined;
+
+          return {
+            id: Number(prod.id_detalle || prod.id_detalle_pedido || 0),
+            quantity: Number(prod.cantidad || 0),
+            name: String(prod.nombre || producto?.nombre || 'Producto sin nombre'),
+            notes: prod.observaciones ? String(prod.observaciones) : undefined,
+            subtotal: Number(prod.subtotal || 0)
+          };
+        });
+
+        const mappedOrder = {
+          id: Number(order.id_pedido || 0),
+          orderNumber: String(order.numero_pedido || order.id_pedido || '').padStart(4, '0'),
+          source: sourceVal,
+          tableNumber: tableNum ? String(tableNum) : undefined,
+          status: order.estado,
+          estimatedMinutes: Number(order.tiempo_estimado_minutos || 0),
+          total: Number(order.total || 0),
+          createdAt: String(order.fecha_hora_pedido || ''),
+          items: items
+        };
+
+        return mappedOrder as unknown as ClientOrder;
+      });
     }
 
     return listClientOrdersMock(userId);
@@ -194,8 +224,8 @@ export const ordersApi = {
     const simulatedStatuses = readSimulatedStatuses();
     const backendOrders: TableOrder[] = backendData
       ? (Array.isArray(backendData) ? backendData : [backendData]).map((order) =>
-          mapBackendOrderToWaiterFrontend(order, simulatedStatuses)
-        )
+        mapBackendOrderToWaiterFrontend(order, simulatedStatuses)
+      )
       : [];
 
     const mockOrders = await getOpenOrdersByTableMock(tableId);
@@ -240,9 +270,7 @@ export const ordersApi = {
 
     if (data) {
       emitRestaurantStateChanged();
-
       const fullOrder = await this.getActiveOrder(tableId);
-
       if (fullOrder) return fullOrder;
     }
 
