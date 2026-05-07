@@ -131,6 +131,7 @@ export default function MenuManagementPage({
         imagen: p.imagen_url || p.imagen || null,
         activo: p.activo ?? true,
         disponible: p.disponible ?? true,
+        ingredientes: [],
       }));
       setProducts(mappedProducts);
     } catch (error) {

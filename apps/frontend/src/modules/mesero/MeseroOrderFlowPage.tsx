@@ -8,6 +8,7 @@ import type { BackendProduct } from '../../shared/mappers/menu.mapper';
 import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
 import { getTableByIdMock, updateTableStatusMock } from '../../shared/mocks/tables.mock';
 import { getMockIngredientsForProduct } from '../../shared/mocks/menu-ingredients.mock';
+import { pusherClient } from '../../shared/utils/pusher';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { RestaurantTable } from '../tables/types/table.types';
 import type {
@@ -32,6 +33,14 @@ type IngredientSelection = {
   nombre: string;
   incluido: boolean;
   incluidoPorDefecto: boolean;
+};
+
+type PusherTableOrderUpdatedEvent = {
+  id_mesa?: number | string;
+  tableId?: number | string;
+  id_pedido?: number | string;
+  orderId?: number | string;
+  estado?: string;
 };
 
 interface MeseroOrderFlowPageProps {
@@ -179,10 +188,7 @@ export default function MeseroOrderFlowPage({
   );
 
   const isBillRequested = table?.estado === 'CUENTA_SOLICITADA';
-  const canEditItems =
-    Boolean(order) &&
-    !isBillRequested &&
-    order?.estado === 'REGISTRADO';
+  const canEditItems = Boolean(order) && !isBillRequested && order?.estado === 'REGISTRADO';
   const canSaveCustomer = table?.estado !== 'FUERA_DE_SERVICIO' && !isBillRequested;
   const hasItems = (order?.items?.length ?? 0) > 0;
   const removedFromCurrentSelection = ingredientSelections.filter(
@@ -253,6 +259,27 @@ export default function MeseroOrderFlowPage({
   const refreshPageState = async (preferredOrderId?: number) => {
     await Promise.all([refreshOrders(preferredOrderId), refreshTable()]);
   };
+
+  useEffect(() => {
+    const channel = pusherClient.subscribe('tables-channel');
+
+    const handleTableOrderUpdated = (updatedOrder: PusherTableOrderUpdatedEvent) => {
+      const updatedTableId = Number(updatedOrder.id_mesa ?? updatedOrder.tableId);
+
+      if (updatedTableId === tableId) {
+        const preferredOrderId = Number(updatedOrder.id_pedido ?? updatedOrder.orderId);
+        void refreshPageState(Number.isFinite(preferredOrderId) ? preferredOrderId : undefined);
+      }
+    };
+
+    channel.bind('table-order-updated', handleTableOrderUpdated);
+
+    return () => {
+      channel.unbind('table-order-updated', handleTableOrderUpdated);
+      pusherClient.unsubscribe('tables-channel');
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableId]);
 
   useEffect(() => {
     const loadPage = async () => {
@@ -332,22 +359,24 @@ export default function MeseroOrderFlowPage({
 
       try {
         const productsDataRaw = await menuApi.getProductos();
-const mappedProducts: OrderCatalogProduct[] = (productsDataRaw as BackendProduct[])
-  .map(mapProductFromBackend)
-  .filter((product) => product.categoryId === selectedCategoryId && product.disponible)
-  .map((product) => ({
-    id: product.id,
-    categoryId: product.categoryId,
-    nombre: product.nombre,
-    descripcion: product.descripcion,
-    precio: product.precio,
-    tiempoPreparacion: product.tiempoPreparacion,
-    disponible: product.disponible,
-    ingredientes: product.ingredientes,
-    imagen: product.imagen ?? null,
-  }));
 
-setProducts(mappedProducts);
+        const mappedProducts: OrderCatalogProduct[] = (productsDataRaw as BackendProduct[])
+          .map(mapProductFromBackend)
+          .filter((product) => product.categoryId === selectedCategoryId && product.disponible)
+          .map((product) => ({
+            id: product.id,
+            presentacionId: product.presentacionId,
+            categoryId: product.categoryId,
+            nombre: product.nombre,
+            descripcion: product.descripcion,
+            precio: product.precio,
+            tiempoPreparacion: product.tiempoPreparacion,
+            disponible: product.disponible,
+            ingredientes: product.ingredientes,
+            imagen: product.imagen ?? null,
+          }));
+
+        setProducts(mappedProducts);
         setSelectedProductId((currentProductId) =>
           mappedProducts.some((product) => product.id === currentProductId)
             ? currentProductId
@@ -396,7 +425,7 @@ setProducts(mappedProducts);
       setFeedback({
         type: 'info',
         title: 'Ingresa un CI',
-        message: 'Escribe el CI del cliente para buscarlo en los datos mockeados.',
+        message: 'Escribe el CI del cliente para buscarlo.',
       });
       return;
     }
@@ -450,15 +479,19 @@ setProducts(mappedProducts);
     setIsSavingCustomer(true);
 
     try {
-      await ordersApi.saveOrderCustomer(tableId, {
-        nombre: customerName,
-        telefono: customerPhone,
-        ci: customerCi,
-        idUsuario: customerFound ? selectedCustomerId : null,
-      }, user.id);
+      const savedOrder = await ordersApi.saveOrderCustomer(
+        tableId,
+        {
+          nombre: customerName,
+          telefono: customerPhone,
+          ci: customerCi,
+          idUsuario: customerFound ? selectedCustomerId : null,
+        },
+        user.id
+      );
 
       await updateTableStatusMock(tableId, 'OCUPADA');
-      await refreshPageState();
+      await refreshPageState(savedOrder.id);
       setActiveStep('menu');
 
       setFeedback({
@@ -490,6 +523,9 @@ setProducts(mappedProducts);
         categoriaId: selectedCategoryId,
         ...(selectedCategory?.nombre ? { categoriaNombre: selectedCategory.nombre } : {}),
         productoId: selectedProductId,
+        ...(selectedProduct?.presentacionId
+          ? { presentacionId: selectedProduct.presentacionId }
+          : {}),
         ...(selectedProduct?.nombre ? { productoNombre: selectedProduct.nombre } : {}),
         cantidad: Number(quantity),
         observacion: observation,
@@ -708,9 +744,7 @@ setProducts(mappedProducts);
 
         <header className="mb-4">
           <h1 className="text-title font-bold text-text">Gestionar pedido</h1>
-          <p className="mt-1 text-[13px] leading-5 text-gray-500">
-            {headerDescription}
-          </p>
+          <p className="mt-1 text-[13px] leading-5 text-gray-500">{headerDescription}</p>
         </header>
 
         {isLoading ? (
@@ -807,7 +841,7 @@ setProducts(mappedProducts);
 
                   <div className="rounded-2xl bg-background px-4 py-3 text-[12px] font-medium text-gray-500">
                     {customerFound
-                      ? 'Cliente encontrado en datos mock. Luego backend puede reemplazar esta búsqueda por usuarios.usuario_ci.'
+                      ? 'Cliente encontrado correctamente.'
                       : 'Sin cliente registrado seleccionado. Se enviará como pedido de mesa con cliente opcional.'}
                   </div>
 
@@ -878,7 +912,10 @@ setProducts(mappedProducts);
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                       {products.map((product) => (
-                        <article key={product.id} className="rounded-2xl bg-white p-4 shadow-sm flex flex-col justify-between">
+                        <article
+                          key={product.id}
+                          className="rounded-2xl bg-white p-4 shadow-sm flex flex-col justify-between"
+                        >
                           <div className="grid grid-cols-[48px_1fr_auto] gap-3">
                             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-background text-[22px] overflow-hidden">
                               {typeof product.imagen === 'string' &&
@@ -886,16 +923,23 @@ setProducts(mappedProducts);
                               (product.imagen.startsWith('http') ||
                                 product.imagen.startsWith('/') ||
                                 product.imagen.includes('.')) ? (
-                                <img src={product.imagen} alt={product.nombre} className="h-full w-full object-cover" />
+                                <img
+                                  src={product.imagen}
+                                  alt={product.nombre}
+                                  className="h-full w-full object-cover"
+                                />
                               ) : (
                                 getItemIcon(product.categoryId)
                               )}
                             </div>
                             <div>
                               <h3 className="text-[15px] font-bold text-text">{product.nombre}</h3>
-                              <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-gray-500">{product.descripcion}</p>
+                              <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-gray-500">
+                                {product.descripcion}
+                              </p>
                               <p className="mt-1 text-[12px] font-bold text-primary">
-                                {formatCurrency(product.precio)} <span aria-hidden="true">&middot;</span> {product.tiempoPreparacion} min
+                                {formatCurrency(product.precio)} <span aria-hidden="true">&middot;</span>{' '}
+                                {product.tiempoPreparacion} min
                               </p>
                             </div>
                             <button
@@ -922,7 +966,8 @@ setProducts(mappedProducts);
                     <div>
                       <h2 className="text-[20px] font-bold text-text">Pedidos activos</h2>
                       <p className="mt-1 text-[13px] leading-5 text-gray-500">
-                        Mesa {table?.numero ?? tableId} <span aria-hidden="true">&middot;</span> {activeOrders.length} pedido(s)
+                        Mesa {table?.numero ?? tableId} <span aria-hidden="true">&middot;</span>{' '}
+                        {activeOrders.length} pedido(s)
                       </p>
                     </div>
                     {order && activeOrders.length === 1 && (
@@ -949,15 +994,16 @@ setProducts(mappedProducts);
                       </button>
                     ))}
 
-                    {activeOrders.length > 0 && !activeOrders.some((activeOrder) => activeOrder.estado === 'REGISTRADO') && (
-                      <button
-                        type="button"
-                        onClick={() => void handleNewOrder()}
-                        className="rounded-xl bg-success px-3 py-2 text-[11px] font-bold text-white shadow-sm hover:bg-success/90"
-                      >
-                        + Nuevo pedido
-                      </button>
-                    )}
+                    {activeOrders.length > 0 &&
+                      !activeOrders.some((activeOrder) => activeOrder.estado === 'REGISTRADO') && (
+                        <button
+                          type="button"
+                          onClick={() => void handleNewOrder()}
+                          className="rounded-xl bg-success px-3 py-2 text-[11px] font-bold text-white shadow-sm hover:bg-success/90"
+                        >
+                          + Nuevo pedido
+                        </button>
+                      )}
                   </div>
 
                   {order && (
@@ -992,7 +1038,7 @@ setProducts(mappedProducts);
                       Abrir pedido
                     </button>
                   </div>
-                ) : (order?.items?.length ?? 0) === 0 ? (
+                ) : (order.items?.length ?? 0) === 0 ? (
                   <div className="rounded-[1.5rem] bg-white p-6 text-center shadow-sm">
                     <p className="font-bold text-text">Aún no agregaste productos</p>
                     <button
@@ -1020,7 +1066,7 @@ setProducts(mappedProducts);
                     )}
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      {(order?.items ?? []).map((item) => {
+                      {order.items.map((item) => {
                         const removedIngredients = getRemovedIngredients(item);
 
                         return (
@@ -1028,7 +1074,11 @@ setProducts(mappedProducts);
                             <div className="grid grid-cols-[42px_1fr_auto] gap-3">
                               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-background text-[20px] overflow-hidden">
                                 {typeof item.imagen === 'string' && item.imagen.trim() ? (
-                                  <img src={item.imagen} alt={item.nombreProducto} className="h-full w-full object-cover" />
+                                  <img
+                                    src={item.imagen}
+                                    alt={item.nombreProducto}
+                                    className="h-full w-full object-cover"
+                                  />
                                 ) : (
                                   getItemIcon(item.categoriaId)
                                 )}
@@ -1036,15 +1086,21 @@ setProducts(mappedProducts);
                               <div>
                                 <h3 className="text-[15px] font-bold text-text">{item.nombreProducto}</h3>
                                 <p className="mt-1 text-[12px] text-gray-500">
-                                  {item.cantidad}x <span aria-hidden="true">&middot;</span> {formatCurrency(item.precioUnitario)} c/u
+                                  {item.cantidad}x <span aria-hidden="true">&middot;</span>{' '}
+                                  {formatCurrency(item.precioUnitario)} c/u
                                 </p>
                                 {removedIngredients.map((ingredient) => (
-                                  <p key={`${item.id}-${ingredient.nombre}`} className="text-[12px] font-semibold text-alert">
+                                  <p
+                                    key={`${item.id}-${ingredient.nombre}`}
+                                    className="text-[12px] font-semibold text-alert"
+                                  >
                                     Sin {ingredient.nombre.toLowerCase()}
                                   </p>
                                 ))}
                                 {item.observacion && (
-                                  <p className="text-[12px] font-semibold text-primary">Nota: {item.observacion}</p>
+                                  <p className="text-[12px] font-semibold text-primary">
+                                    Nota: {item.observacion}
+                                  </p>
                                 )}
                               </div>
                               <div className="flex gap-1">
@@ -1072,7 +1128,9 @@ setProducts(mappedProducts);
                             </div>
                             <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
                               <span className="text-[12px] font-semibold text-gray-500">Subtotal</span>
-                              <span className="text-[16px] font-bold text-primary">{formatCurrency(item.subtotal)}</span>
+                              <span className="text-[16px] font-bold text-primary">
+                                {formatCurrency(item.subtotal)}
+                              </span>
                             </div>
                           </article>
                         );
@@ -1085,7 +1143,8 @@ setProducts(mappedProducts);
                         <span className="text-[22px] font-bold text-primary">{formatCurrency(order.total)}</span>
                       </div>
                       <p className="mt-1 text-[12px] font-medium text-gray-500">
-                        Tiempo estimado: {order.tiempoEstimadoMinutos} min <span aria-hidden="true">&middot;</span> Items: {order.items.length}
+                        Tiempo estimado: {order.tiempoEstimadoMinutos} min{' '}
+                        <span aria-hidden="true">&middot;</span> Items: {order.items.length}
                       </p>
                     </div>
 
@@ -1265,7 +1324,10 @@ setProducts(mappedProducts);
                     <p className="px-3 py-3 text-[12px] text-gray-500">Sin ingredientes configurados.</p>
                   ) : (
                     ingredientSelections.map((ingredient) => (
-                      <div key={`${ingredient.id}-${ingredient.nombre}`} className="flex items-center justify-between gap-3 border-b border-gray-200 px-3 py-3 last:border-b-0">
+                      <div
+                        key={`${ingredient.id}-${ingredient.nombre}`}
+                        className="flex items-center justify-between gap-3 border-b border-gray-200 px-3 py-3 last:border-b-0"
+                      >
                         <span className={`text-[13px] font-bold ${ingredient.incluido ? 'text-text' : 'text-gray-400 line-through'}`}>
                           {ingredient.nombre}
                         </span>
@@ -1283,7 +1345,10 @@ setProducts(mappedProducts);
 
                 {removedFromCurrentSelection.length > 0 && (
                   <p className="mt-2 text-[12px] font-bold text-alert">
-                    Cocina verá: {removedFromCurrentSelection.map((ingredient) => `sin ${ingredient.nombre.toLowerCase()}`).join(', ')}
+                    Cocina verá:{' '}
+                    {removedFromCurrentSelection
+                      .map((ingredient) => `sin ${ingredient.nombre.toLowerCase()}`)
+                      .join(', ')}
                   </p>
                 )}
               </div>

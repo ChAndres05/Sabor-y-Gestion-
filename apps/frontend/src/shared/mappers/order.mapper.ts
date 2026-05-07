@@ -24,8 +24,7 @@ function numberValue(value: unknown, fallback = 0): number {
 }
 
 export function mapBackendOrderToWaiterFrontend(
-  rawBackendOrder: unknown,
-  simulatedStatuses: Record<number, TableOrderStatus> = {}
+  rawBackendOrder: unknown
 ): TableOrder {
   const backendOrder = asRecord(rawBackendOrder);
   const customer = asRecord(backendOrder.usuarios_pedidos_id_usuario_clienteTousuarios);
@@ -45,7 +44,7 @@ export function mapBackendOrderToWaiterFrontend(
     tableId: numberValue(backendOrder.id_mesa ?? backendOrder.tableId, 0),
     tableNumber: numberValue(table.numero ?? backendOrder.numero_mesa ?? backendOrder.tableNumber, 0),
     tipoPedido: 'MESA',
-    estado: simulatedStatuses[orderId] || (originalStatus as TableOrderStatus),
+    estado: (originalStatus as TableOrderStatus),
     waiterName: waiter.nombre
       ? `${stringValue(waiter.nombre)} ${stringValue(waiter.apellido)}`.trim()
       : 'Mesero',

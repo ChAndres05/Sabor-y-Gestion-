@@ -66,6 +66,7 @@ export interface OrderCatalogCategory {
 
 export interface OrderCatalogProduct {
   id: number;
+  presentacionId?: number;
   categoryId: number;
   nombre: string;
   descripcion: string;
@@ -80,6 +81,7 @@ export interface AddOrderItemPayload {
   categoriaId: number;
   categoriaNombre?: string;
   productoId: number;
+  presentacionId?: number;
   productoNombre?: string;
   cantidad: number;
   observacion: string;

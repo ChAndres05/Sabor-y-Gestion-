@@ -7,17 +7,6 @@ import type {
 import type { ClientOrder } from '../types/client-flow.types';
 import { mapBackendOrderToWaiterFrontend } from '../mappers/order.mapper';
 import type { KitchenOrder } from '../types/kitchen.types';
-import {
-  getOpenOrdersByTableMock,
-  listWaiterOrdersMock,
-  saveOrderCustomerMock,
-  createExtraOrderMock,
-  addOrderItemToTableMock,
-  removeOrderItemFromTableMock,
-  updateOrderStatusForTableMock,
-  updateOrderItemInTableMock,
-  searchOrderCustomerByCiMock,
-} from '../mocks/table-orders.mock';
 import { listClientOrdersMock } from '../mocks/client-flow.mock';
 import { emitRestaurantStateChanged } from '../utils/events';
 
@@ -42,51 +31,140 @@ type BackendCustomerSearchRecord = {
   documento?: string | number | null;
 };
 
-const SIMULATED_STATUSES_STORAGE_KEY = 'gestionysabor_simulated_statuses';
-
-function readSimulatedStatuses(): Record<number, TableOrderStatus> {
-  if (typeof window === 'undefined') return {};
-
-  try {
-    const value = window.localStorage.getItem(SIMULATED_STATUSES_STORAGE_KEY);
-    return value ? (JSON.parse(value) as Record<number, TableOrderStatus>) : {};
-  } catch {
-    return {};
-  }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function writeSimulatedStatus(orderId: number, status: TableOrderStatus) {
-  if (typeof window === 'undefined' || orderId <= 0) return;
+function stringFromRecord(
+  record: Record<string, unknown>,
+  keys: string[],
+  fallback: string
+): string {
+  for (const key of keys) {
+    const value = record[key];
 
-  const statuses = readSimulatedStatuses();
-  statuses[orderId] = status;
-  window.localStorage.setItem(SIMULATED_STATUSES_STORAGE_KEY, JSON.stringify(statuses));
+    if (typeof value === 'string' && value.trim()) {
+      return value;
+    }
+  }
+
+  return fallback;
+}
+
+async function readApiErrorMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const clonedResponse = response.clone();
+    const data = (await clonedResponse.json()) as unknown;
+
+    if (isRecord(data)) {
+      return stringFromRecord(data, ['message', 'error', 'mensaje'], fallback);
+    }
+  } catch {
+    try {
+      const text = await response.text();
+
+      if (text.trim()) return text;
+    } catch {
+      return fallback;
+    }
+  }
+
+  return fallback;
 }
 
 async function tryJson<T>(url: string, init?: RequestInit): Promise<T | null> {
   try {
     const response = await fetch(url, init);
+
     if (!response.ok) return null;
-    return (await response.json()) as T;
+
+    const text = await response.text();
+
+    if (!text.trim()) return null;
+
+    return JSON.parse(text) as T;
   } catch {
     return null;
   }
 }
 
-function mergeOrdersByIdOrSource(backend: TableOrder[], mock: TableOrder[]): TableOrder[] {
-  const mergedMap = new Map<number, TableOrder>();
+async function requestJson<T>(
+  url: string,
+  init: RequestInit,
+  fallbackErrorMessage: string
+): Promise<T | null> {
+  const response = await fetch(url, init);
 
-  backend.forEach((order) => mergedMap.set(order.id, order));
-  mock.forEach((order) => mergedMap.set(order.id, order));
+  if (!response.ok) {
+    throw new Error(await readApiErrorMessage(response, fallbackErrorMessage));
+  }
 
-  return Array.from(mergedMap.values());
+  const text = await response.text();
+
+  if (!text.trim()) return null;
+
+  return JSON.parse(text) as T;
+}
+
+async function requestOk(
+  url: string,
+  init: RequestInit,
+  fallbackErrorMessage: string
+): Promise<void> {
+  const response = await fetch(url, init);
+
+  if (!response.ok) {
+    throw new Error(await readApiErrorMessage(response, fallbackErrorMessage));
+  }
+}
+
+function getBackendStatusCandidates(status: TableOrderStatus): string[] {
+  if (status === 'EN_PREPARACION') {
+    return ['COCINA', 'EN_PREPARACION'];
+  }
+
+  return [status];
+}
+
+async function tryUpdateBackendOrderStatus(
+  orderId: number,
+  status: TableOrderStatus
+): Promise<boolean> {
+  const statusCandidates = getBackendStatusCandidates(status);
+  const endpointCandidates = [
+    `${API_URL}/api/pedidos/${orderId}/estado`,
+    `${API_URL}/api/pedidos/${orderId}`,
+  ];
+  const methodCandidates: Array<'PATCH' | 'PUT'> = ['PATCH', 'PUT'];
+
+  for (const endpoint of endpointCandidates) {
+    for (const method of methodCandidates) {
+      for (const backendStatus of statusCandidates) {
+        try {
+          const response = await fetch(endpoint, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ estado: backendStatus }),
+          });
+
+          if (response.ok) return true;
+        } catch {
+          // Probamos el siguiente endpoint/formato.
+        }
+      }
+    }
+  }
+
+  return false;
 }
 
 function getTargetOrder(orders: TableOrder[], orderId?: number): TableOrder | null {
   if (typeof orderId === 'number') {
     const selectedOrder = orders.find((order) => order.id === orderId);
+
     if (selectedOrder) return selectedOrder;
   }
+
   return orders.find((order) => order.estado === 'REGISTRADO') ?? orders[0] ?? null;
 }
 
@@ -114,29 +192,52 @@ function mapCustomerSearchRecord(
   };
 }
 
+function buildOrderBody(
+  tableId: number,
+  customer: TableOrderCustomer,
+  waiterUserId: number,
+  observaciones: string
+) {
+  return {
+    id_mesa: tableId,
+    id_usuario_mesero: waiterUserId,
+    id_usuario_cliente: customer.idUsuario ?? null,
+    observaciones,
+  };
+}
+
+function mapBackendOrders(data: BackendOrderRecord | BackendOrderRecord[] | null): TableOrder[] {
+  if (!data) return [];
+
+  return (Array.isArray(data) ? data : [data]).map((order) =>
+    mapBackendOrderToWaiterFrontend(order)
+  );
+}
+
 export const ordersApi = {
   /**
-   * Lista pedidos activos para mesero/admin.
+   * Lista pedidos activos para mesero/admin desde backend.
    */
   async listActiveOrders(): Promise<TableOrder[]> {
-const tables = await tryJson<BackendTableRecord[]>(`${API_URL}/api/mesas?t=${Date.now()}`, { cache: 'no-store' });
+    const tables = await tryJson<BackendTableRecord[]>(
+      `${API_URL}/api/mesas?t=${Date.now()}`,
+      { cache: 'no-store' }
+    );
+
     const validIds = new Set(
       Array.isArray(tables)
         ? tables.map((table) => Number(table.id_mesa ?? table.id))
         : []
     );
 
-// Intentamos obtener pedidos de backend
-    const backendData = await tryJson<BackendOrderRecord[]>(`${API_URL}/api/pedidos/activos?t=${Date.now()}`, { cache: 'no-store' });
-    const simulatedStatuses = readSimulatedStatuses();
-    const backendOrders = Array.isArray(backendData)
-      ? backendData.map((order) => mapBackendOrderToWaiterFrontend(order, simulatedStatuses))
-      : [];
+    const backendData = await tryJson<BackendOrderRecord[]>(
+      `${API_URL}/api/pedidos/activos?t=${Date.now()}`,
+      { cache: 'no-store' }
+    );
 
-    const mockOrders = await listWaiterOrdersMock();
-    const allOrders = mergeOrdersByIdOrSource(backendOrders, mockOrders);
+    const backendOrders = mapBackendOrders(backendData);
 
-    return allOrders.filter(
+    return backendOrders.filter(
       (order) =>
         order.estado !== 'PAGADO' &&
         order.estado !== 'CANCELADO' &&
@@ -145,63 +246,70 @@ const tables = await tryJson<BackendTableRecord[]>(`${API_URL}/api/mesas?t=${Dat
   },
 
   /**
-   * Busca un cliente por CI en backend o mock.
+   * Busca un cliente por CI en backend.
    */
   async searchCustomerByCi(ci: string): Promise<TableOrderCustomer | null> {
     if (!ci || ci === '0') return null;
 
-    const data = await tryJson<BackendCustomerSearchRecord>(`${API_URL}/api/clientes/ci/${ci}`);
+    const data = await tryJson<BackendCustomerSearchRecord>(
+      `${API_URL}/api/clientes/ci/${ci}`
+    );
 
-    if (data) {
-      return mapCustomerSearchRecord(data, ci);
-    }
+    if (!data) return null;
 
-    return searchOrderCustomerByCiMock(ci);
+    return mapCustomerSearchRecord(data, ci);
   },
 
   /**
    * Lista pedidos asociados a un cliente específico.
-   * Trae todo: Activos e Historial para que el Frontend lo clasifique.
+   * Trae activos e historial para que el frontend clasifique.
    */
   async listOrdersByClient(userId: number): Promise<ClientOrder[]> {
-    const data = await tryJson<BackendOrderRecord[]>(`${API_URL}/api/clientes/pedidos/historial?id_usuario=${userId}`);
+    const data = await tryJson<BackendOrderRecord[]>(
+      `${API_URL}/api/clientes/pedidos/historial?id_usuario=${userId}`
+    );
 
     if (Array.isArray(data)) {
       return data.map((order) => {
-        const isRawPrisma = !!order.detalles_pedido;
-        const mesa = order.mesa as Record<string, unknown> | undefined;
-        const tableNum = isRawPrisma ? mesa?.numero : order.numero_mesa;
-        const sourceVal = (isRawPrisma && mesa) || order.origen === 'MESA' ? 'MESA_MESERO' : 'RESERVA';
+        const mesa = isRecord(order.mesa) ? order.mesa : undefined;
+        const tableNum = mesa?.numero ?? order.numero_mesa;
+        const sourceVal = mesa || order.origen === 'MESA' ? 'MESA_MESERO' : 'RESERVA';
 
-        const rawItems = isRawPrisma ? order.detalles_pedido : order.productos;
-        const itemsList = Array.isArray(rawItems) ? rawItems : [];
+        const rawItems = Array.isArray(order.detalles_pedido)
+          ? order.detalles_pedido
+          : Array.isArray(order.productos)
+            ? order.productos
+            : [];
 
-        const items = itemsList.map((prod: BackendOrderRecord) => {
-          const presentacion = prod.presentacion_producto as Record<string, unknown> | undefined;
-          const producto = presentacion?.producto as Record<string, unknown> | undefined;
+        const items = rawItems.map((rawProduct) => {
+          const prod = isRecord(rawProduct) ? rawProduct : {};
+          const presentacion = isRecord(prod.presentacion_producto)
+            ? prod.presentacion_producto
+            : undefined;
+          const producto = isRecord(presentacion?.producto)
+            ? presentacion?.producto
+            : undefined;
 
           return {
-            id: Number(prod.id_detalle || prod.id_detalle_pedido || 0),
-            quantity: Number(prod.cantidad || 0),
-            name: String(prod.nombre || producto?.nombre || 'Producto sin nombre'),
+            id: Number(prod.id_detalle ?? prod.id_detalle_pedido ?? 0),
+            quantity: Number(prod.cantidad ?? 0),
+            name: String(prod.nombre ?? producto?.nombre ?? 'Producto sin nombre'),
             notes: prod.observaciones ? String(prod.observaciones) : undefined,
-            subtotal: Number(prod.subtotal || 0)
+            subtotal: Number(prod.subtotal ?? 0),
           };
         });
 
-        const mappedOrder = {
-          id: Number(order.id_pedido || 0),
-          orderNumber: String(order.numero_pedido || order.id_pedido || '').padStart(4, '0'),
+        return {
+          id: Number(order.id_pedido ?? 0),
+          orderNumber: String(order.numero_pedido ?? order.id_pedido ?? '').padStart(4, '0'),
           source: sourceVal,
           tableNumber: tableNum ? String(tableNum) : undefined,
           status: order.estado,
-          estimatedMinutes: Number(order.tiempo_estimado_minutos || 0),
-          total: Number(order.total || 0),
-          createdAt: String(order.fecha_hora_pedido || ''),
-          items: items
-        };
-
-        return mappedOrder as unknown as ClientOrder;
+          estimatedMinutes: Number(order.tiempo_estimado_minutos ?? 0),
+          total: Number(order.total ?? 0),
+          createdAt: String(order.fecha_hora_pedido ?? ''),
+          items,
+        } as unknown as ClientOrder;
       });
     }
 
@@ -209,10 +317,14 @@ const tables = await tryJson<BackendTableRecord[]>(`${API_URL}/api/mesas?t=${Dat
   },
 
   /**
-   * Obtiene los pedidos abiertos de una mesa.
+   * Obtiene los pedidos abiertos de una mesa desde backend.
    */
   async getOpenOrdersByTable(tableId: number): Promise<TableOrder[]> {
-    const tables = await tryJson<BackendTableRecord[]>(`${API_URL}/api/mesas`);
+    const tables = await tryJson<BackendTableRecord[]>(
+      `${API_URL}/api/mesas?t=${Date.now()}`,
+      { cache: 'no-store' }
+    );
+
     const tableExists = Array.isArray(tables)
       ? tables.some((table) => Number(table.id_mesa ?? table.id) === Number(tableId))
       : true;
@@ -220,19 +332,13 @@ const tables = await tryJson<BackendTableRecord[]>(`${API_URL}/api/mesas?t=${Dat
     if (!tableExists) return [];
 
     const backendData = await tryJson<BackendOrderRecord | BackendOrderRecord[]>(
-      `${API_URL}/api/pedidos/mesa/${tableId}`
+      `${API_URL}/api/pedidos/mesa/${tableId}?t=${Date.now()}`,
+      { cache: 'no-store' }
     );
-    const simulatedStatuses = readSimulatedStatuses();
-    const backendOrders: TableOrder[] = backendData
-      ? (Array.isArray(backendData) ? backendData : [backendData]).map((order) =>
-        mapBackendOrderToWaiterFrontend(order, simulatedStatuses)
-      )
-      : [];
 
-    const mockOrders = await getOpenOrdersByTableMock(tableId);
-    const combined = mergeOrdersByIdOrSource(backendOrders, mockOrders);
+    const backendOrders = mapBackendOrders(backendData);
 
-    return combined.filter(
+    return backendOrders.filter(
       (order) => order.estado !== 'PAGADO' && order.estado !== 'CANCELADO'
     );
   },
@@ -256,29 +362,34 @@ const tables = await tryJson<BackendTableRecord[]>(`${API_URL}/api/mesas?t=${Dat
     customer: TableOrderCustomer,
     waiterUserId: number
   ): Promise<TableOrder> {
-    const body = {
-      id_mesa: tableId,
-      id_usuario_mesero: waiterUserId,
-      id_usuario_cliente: customer.idUsuario ?? null,
-      observaciones: 'Pedido creado desde flujo de mesa',
-    };
+    const body = buildOrderBody(
+      tableId,
+      customer,
+      waiterUserId,
+      'Pedido creado desde flujo de mesa'
+    );
 
-    const data = await tryJson<BackendOrderRecord>(`${API_URL}/api/pedidos`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    if (data) {
-      emitRestaurantStateChanged();
-      const fullOrder = await this.getActiveOrder(tableId);
-      if (fullOrder) return fullOrder;
-    }
-
-    const mockOrder = await saveOrderCustomerMock(tableId, customer, waiterUserId);
+    const data = await requestJson<BackendOrderRecord>(
+      `${API_URL}/api/pedidos`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      'No se pudo abrir el pedido en backend.'
+    );
 
     emitRestaurantStateChanged();
-    return mockOrder;
+
+    const createdOrder = data ? mapBackendOrderToWaiterFrontend(data) : null;
+    const fullOrders = await this.getOpenOrdersByTable(tableId);
+    const fullOrder = getTargetOrder(fullOrders, createdOrder?.id);
+
+    if (fullOrder) return fullOrder;
+
+    if (createdOrder) return createdOrder;
+
+    throw new Error('El pedido se creó, pero no se pudo recuperar desde backend.');
   },
 
   /**
@@ -292,43 +403,42 @@ const tables = await tryJson<BackendTableRecord[]>(`${API_URL}/api/mesas?t=${Dat
     const openOrders = await this.getOpenOrdersByTable(tableId);
     const targetOrder = getTargetOrder(openOrders, orderId);
 
-    if (targetOrder && targetOrder.id > 0) {
-      try {
-        const response = await fetch(`${API_URL}/api/pedidos/${targetOrder.id}/detalles`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id_presentacion_producto: payload.productoId,
-            cantidad: payload.cantidad,
-            observaciones: payload.observacion,
-            ingredientes: payload.ingredientes.map((ingredient) => ({
-              nombre: ingredient.nombre,
-              incluido: ingredient.incluido,
-            })),
-          }),
-        });
-
-        if (response.ok) {
-          emitRestaurantStateChanged();
-
-          const updatedOrders = await this.getOpenOrdersByTable(tableId);
-          const updatedTargetOrder = getTargetOrder(updatedOrders, targetOrder.id);
-
-          if (updatedTargetOrder) return updatedTargetOrder;
-        }
-      } catch {
-        // Si backend no responde, continuamos con mock local.
-      }
+    if (!targetOrder) {
+      throw new Error('No hay un pedido activo para esta mesa.');
     }
 
-    const mockOrder = await addOrderItemToTableMock(
-      tableId,
-      payload,
-      targetOrder?.id ?? orderId
+    if (targetOrder.estado !== 'REGISTRADO') {
+      throw new Error('Solo se pueden agregar productos a un pedido registrado.');
+    }
+
+    await requestOk(
+      `${API_URL}/api/pedidos/${targetOrder.id}/detalles`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id_presentacion_producto: payload.presentacionId ?? payload.productoId,
+          cantidad: payload.cantidad,
+          observaciones: payload.observacion,
+          ingredientes: payload.ingredientes.map((ingredient) => ({
+            nombre: ingredient.nombre,
+            incluido: ingredient.incluido,
+          })),
+        }),
+      },
+      'No se pudo agregar el producto al pedido en backend.'
     );
 
     emitRestaurantStateChanged();
-    return mockOrder;
+
+    const updatedOrders = await this.getOpenOrdersByTable(tableId);
+    const updatedTargetOrder = getTargetOrder(updatedOrders, targetOrder.id);
+
+    if (!updatedTargetOrder) {
+      throw new Error('El producto se agregó, pero no se pudo recuperar el pedido actualizado.');
+    }
+
+    return updatedTargetOrder;
   },
 
   /**
@@ -343,112 +453,88 @@ const tables = await tryJson<BackendTableRecord[]>(`${API_URL}/api/mesas?t=${Dat
     const openOrders = await this.getOpenOrdersByTable(tableId);
     const targetOrder = getTargetOrder(openOrders, orderId);
 
-    if (targetOrder && targetOrder.id > 0) {
-      try {
-        const response = await fetch(
-          `${API_URL}/api/pedidos/${targetOrder.id}/detalles/${itemId}`,
-          {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              cantidad: payload.cantidad,
-              observaciones: payload.observacion,
-              ingredientes: payload.ingredientes.map((ingredient) => ({
-                nombre: ingredient.nombre,
-                incluido: ingredient.incluido,
-              })),
-            }),
-          }
-        );
-
-        if (response.ok) {
-          emitRestaurantStateChanged();
-
-          const updatedOrders = await this.getOpenOrdersByTable(tableId);
-          const updatedTargetOrder = getTargetOrder(updatedOrders, targetOrder.id);
-
-          if (updatedTargetOrder) return updatedTargetOrder;
-        }
-      } catch {
-        // Si backend no responde, continuamos con mock local.
-      }
+    if (!targetOrder) {
+      throw new Error('No hay un pedido activo para esta mesa.');
     }
 
-    const mockOrder = await updateOrderItemInTableMock(
-      tableId,
-      itemId,
-      payload,
-      targetOrder?.id ?? orderId
+    if (targetOrder.estado !== 'REGISTRADO') {
+      throw new Error('Solo se pueden editar productos de un pedido registrado.');
+    }
+
+    await requestOk(
+      `${API_URL}/api/pedidos/${targetOrder.id}/detalles/${itemId}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cantidad: payload.cantidad,
+          observaciones: payload.observacion,
+          ingredientes: payload.ingredientes.map((ingredient) => ({
+            nombre: ingredient.nombre,
+            incluido: ingredient.incluido,
+          })),
+        }),
+      },
+      'No se pudo actualizar el producto del pedido en backend.'
     );
 
     emitRestaurantStateChanged();
-    return mockOrder;
+
+    const updatedOrders = await this.getOpenOrdersByTable(tableId);
+    const updatedTargetOrder = getTargetOrder(updatedOrders, targetOrder.id);
+
+    if (!updatedTargetOrder) {
+      throw new Error('El producto se actualizó, pero no se pudo recuperar el pedido actualizado.');
+    }
+
+    return updatedTargetOrder;
   },
 
   /**
    * Elimina un ítem del pedido.
    */
   async removeOrderItem(orderId: number, detailId: number, tableId: number): Promise<void> {
-    if (orderId > 0) {
-      try {
-        const response = await fetch(`${API_URL}/api/pedidos/${orderId}/detalles/${detailId}`, {
-          method: 'DELETE',
-        });
+    const openOrders = await this.getOpenOrdersByTable(tableId);
+    const targetOrder = getTargetOrder(openOrders, orderId);
 
-        if (response.ok) {
-          emitRestaurantStateChanged();
-          return;
-        }
-      } catch {
-        // Si backend no responde, continuamos con mock local.
-      }
+    if (!targetOrder) {
+      throw new Error('No hay un pedido activo para esta mesa.');
     }
 
-    await removeOrderItemFromTableMock(tableId, detailId, orderId);
+    if (targetOrder.estado !== 'REGISTRADO') {
+      throw new Error('Solo se pueden eliminar productos de un pedido registrado.');
+    }
+
+    await requestOk(
+      `${API_URL}/api/pedidos/${targetOrder.id}/detalles/${detailId}`,
+      {
+        method: 'DELETE',
+      },
+      'No se pudo eliminar el producto del pedido en backend.'
+    );
+
     emitRestaurantStateChanged();
   },
 
   /**
-   * Actualiza el estado de un pedido.
+   * Actualiza el estado de un pedido en backend.
    */
   async updateOrderStatus(
     orderId: number,
     status: TableOrderStatus,
     tableId: number
   ): Promise<void> {
-    let backendUpdated = false;
+    const openOrders = await this.getOpenOrdersByTable(tableId);
+    const targetOrder = getTargetOrder(openOrders, orderId);
 
-    if (orderId > 0) {
-      try {
-        const response = await fetch(`${API_URL}/api/pedidos/${orderId}/estado`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ estado: status }),
-        });
-
-        backendUpdated = response.ok;
-      } catch {
-        backendUpdated = false;
-      }
-
-if (!backendUpdated) {
-        writeSimulatedStatus(orderId, status);
-      } else {
-        const statuses = readSimulatedStatuses();
-        if (statuses[orderId]) {
-          delete statuses[orderId];
-          if (typeof window !== 'undefined') {
-            window.localStorage.setItem(SIMULATED_STATUSES_STORAGE_KEY, JSON.stringify(statuses));
-          }
-        }
-      }
+    if (!targetOrder) {
+      throw new Error('No hay un pedido activo para esta mesa.');
     }
 
-    await updateOrderStatusForTableMock(tableId, status, orderId);
+    const backendUpdated = await tryUpdateBackendOrderStatus(targetOrder.id, status);
 
     if (!backendUpdated) {
-      // El flujo mock es temporal mientras backend completa pedidos/cocina.
-      // No lanzamos error porque el cambio debe seguir reflejándose entre roles.
+      throw new Error('No se pudo actualizar el estado del pedido en backend.');
     }
 
     emitRestaurantStateChanged();
@@ -462,7 +548,41 @@ if (!backendUpdated) {
     customer: TableOrderCustomer,
     waiterUserId: number
   ): Promise<TableOrder> {
-    return createExtraOrderMock(tableId, customer, waiterUserId);
+    const openOrders = await this.getOpenOrdersByTable(tableId);
+    const hasRegisteredOrder = openOrders.some((order) => order.estado === 'REGISTRADO');
+
+    if (hasRegisteredOrder) {
+      throw new Error('Primero envía a cocina el pedido registrado antes de crear un nuevo pedido.');
+    }
+
+    const body = buildOrderBody(
+      tableId,
+      customer,
+      waiterUserId,
+      'Pedido adicional creado desde flujo de mesa'
+    );
+
+    const data = await requestJson<BackendOrderRecord>(
+      `${API_URL}/api/pedidos`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      'No se pudo crear el nuevo pedido en backend.'
+    );
+
+    emitRestaurantStateChanged();
+
+    const createdOrder = data ? mapBackendOrderToWaiterFrontend(data) : null;
+    const fullOrders = await this.getOpenOrdersByTable(tableId);
+    const fullOrder = getTargetOrder(fullOrders, createdOrder?.id);
+
+    if (fullOrder) return fullOrder;
+
+    if (createdOrder) return createdOrder;
+
+    throw new Error('El nuevo pedido se creó, pero no se pudo recuperar desde backend.');
   },
 
   /**
