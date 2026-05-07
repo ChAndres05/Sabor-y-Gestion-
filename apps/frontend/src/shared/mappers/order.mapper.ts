@@ -24,8 +24,7 @@ function numberValue(value: unknown, fallback = 0): number {
 }
 
 export function mapBackendOrderToWaiterFrontend(
-  rawBackendOrder: unknown,
-  simulatedStatuses: Record<number, TableOrderStatus> = {}
+  rawBackendOrder: unknown
 ): TableOrder {
   const backendOrder = asRecord(rawBackendOrder);
   const customer = asRecord(backendOrder.usuarios_pedidos_id_usuario_clienteTousuarios);

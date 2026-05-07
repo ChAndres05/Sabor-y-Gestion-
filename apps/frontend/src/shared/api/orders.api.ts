@@ -85,9 +85,8 @@ export const ordersApi = {
 
     // Intentamos obtener pedidos de backend
     const backendData = await tryJson<BackendOrderRecord[]>(`${API_URL}/api/pedidos/activos`);
-    const simulatedStatuses = readSimulatedStatuses();
     const backendOrders = Array.isArray(backendData)
-      ? backendData.map(o => mapBackendOrderToWaiterFrontend(o, simulatedStatuses))
+      ? backendData.map(o => mapBackendOrderToWaiterFrontend(o))
       : [];
 
     // Obtenemos pedidos mock
@@ -156,9 +155,8 @@ export const ordersApi = {
 
     // Pedidos de backend
     const backendData = await tryJson<BackendOrderRecord | BackendOrderRecord[]>(`${API_URL}/api/pedidos/mesa/${tableId}`);
-    const simulatedStatuses = readSimulatedStatuses();
     const backendOrders: TableOrder[] = backendData 
-      ? (Array.isArray(backendData) ? backendData : [backendData]).map(o => mapBackendOrderToWaiterFrontend(o, simulatedStatuses))
+      ? (Array.isArray(backendData) ? backendData : [backendData]).map(o => mapBackendOrderToWaiterFrontend(o))
       : [];
 
     // Pedidos mock
