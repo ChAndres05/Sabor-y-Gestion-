@@ -442,3 +442,8 @@ model tipos_cliente {
   descripcion     String?    @db.VarChar
   usuarios        usuarios[]
 }
+
+model palabras_ofensivas {
+  id_palabra Int    @id @default(autoincrement())
+  palabra    String @unique @db.VarChar
+}
