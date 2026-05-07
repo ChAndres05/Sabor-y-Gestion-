@@ -886,8 +886,8 @@ export default function MeseroOrderFlowPage({
                     type="button"
                     onClick={() => setActiveStep(step)}
                     className={`rounded-xl px-3 py-2 text-[12px] font-bold capitalize transition-colors md:px-6 ${activeStep === step
-                        ? 'bg-white text-text shadow-sm'
-                        : 'text-gray-500 hover:bg-white/60'
+                      ? 'bg-white text-text shadow-sm'
+                      : 'text-gray-500 hover:bg-white/60'
                       }`}
                   >
                     {step === 'menu' ? 'Menú' : step}
@@ -1039,8 +1039,8 @@ export default function MeseroOrderFlowPage({
                             type="button"
                             onClick={() => setSelectedCategoryId(category.id)}
                             className={`shrink-0 rounded-xl px-4 py-3 text-[12px] font-bold ${selectedCategoryId === category.id
-                                ? 'bg-primary text-white'
-                                : 'bg-background text-text'
+                              ? 'bg-primary text-white'
+                              : 'bg-background text-text'
                               }`}
                           >
                             {category.nombre}
@@ -1112,8 +1112,8 @@ export default function MeseroOrderFlowPage({
                         type="button"
                         onClick={() => setOrder(activeOrder)}
                         className={`rounded-xl px-3 py-2 text-[11px] font-bold transition-all ${order?.id === activeOrder.id
-                            ? 'bg-primary text-white shadow-md transform scale-105'
-                            : 'bg-background text-gray-500 hover:bg-gray-200'
+                          ? 'bg-primary text-white shadow-md transform scale-105'
+                          : 'bg-background text-gray-500 hover:bg-gray-200'
                           }`}
                       >
                         Pedido #{index + 1}
@@ -1138,10 +1138,10 @@ export default function MeseroOrderFlowPage({
                         <div
                           key={step.label}
                           className={`rounded-xl px-2 py-2 text-center text-[10px] font-bold ${step.done
-                              ? 'bg-success text-white'
-                              : step.active
-                                ? 'bg-primary text-white'
-                                : 'bg-background text-gray-400'
+                            ? 'bg-success text-white'
+                            : step.active
+                              ? 'bg-primary text-white'
+                              : 'bg-background text-gray-400'
                             }`}
                         >
                           <span className="block text-[10px] opacity-80">{index + 1}</span>
