@@ -1,4 +1,9 @@
-import type { MenuCategory, MenuCategoryFormValues, BackendProductPayload } from "./types/menu.types";
+import type {
+  MenuCategory,
+  MenuCategoryFormValues,
+  BackendProductPayload,
+} from './types/menu.types';
+import type { BackendProduct } from '../../shared/mappers/menu.mapper';
 
 /**
  * Configuramos la URL para que use la variable de entorno.
@@ -6,9 +11,78 @@ import type { MenuCategory, MenuCategoryFormValues, BackendProductPayload } from
  */
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-// Separamos los endpoints para mantenerlo organizado
 const CATEGORIAS_API_URL = `${BASE_URL}/api/categorias`;
 const PRODUCTOS_API_URL = `${BASE_URL}/api/productos`;
+const MENU_API_URL = `${BASE_URL}/api/menu`;
+
+type NumericValue = number | string | null | undefined;
+
+type ApiCategory = Omit<MenuCategory, 'id'> & {
+  id?: NumericValue;
+  id_categoria?: NumericValue;
+  productos?: BackendProduct[];
+};
+
+type ApiPresentation = NonNullable<BackendProduct['presentaciones']>[number];
+
+function numberValue(value: NumericValue, fallback = 0): number {
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeCategory(category: ApiCategory): MenuCategory {
+  return {
+    ...category,
+    id: numberValue(category.id_categoria ?? category.id),
+  };
+}
+
+function getDefaultPresentation(product: BackendProduct): ApiPresentation | null {
+  const presentations = product.presentaciones ?? [];
+
+  if (presentations.length === 0) return null;
+
+  return (
+    presentations.find((presentation) => presentation.es_predeterminada) ??
+    presentations.find(
+      (presentation) =>
+        presentation.activo !== false && presentation.disponible !== false
+    ) ??
+    presentations[0]
+  );
+}
+
+function normalizeProductFromMenu(
+  product: BackendProduct,
+  category: ApiCategory
+): BackendProduct {
+  const defaultPresentation = getDefaultPresentation(product);
+  const categoryId = numberValue(category.id_categoria ?? category.id);
+
+  return {
+    ...product,
+    id_producto: numberValue(product.id_producto ?? product.id),
+    id_categoria: numberValue(product.id_categoria ?? product.categoryId ?? categoryId),
+    categoria: {
+      id_categoria: categoryId,
+      nombre: category.nombre,
+    },
+    precio: product.precio ?? defaultPresentation?.precio ?? 0,
+    tiempo_preparacion:
+      product.tiempo_preparacion ??
+      product.tiempoPreparacion ??
+      defaultPresentation?.tiempo_preparacion_minutos ??
+      0,
+    disponible: product.disponible ?? product.activo ?? true,
+    activo: product.activo ?? true,
+    presentaciones: product.presentaciones ?? [],
+  };
+}
+
+async function readJson<T>(response: Response): Promise<T> {
+  return (await response.json()) as T;
+}
 
 export const menuApi = {
   // ==========================================
@@ -21,9 +95,9 @@ export const menuApi = {
    */
   async getCategories(nombre = '', estado = 'todas'): Promise<MenuCategory[]> {
     const params = new URLSearchParams();
-    
+
     if (nombre) params.append('nombre', nombre);
-    
+
     if (estado && estado !== 'todas') {
       params.append('activo', estado === 'activas' ? 'true' : 'false');
     }
@@ -33,14 +107,13 @@ export const menuApi = {
       headers: { 'Content-Type': 'application/json' },
     });
 
-    if (!res.ok) throw new Error('Error al cargar categorías de la base de datos');
-    
-    const data = await res.json();
-    // Mapeamos el id_categoria del backend al id que espera el frontend
-    return data.map((cat: Omit<MenuCategory, 'id'> & { id_categoria: number }) => ({
-      ...cat,
-      id: cat.id_categoria
-    }));
+    if (!res.ok) {
+      throw new Error('Error al cargar categorías de la base de datos');
+    }
+
+    const data = await readJson<ApiCategory[]>(res);
+
+    return data.map(normalizeCategory);
   },
 
   /**
@@ -58,6 +131,7 @@ export const menuApi = {
       const errorData = await res.json();
       throw new Error(errorData.error || 'Error al crear la categoría');
     }
+
     return res.json();
   },
 
@@ -66,18 +140,19 @@ export const menuApi = {
    * Se usa para editar los 3 campos o para activar/desactivar desde los 3 puntos.
    */
   async updateCategory(id: number, data: Partial<MenuCategory>) {
-    if (!id) throw new Error("ID de categoría no proporcionado");
+    if (!id) throw new Error('ID de categoría no proporcionado');
 
     const res = await fetch(`${CATEGORIAS_API_URL}/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    
+
     if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Error al actualizar categoría');
+      const errorData = await res.json();
+      throw new Error(errorData.error || 'Error al actualizar categoría');
     }
+
     return res.json();
   },
 
@@ -86,21 +161,20 @@ export const menuApi = {
    * El backend rechazará la petición si la categoría tiene productos asociados.
    */
   async deleteCategory(id: number) {
-    if (!id) throw new Error("ID de categoría no proporcionado");
+    if (!id) throw new Error('ID de categoría no proporcionado');
 
     const res = await fetch(`${CATEGORIAS_API_URL}/${id}`, {
       method: 'DELETE',
     });
 
     const data = await res.json();
-    
+
     if (!res.ok) {
-      // Capturamos el mensaje de error de Prisma (ej. "tiene productos asociados")
       throw new Error(data.error || 'Error al eliminar la categoría');
     }
+
     return data;
   },
-
 
   // ==========================================
   //          SECCIÓN DE PRODUCTOS
@@ -108,17 +182,34 @@ export const menuApi = {
 
   /**
    * 5. OBTENER PRODUCTOS (GET)
-   * Trae todos los productos activos con su información de categoría.
+   * Para pedidos usa /api/menu porque trae productos con presentaciones.
    */
-  async getProductos() { // Puedes tipar esto como Promise<MenuProduct[]> si tienes la interfaz
-    const res = await fetch(PRODUCTOS_API_URL, {
+  async getProductos(): Promise<BackendProduct[]> {
+    const menuRes = await fetch(MENU_API_URL, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     });
-    
-    if (!res.ok) throw new Error('Error al cargar los productos de la base de datos');
-    
-    return res.json();
+
+    if (menuRes.ok) {
+      const menu = await readJson<ApiCategory[]>(menuRes);
+
+      return menu.flatMap((category) =>
+        (category.productos ?? []).map((product) =>
+          normalizeProductFromMenu(product, category)
+        )
+      );
+    }
+
+    const productosRes = await fetch(PRODUCTOS_API_URL, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!productosRes.ok) {
+      throw new Error('Error al cargar los productos de la base de datos');
+    }
+
+    return readJson<BackendProduct[]>(productosRes);
   },
 
   /**
@@ -136,7 +227,7 @@ export const menuApi = {
       const errorData = await res.json();
       throw new Error(errorData.error || 'Error al crear el producto');
     }
-    
+
     return res.json();
   },
 
@@ -145,18 +236,19 @@ export const menuApi = {
    * Sirve para editar toda la info o simplemente enviar { activo: false } para desactivar.
    */
   async updateProducto(id: number, data: BackendProductPayload) {
-    if (!id) throw new Error("ID de producto no proporcionado");
+    if (!id) throw new Error('ID de producto no proporcionado');
 
     const res = await fetch(`${PRODUCTOS_API_URL}/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    
+
     if (!res.ok) {
       const errorData = await res.json();
       throw new Error(errorData.error || 'Error al actualizar el producto');
     }
+
     return res.json();
   },
 
@@ -164,17 +256,18 @@ export const menuApi = {
    * 8. ELIMINAR PRODUCTO (DELETE)
    */
   async deleteProducto(id: number) {
-    if (!id) throw new Error("ID de producto no proporcionado");
+    if (!id) throw new Error('ID de producto no proporcionado');
 
     const res = await fetch(`${PRODUCTOS_API_URL}/${id}`, {
       method: 'DELETE',
     });
 
     const data = await res.json();
-    
+
     if (!res.ok) {
       throw new Error(data.error || 'Error al eliminar el producto');
     }
+
     return data;
-  }
+  },
 };

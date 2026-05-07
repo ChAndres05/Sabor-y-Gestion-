@@ -13,7 +13,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
             // 1. Obtenemos cómo estaba la mesa ANTES de este cambio
             const mesaActual = await tx.mesas.findUnique({
-                where: { id_mesa: mesaId }
+                where: { numero: mesaId }
             });
 
             if (!mesaActual) {
