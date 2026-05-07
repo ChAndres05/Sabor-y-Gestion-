@@ -78,10 +78,15 @@ export interface OrderCatalogProduct {
 
 export interface AddOrderItemPayload {
   categoriaId: number;
+  categoriaNombre?: string;
   productoId: number;
+  productoNombre?: string;
   cantidad: number;
   observacion: string;
   ingredientes: TableOrderItemIngredient[];
+  precioUnitario?: number;
+  tiempoPreparacion?: number;
+  imagen?: string | null;
 }
 
 export type UpdateOrderItemPayload = AddOrderItemPayload;
