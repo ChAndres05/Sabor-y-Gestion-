@@ -135,8 +135,17 @@ export default function MeseroOrdersPage({
       void loadOrders();
     };
 
-    const channel = pusherClient.subscribe('orders-channel');
-    channel.bind('order-updated', handleStateChange);
+    const ordersChannel = pusherClient.subscribe('orders-channel');
+    ordersChannel.bind('order-updated', handleStateChange);
+
+    // --- INICIO DE LA SOLUCIÓN: Canal de cocina a mesero ---
+    const tablesChannel = pusherClient.subscribe('tables-channel');
+    tablesChannel.bind('table-order-updated', () => {
+      // Como esta es la vista general de pedidos, recargamos la lista 
+      // completa cada vez que cualquier plato sale de cocina.
+      void loadOrders();
+    });
+    // --- FIN DE LA SOLUCIÓN ---
 
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === RESTAURANT_STATE_CHANGED_STORAGE_KEY) {
@@ -148,8 +157,10 @@ export default function MeseroOrdersPage({
     window.addEventListener('storage', handleStorageChange);
 
     return () => {
-      channel.unbind('order-updated');
+      ordersChannel.unbind('order-updated');
       pusherClient.unsubscribe('orders-channel');
+      tablesChannel.unbind('table-order-updated');
+      pusherClient.unsubscribe('tables-channel');
       window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
       window.removeEventListener('storage', handleStorageChange);
     };
