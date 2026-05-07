@@ -3,95 +3,95 @@ import { prisma } from '@/lib/prisma';
 import { validateCategoryName } from '../validation';
 
 export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> } 
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const resolvedParams = await params; // CRÍTICO: Desempaquetar params
-    const id = parseInt(resolvedParams.id);
+    try {
+        const resolvedParams = await params; // CRÍTICO: Desempaquetar params
+        const id = parseInt(resolvedParams.id);
 
-    if (isNaN(id)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+        if (isNaN(id)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
 
-    const body = await request.json();
-    const dataToUpdate: {
-      nombre?: string;
-      descripcion?: string;
-      activo?: boolean;
-    } = {};
-    if (body.nombre !== undefined) {
-      if (typeof body.nombre !== 'string') {
-        return NextResponse.json({ error: 'Nombre inválido' }, { status: 400 });
-      }
+        const body = await request.json();
+        const dataToUpdate: {
+            nombre?: string;
+            descripcion?: string;
+            activo?: boolean;
+        } = {};
+        if (body.nombre !== undefined) {
+            if (typeof body.nombre !== 'string') {
+                return NextResponse.json({ error: 'Nombre inválido' }, { status: 400 });
+            }
 
-      const validation = await validateCategoryName(body.nombre);
+            const validation = await validateCategoryName(body.nombre);
 
-      if (validation.error) {
-        return NextResponse.json({ error: validation.error }, { status: 400 });
-      }
+            if (validation.error) {
+                return NextResponse.json({ error: validation.error }, { status: 400 });
+            }
 
-      const existing = await prisma.categorias.findFirst({
-        where: {
-          nombre: {
-            equals: validation.value,
-            mode: 'insensitive',
-          },
-          NOT: { id_categoria: id },
-        },
-        select: { id_categoria: true },
-      });
+            const existing = await prisma.categorias.findFirst({
+                where: {
+                    nombre: {
+                        equals: validation.value,
+                        mode: 'insensitive',
+                    },
+                    NOT: { id_categoria: id },
+                },
+                select: { id_categoria: true },
+            });
 
-      if (existing) {
-        return NextResponse.json(
-          { error: 'Nombre de categoría ya existe' },
-          { status: 400 }
-        );
-      }
+            if (existing) {
+                return NextResponse.json(
+                    { error: 'Nombre de categoría ya existe' },
+                    { status: 400 }
+                );
+            }
 
-      dataToUpdate.nombre = validation.value;
+            dataToUpdate.nombre = validation.value;
+        }
+
+        if (body.descripcion !== undefined) {
+            if (typeof body.descripcion !== 'string') {
+                return NextResponse.json({ error: 'Descripción inválida' }, { status: 400 });
+            }
+
+            dataToUpdate.descripcion = body.descripcion;
+        }
+
+        if (body.activo !== undefined) dataToUpdate.activo = body.activo;
+
+        const actualizada = await prisma.categorias.update({
+            where: { id_categoria: id },
+            data: dataToUpdate,
+        });
+
+        return NextResponse.json(actualizada);
+    } catch {
+        return NextResponse.json({ error: 'No se pudo actualizar' }, { status: 500 });
     }
-
-    if (body.descripcion !== undefined) {
-      if (typeof body.descripcion !== 'string') {
-        return NextResponse.json({ error: 'Descripción inválida' }, { status: 400 });
-      }
-
-      dataToUpdate.descripcion = body.descripcion;
-    }
-
-    if (body.activo !== undefined) dataToUpdate.activo = body.activo;
-
-    const actualizada = await prisma.categorias.update({
-      where: { id_categoria: id },
-      data: dataToUpdate,
-    });
-
-    return NextResponse.json(actualizada);
-  } catch {
-    return NextResponse.json({ error: 'No se pudo actualizar' }, { status: 500 });
-  }
 }
 
 export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const resolvedParams = await params;
-    const id = parseInt(resolvedParams.id);
+    try {
+        const resolvedParams = await params;
+        const id = parseInt(resolvedParams.id);
 
-    // Validar si tiene productos (Integridad de la DB de Bolivia)
-    const categoria = await prisma.categorias.findUnique({
-      where: { id_categoria: id },
-      include: { _count: { select: { productos: true } } }
-    });
+        // Validar si tiene productos (Integridad de la DB de Bolivia)
+        const categoria = await prisma.categorias.findUnique({
+            where: { id_categoria: id },
+            include: { _count: { select: { productos: true } } }
+        });
 
-    if (categoria?._count.productos && categoria._count.productos > 0) {
-      return NextResponse.json({ error: 'Categoría con productos asociados' }, { status: 400 });
+        if (categoria?._count.productos && categoria._count.productos > 0) {
+            return NextResponse.json({ error: 'Categoría con productos asociados' }, { status: 400 });
+        }
+
+        await prisma.categorias.delete({ where: { id_categoria: id } });
+        return NextResponse.json({ success: true });
+    } catch {
+        return NextResponse.json({ error: 'Error al eliminar' }, { status: 500 });
     }
-
-    await prisma.categorias.delete({ where: { id_categoria: id } });
-    return NextResponse.json({ success: true });
-  } catch {
-    return NextResponse.json({ error: 'Error al eliminar' }, { status: 500 });
-  }
 }
