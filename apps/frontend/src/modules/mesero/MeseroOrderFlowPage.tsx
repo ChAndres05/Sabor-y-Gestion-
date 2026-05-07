@@ -18,6 +18,7 @@ import type {
   TableOrderItem,
   TableOrderStatus,
 } from '../tables/types/table-order.types';
+import { pusherClient } from '../../shared/utils/pusher';
 
 type FlowStep = 'cliente' | 'menu' | 'pedido';
 
@@ -231,7 +232,7 @@ export default function MeseroOrderFlowPage({
   const refreshOrders = async () => {
     const ordersData = await ordersApi.getOpenOrdersByTable(tableId);
     setActiveOrders(ordersData);
-    
+
     // Si no hay orden seleccionada o la actual ya no está en la lista, seleccionar una
     if (ordersData.length > 0) {
       // Intentar mantener la misma orden seleccionada por ID si sigue activa
@@ -244,6 +245,27 @@ export default function MeseroOrderFlowPage({
       setOrder(null);
     }
   };
+
+  // ---------------------------------------------------------
+  // 👇 SOLUCIÓN: Integración con Pusher para actualizar estados 👇
+  // ---------------------------------------------------------
+  useEffect(() => {
+    const channel = pusherClient.subscribe('tables-channel');
+
+    // Escuchamos el evento que manda el backend
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    channel.bind('table-order-updated', (pedidoActualizado: any) => {
+      // SOLO refrescamos la pantalla si el plato listo es de ESTA mesa
+      if (pedidoActualizado.id_mesa === tableId) {
+        void refreshPageState();
+      }
+    });
+
+    return () => {
+      pusherClient.unsubscribe('tables-channel');
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableId]);
 
   useEffect(() => {
     const loadPage = async () => {
@@ -259,7 +281,7 @@ export default function MeseroOrderFlowPage({
         setTable(tableData);
         setCategories(categoriesData);
         setActiveOrders(ordersData);
-        
+
         if (categoriesData.length > 0 && !selectedCategoryId) {
           setSelectedCategoryId(categoriesData[0].id);
         }
@@ -322,7 +344,7 @@ export default function MeseroOrderFlowPage({
         const mappedProducts = (productsDataRaw as import('../../shared/mappers/menu.mapper').BackendProduct[])
           .map(mapProductFromBackend)
           .filter((p: OrderCatalogProduct) => p.categoryId === selectedCategoryId && p.disponible);
-          
+
         setProducts(mappedProducts as OrderCatalogProduct[]);
         setSelectedProductId((currentProductId) =>
           mappedProducts.some((product: OrderCatalogProduct) => product.id === currentProductId)
@@ -674,11 +696,10 @@ export default function MeseroOrderFlowPage({
                     key={step}
                     type="button"
                     onClick={() => setActiveStep(step)}
-                    className={`rounded-xl px-3 py-2 text-[12px] font-bold capitalize transition-colors md:px-6 ${
-                      activeStep === step
-                        ? 'bg-white text-text shadow-sm'
-                        : 'text-gray-500 hover:bg-white/60'
-                    }`}
+                    className={`rounded-xl px-3 py-2 text-[12px] font-bold capitalize transition-colors md:px-6 ${activeStep === step
+                      ? 'bg-white text-text shadow-sm'
+                      : 'text-gray-500 hover:bg-white/60'
+                      }`}
                   >
                     {step === 'menu' ? 'Menú' : step}
                   </button>
@@ -768,8 +789,8 @@ export default function MeseroOrderFlowPage({
                     {isSavingCustomer
                       ? 'Guardando...'
                       : order
-                      ? 'Actualizar y continuar'
-                      : 'Abrir pedido'}
+                        ? 'Actualizar y continuar'
+                        : 'Abrir pedido'}
                   </button>
                 </div>
               </section>
@@ -812,11 +833,10 @@ export default function MeseroOrderFlowPage({
                             key={category.id}
                             type="button"
                             onClick={() => setSelectedCategoryId(category.id)}
-                            className={`shrink-0 rounded-xl px-4 py-3 text-[12px] font-bold ${
-                              selectedCategoryId === category.id
-                                ? 'bg-primary text-white'
-                                : 'bg-background text-text'
-                            }`}
+                            className={`shrink-0 rounded-xl px-4 py-3 text-[12px] font-bold ${selectedCategoryId === category.id
+                              ? 'bg-primary text-white'
+                              : 'bg-background text-text'
+                              }`}
                           >
                             {category.nombre}
                           </button>
@@ -830,10 +850,10 @@ export default function MeseroOrderFlowPage({
                           <div className="grid grid-cols-[48px_1fr_auto] gap-3">
                             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-background text-[22px] overflow-hidden">
                               {typeof product.imagen === 'string' &&
-                              product.imagen.trim() &&
-                              (product.imagen.startsWith('http') ||
-                                product.imagen.startsWith('/') ||
-                                product.imagen.includes('.')) ? (
+                                product.imagen.trim() &&
+                                (product.imagen.startsWith('http') ||
+                                  product.imagen.startsWith('/') ||
+                                  product.imagen.includes('.')) ? (
                                 <img src={product.imagen} alt={product.nombre} className="h-full w-full object-cover" />
                               ) : (
                                 getItemIcon(product.categoryId)
@@ -886,17 +906,16 @@ export default function MeseroOrderFlowPage({
                         key={o.id}
                         type="button"
                         onClick={() => setOrder(o)}
-                        className={`rounded-xl px-3 py-2 text-[11px] font-bold transition-all ${
-                          order?.id === o.id
-                            ? 'bg-primary text-white shadow-md transform scale-105'
-                            : 'bg-background text-gray-500 hover:bg-gray-200'
-                        }`}
+                        className={`rounded-xl px-3 py-2 text-[11px] font-bold transition-all ${order?.id === o.id
+                          ? 'bg-primary text-white shadow-md transform scale-105'
+                          : 'bg-background text-gray-500 hover:bg-gray-200'
+                          }`}
                       >
                         Pedido #{idx + 1}
                         <span className="ml-1 opacity-70">({getOrderStatusLabel(o.estado)})</span>
                       </button>
                     ))}
-                    
+
                     {activeOrders.length > 0 && !activeOrders.some(o => o.estado === 'REGISTRADO') && (
                       <button
                         type="button"
@@ -913,13 +932,12 @@ export default function MeseroOrderFlowPage({
                       {orderFlow.map((step, index) => (
                         <div
                           key={step.label}
-                          className={`rounded-xl px-2 py-2 text-center text-[10px] font-bold ${
-                            step.done
-                              ? 'bg-success text-white'
-                              : step.active
+                          className={`rounded-xl px-2 py-2 text-center text-[10px] font-bold ${step.done
+                            ? 'bg-success text-white'
+                            : step.active
                               ? 'bg-primary text-white'
                               : 'bg-background text-gray-400'
-                          }`}
+                            }`}
                         >
                           <span className="block text-[10px] opacity-80">{index + 1}</span>
                           {step.label}
