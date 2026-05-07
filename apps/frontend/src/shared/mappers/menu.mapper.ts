@@ -16,6 +16,16 @@ export interface BackendProduct {
   foto?: string;
   activo?: boolean;
   disponible?: boolean;
+  categoria?: {
+    id_categoria?: number;
+    id?: number;
+    nombre?: string;
+  };
+  categorias?: {
+    id_categoria?: number;
+    id?: number;
+    nombre?: string;
+  };
   presentaciones?: Array<{
     id_presentacion_producto?: number;
     precio?: string | number;
@@ -24,37 +34,57 @@ export interface BackendProduct {
       insumo: {
         id_insumo: number;
         nombre: string;
-      }
+      };
     }>;
   }>;
 }
 
 export function mapProductFromBackend(product: BackendProduct): MenuProduct {
-  const presentation = product.presentaciones && product.presentaciones.length > 0 
-    ? product.presentaciones[0] 
-    : null;
+  const presentation =
+    product.presentaciones && product.presentaciones.length > 0
+      ? product.presentaciones[0]
+      : null;
 
-  const ingredientes = presentation?.recetas_presentaciones?.map((receta) => ({
-    id: receta.insumo.id_insumo,
-    nombre: receta.insumo.nombre,
-    incluidoPorDefecto: true,
-  })) ?? [];
+  const ingredientes =
+    presentation?.recetas_presentaciones?.map((receta) => ({
+      id: receta.insumo.id_insumo,
+      nombre: receta.insumo.nombre,
+      incluidoPorDefecto: true,
+    })) ?? [];
+
+  const categoryFromRelation = product.categoria ?? product.categorias;
 
   return {
-    id: Number(product.id_producto || product.id || presentation?.id_presentacion_producto || 0),
-    categoryId: Number(product.id_categoria || 0),
+    id: Number(
+      presentation?.id_presentacion_producto ??
+        product.id_producto ??
+        product.id ??
+        0
+    ),
+    categoryId: Number(
+      product.id_categoria ??
+        product.categoryId ??
+        categoryFromRelation?.id_categoria ??
+        categoryFromRelation?.id ??
+        0
+    ),
     nombre: product.nombre,
     descripcion: product.descripcion || '',
-    precio: Number(product.precio || presentation?.precio || 0),
+    precio: Number(product.precio ?? presentation?.precio ?? 0),
     tiempoPreparacion: Number(
-      product.tiempo_preparacion || 
-      product.tiempoPreparacion || 
-      presentation?.tiempo_preparacion_minutos || 
-      0
+      product.tiempo_preparacion ??
+        product.tiempoPreparacion ??
+        presentation?.tiempo_preparacion_minutos ??
+        0
     ),
-    imagen: product.imagen_url || product.imagen || product.url_imagen || product.foto || null,
+    imagen:
+      product.imagen_url ||
+      product.imagen ||
+      product.url_imagen ||
+      product.foto ||
+      null,
     activo: product.activo ?? true,
-    disponible: product.disponible ?? true,
+    disponible: product.disponible ?? product.activo ?? true,
     ingredientes,
   };
 }
