@@ -291,7 +291,7 @@ export const ordersApi = {
 
     if (orderId > 0) {
       try {
-        const res = await fetch(`${API_URL}/api/pedidos/${orderId}`, {
+        const res = await fetch(`${API_URL}/api/pedidos/${orderId}/estado`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ estado: status })
