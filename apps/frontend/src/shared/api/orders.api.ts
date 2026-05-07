@@ -119,14 +119,15 @@ export const ordersApi = {
    * Lista pedidos activos para mesero/admin.
    */
   async listActiveOrders(): Promise<TableOrder[]> {
-    const tables = await tryJson<BackendTableRecord[]>(`${API_URL}/api/mesas`);
+const tables = await tryJson<BackendTableRecord[]>(`${API_URL}/api/mesas?t=${Date.now()}`, { cache: 'no-store' });
     const validIds = new Set(
       Array.isArray(tables)
         ? tables.map((table) => Number(table.id_mesa ?? table.id))
         : []
     );
 
-    const backendData = await tryJson<BackendOrderRecord[]>(`${API_URL}/api/pedidos/activos`);
+// Intentamos obtener pedidos de backend
+    const backendData = await tryJson<BackendOrderRecord[]>(`${API_URL}/api/pedidos/activos?t=${Date.now()}`, { cache: 'no-store' });
     const simulatedStatuses = readSimulatedStatuses();
     const backendOrders = Array.isArray(backendData)
       ? backendData.map((order) => mapBackendOrderToWaiterFrontend(order, simulatedStatuses))
@@ -419,7 +420,7 @@ export const ordersApi = {
 
     if (orderId > 0) {
       try {
-        const response = await fetch(`${API_URL}/api/pedidos/${orderId}`, {
+        const response = await fetch(`${API_URL}/api/pedidos/${orderId}/estado`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ estado: status }),
@@ -430,7 +431,17 @@ export const ordersApi = {
         backendUpdated = false;
       }
 
-      writeSimulatedStatus(orderId, status);
+if (!backendUpdated) {
+        writeSimulatedStatus(orderId, status);
+      } else {
+        const statuses = readSimulatedStatuses();
+        if (statuses[orderId]) {
+          delete statuses[orderId];
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(SIMULATED_STATUSES_STORAGE_KEY, JSON.stringify(statuses));
+          }
+        }
+      }
     }
 
     await updateOrderStatusForTableMock(tableId, status, orderId);
