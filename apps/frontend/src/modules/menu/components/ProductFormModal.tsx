@@ -82,6 +82,7 @@ const getProductSubmitError = (params: {
   descripcion: string;
   precio: string;
   tiempoPreparacion: string;
+  imagen: string;
 }) => {
   const normalizedNombre = normalizeProductName(params.nombre);
 
@@ -99,6 +100,10 @@ const getProductSubmitError = (params: {
 
   if (!params.tiempoPreparacion.trim()) {
     return 'El tiempo de preparación es obligatorio';
+  }
+
+  if (!params.imagen.trim()) {
+    return 'La imagen es obligatoria';
   }
 
   return getProductRealtimeError(params);
@@ -188,6 +193,7 @@ export function ProductFormModal({
       descripcion,
       precio,
       tiempoPreparacion,
+      imagen,
     })
     : '';
   const validationError = realtimeError || submitError;
@@ -209,8 +215,17 @@ export function ProductFormModal({
 
     setSubmitAttempted(true);
 
-    if (!isFormValidForSubmit) {
-      setError(validationError);
+    const submitValidationError = getProductSubmitError({
+      categoryId,
+      nombre,
+      descripcion,
+      precio,
+      tiempoPreparacion,
+      imagen,
+    });
+
+    if (submitValidationError) {
+      setError(submitValidationError);
       return;
     }
 
