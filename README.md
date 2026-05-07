@@ -22,6 +22,7 @@ El proyecto adopta una arquitectura monorepo gestionada mediante Turborepo y pnp
 | Base de Datos    | PostgreSQL (via Supabase)                           | —                |
 | Gestión Monorepo | Turborepo + pnpm Workspaces                         | raíz del proyecto|
 
+
 ---
 
 ## 3. REQUISITOS PREVIOS
@@ -76,10 +77,12 @@ Cada aplicación requiere su propio archivo `.env`. Tome como referencia el arch
 
 #### FRONTEND — `apps/frontend/.env`
 
-| Variable        | Descripción / Valor de Referencia |
-|-----------------|----------------------------------|
-| VITE_API_URL    | http://localhost:3001/           |
-| VITE_PORT       | 4000                             |
+| Variable           | Descripción / Valor de Referencia                         |
+|--------------------|-----------------------------------------------------------|
+| VITE_API_URL       | http://localhost:3001/                                    |
+| VITE_PORT          | 4000                                                      |
+|VITE_PUSHER_KEY     |Clave pública de Pusher (debe coincidir con la del backend)|
+|VITE_PUSHER_CLUSTER |Región del clúster de Pusher                               |
 
 ---
 
