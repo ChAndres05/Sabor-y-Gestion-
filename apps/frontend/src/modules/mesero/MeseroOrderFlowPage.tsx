@@ -340,18 +340,36 @@ export default function MeseroOrderFlowPage({
       setIsLoading(true);
 
       try {
-        const [tableData, categoriesData, ordersData] = await Promise.all([
+        const [tableData, categoriesData, ordersData, productsRaw] = await Promise.all([
           getTableByIdMock(tableId),
           menuApi.getCategories('', 'activas'),
           ordersApi.getOpenOrdersByTable(tableId),
+          menuApi.getProductos(),
         ]);
 
+        const availableCategoryIds = new Set(
+          (productsRaw as BackendProduct[])
+            .map(mapProductFromBackend)
+            .filter((product) => product.activo && product.disponible)
+            .map((product) => product.categoryId)
+        );
+
+        const filteredCategories = categoriesData.filter((category) =>
+          availableCategoryIds.has(category.id)
+        );
+
         setTable(tableData);
-        setCategories(categoriesData);
+        setCategories(filteredCategories);
         setActiveOrders(ordersData);
 
-        if (categoriesData.length > 0 && !selectedCategoryId) {
-          setSelectedCategoryId(categoriesData[0].id);
+        if (filteredCategories.length > 0) {
+          setSelectedCategoryId((currentId) =>
+            filteredCategories.some((category) => category.id === currentId)
+              ? currentId
+              : filteredCategories[0].id
+          );
+        } else {
+          setSelectedCategoryId(0);
         }
 
         const currentOrder =
@@ -415,7 +433,12 @@ export default function MeseroOrderFlowPage({
         const productsDataRaw = await menuApi.getProductos();
         const mappedProducts: OrderCatalogProduct[] = (productsDataRaw as BackendProduct[])
           .map(mapProductFromBackend)
-          .filter((product) => product.categoryId === selectedCategoryId && product.disponible)
+          .filter(
+            (product) =>
+              product.categoryId === selectedCategoryId &&
+              product.activo &&
+              product.disponible
+          )
           .map((product) => ({
             id: product.id,
             categoryId: product.categoryId,
@@ -1192,7 +1215,9 @@ export default function MeseroOrderFlowPage({
                                   </p>
                                 ))}
                                 {item.observacion && (
-                                  <p className="text-[12px] font-semibold text-primary">Nota: {item.observacion}</p>
+                                  <p className="text-[12px] font-semibold text-primary break-words whitespace-pre-wrap">
+                                    Nota: {item.observacion}
+                                  </p>
                                 )}
                               </div>
                               <div className="flex gap-1">
