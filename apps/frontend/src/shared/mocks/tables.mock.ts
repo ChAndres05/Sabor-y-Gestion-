@@ -111,6 +111,17 @@ export function getEffectiveTableStatus(
   activeOrders: Array<{ tableId?: number; id_mesa?: number; estado?: string }>,
   activeReservations: Array<{ tableId?: number; id_mesa?: number; status?: string; estado?: string }>
 ): TableStatus {
+  const overlay = readStatusOverlay();
+  const overlayStatus = overlay[String(table.id)];
+
+  if (overlayStatus === 'CUENTA_SOLICITADA' || table.estado === 'CUENTA_SOLICITADA') {
+    return 'CUENTA_SOLICITADA';
+  }
+
+  if (overlayStatus === 'FUERA_DE_SERVICIO' || table.estado === 'FUERA_DE_SERVICIO') {
+    return 'FUERA_DE_SERVICIO';
+  }
+
   const tableOrders = activeOrders.filter((order) => {
     const orderTableId = Number(order.tableId ?? order.id_mesa ?? 0);
     return orderTableId === table.id && order.estado !== 'PAGADO' && order.estado !== 'CANCELADO';
@@ -124,8 +135,6 @@ export function getEffectiveTableStatus(
     return 'OCUPADA';
   }
 
-  const overlay = readStatusOverlay();
-  const overlayStatus = overlay[String(table.id)];
   if (overlayStatus) return overlayStatus;
 
   const tableReservations = activeReservations.filter((reservation) => {
@@ -137,8 +146,6 @@ export function getEffectiveTableStatus(
   if (tableReservations.length > 0) {
     return 'RESERVADA';
   }
-
-  if (table.estado === 'CUENTA_SOLICITADA') return 'CUENTA_SOLICITADA';
 
   return table.estado;
 }

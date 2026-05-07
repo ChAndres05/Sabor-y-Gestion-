@@ -11,7 +11,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'id_mesa y id_usuario_mesero son requeridos' }, { status: 400 });
     }
 
-    // Buscar tipo de pedido 'LOCAL' o similar, o tomar el primero por defecto
     let tipoPedido = await prisma.tipos_pedido.findFirst({
       where: { nombre: { contains: 'LOCAL', mode: 'insensitive' } }
     });
@@ -24,14 +23,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No hay tipos de pedido configurados en la BD' }, { status: 400 });
     }
 
+    let mesero = await prisma.usuarios.findUnique({ where: { id_usuario: id_usuario_mesero } });
+    if (!mesero) {
+      mesero = await prisma.usuarios.findFirst({
+        where: { rol: { nombre: { contains: 'MESERO', mode: 'insensitive' } } }
+      }) ?? await prisma.usuarios.findFirst();
+    }
+    if (!mesero) {
+      return NextResponse.json({ error: 'No hay usuarios disponibles' }, { status: 400 });
+    }
+
+    let clienteId = id_usuario_cliente;
+    if (clienteId) {
+      const cliente = await prisma.usuarios.findUnique({ where: { id_usuario: clienteId } });
+      if (!cliente) clienteId = null;
+    }
+
     // Usar transacción para crear pedido y actualizar estado de la mesa
     const [nuevoPedido] = await prisma.$transaction([
       prisma.pedidos.create({
         data: {
           id_tipo_pedido: tipoPedido.id_tipo_pedido,
           id_mesa,
-          id_usuario_mesero,
-          id_usuario_cliente,
+          id_usuario_mesero: mesero.id_usuario,
+          id_usuario_cliente: clienteId,
           estado: 'REGISTRADO',
           observaciones,
           subtotal: 0,
