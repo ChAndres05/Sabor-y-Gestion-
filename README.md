@@ -60,15 +60,18 @@ Cada aplicación requiere su propio archivo `.env`. Tome como referencia el arch
 
 #### BACKEND — `apps/backend/.env`
 
-| Variable                  | Descripción / Valor de Referencia                         |
-|---------------------------|----------------------------------------------------------|
-| PORT                      | 3001                                                     |
-| DATABASE_URL              | postgresql://... (conexión pooled, pgbouncer=true)       |
-| DIRECT_URL                | postgresql://... (conexión directa para migraciones)     |
-| SUPABASE_URL              | URL pública del proyecto en Supabase                     |
-| SUPABASE_PUBLISHABLE_KEY  | Clave pública de Supabase                                |
-| SUPABASE_SECRET_KEY       | Clave secreta de Supabase (confidencial)                 |
-| WEB_URL                   | http://localhost:4000/ (CORS hacia el frontend)          |
+Variable,Descripción / Valor de Referencia
+PORT,3001
+DATABASE_URL,URL de conexión pooled (pgbouncer=true) para Prisma
+DIRECT_URL,URL de conexión directa para ejecutar migraciones
+SUPABASE_URL,URL pública del proyecto en Supabase
+SUPABASE_PUBLISHABLE_KEY,Clave pública (anon key) de Supabase
+SUPABASE_SECRET_KEY,Clave secreta (service role key) de Supabase (confidencial)
+WEB_URL,http://localhost:4000/ (URL del frontend para permitir CORS)
+PUSHER_APP_ID,ID de la aplicación en el panel de Pusher Channels
+PUSHER_KEY,Clave pública de Pusher para la conexión de WebSockets
+PUSHER_SECRET,Clave secreta de Pusher (estrictamente confidencial)
+PUSHER_CLUSTER,"Región del clúster asignado en Pusher (ej. us2, sa1)"
 
 #### FRONTEND — `apps/frontend/.env`
 
