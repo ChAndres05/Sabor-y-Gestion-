@@ -72,6 +72,7 @@ export default function MenuManagementPage({
   );
   const [isSubmittingCategoryForm, setIsSubmittingCategoryForm] =
     useState(false);
+  const [categoryFormError, setCategoryFormError] = useState<string | null>(null);
 
   const [isCreateProductOpen, setIsCreateProductOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<MenuProduct | null>(
@@ -199,23 +200,23 @@ export default function MenuManagementPage({
 
   const handleCreateCategory = async (values: MenuCategoryFormValues) => {
     setIsSubmittingCategoryForm(true);
+    setCategoryFormError(null);
 
     try {
       await menuApi.createCategory(values);
       setIsCreateOpen(false);
+      setCategoryFormError(null);
       await loadCategories(searchTerm, statusFilter);
       setFeedback({
         type: 'success',
         message: 'Categoría creada correctamente',
       });
     } catch (error) {
-      setFeedback({
-        type: 'error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'No se pudo crear la categoría',
-      });
+      setCategoryFormError(
+        error instanceof Error
+          ? error.message
+          : 'No se pudo crear la categoría'
+      );
     } finally {
       setIsSubmittingCategoryForm(false);
     }
@@ -225,23 +226,23 @@ export default function MenuManagementPage({
     if (!editingCategory) return;
 
     setIsSubmittingCategoryForm(true);
+    setCategoryFormError(null);
 
     try {
       await menuApi.updateCategory(editingCategory.id, values);
       setEditingCategory(null);
+      setCategoryFormError(null);
       await loadCategories(searchTerm, statusFilter);
       setFeedback({
         type: 'success',
         message: 'Categoría actualizada correctamente',
       });
     } catch (error) {
-      setFeedback({
-        type: 'error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'No se pudo actualizar la categoría',
-      });
+      setCategoryFormError(
+        error instanceof Error
+          ? error.message
+          : 'No se pudo actualizar la categoría'
+      );
     } finally {
       setIsSubmittingCategoryForm(false);
     }
@@ -516,7 +517,10 @@ export default function MenuManagementPage({
 
                     <button
                       type="button"
-                      onClick={() => setIsCreateOpen(true)}
+                      onClick={() => {
+                        setCategoryFormError(null);
+                        setIsCreateOpen(true);
+                      }}
                       className="rounded-2xl bg-primary px-4 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-primary-hover"
                     >
                       + Nueva categoría
@@ -562,6 +566,7 @@ export default function MenuManagementPage({
                         }
                         onEdit={() => {
                           setOpenActionMenuId(null);
+                          setCategoryFormError(null);
                           setEditingCategory(category);
                         }}
                         onViewProducts={() => handleViewProducts(category)}
@@ -703,7 +708,11 @@ export default function MenuManagementPage({
         open={isCreateOpen}
         mode="create"
         isSubmitting={isSubmittingCategoryForm}
-        onClose={() => setIsCreateOpen(false)}
+        externalError={categoryFormError}
+        onClose={() => {
+          setIsCreateOpen(false);
+          setCategoryFormError(null);
+        }}
         onSubmit={handleCreateCategory}
       />
 
@@ -713,7 +722,11 @@ export default function MenuManagementPage({
         mode="edit"
         initialCategory={editingCategory}
         isSubmitting={isSubmittingCategoryForm}
-        onClose={() => setEditingCategory(null)}
+        externalError={categoryFormError}
+        onClose={() => {
+          setEditingCategory(null);
+          setCategoryFormError(null);
+        }}
         onSubmit={handleEditCategory}
       />
 
