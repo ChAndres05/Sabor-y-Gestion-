@@ -413,22 +413,22 @@ export default function MeseroOrderFlowPage({
 
       try {
         const productsDataRaw = await menuApi.getProductos();
-const mappedProducts: OrderCatalogProduct[] = (productsDataRaw as BackendProduct[])
-  .map(mapProductFromBackend)
-  .filter((product) => product.categoryId === selectedCategoryId && product.disponible)
-  .map((product) => ({
-    id: product.id,
-    categoryId: product.categoryId,
-    nombre: product.nombre,
-    descripcion: product.descripcion,
-    precio: product.precio,
-    tiempoPreparacion: product.tiempoPreparacion,
-    disponible: product.disponible,
-    ingredientes: product.ingredientes,
-    imagen: product.imagen ?? null,
-  }));
+        const mappedProducts: OrderCatalogProduct[] = (productsDataRaw as BackendProduct[])
+          .map(mapProductFromBackend)
+          .filter((product) => product.categoryId === selectedCategoryId && product.disponible)
+          .map((product) => ({
+            id: product.id,
+            categoryId: product.categoryId,
+            nombre: product.nombre,
+            descripcion: product.descripcion,
+            precio: product.precio,
+            tiempoPreparacion: product.tiempoPreparacion,
+            disponible: product.disponible,
+            ingredientes: product.ingredientes,
+            imagen: product.imagen ?? null,
+          }));
 
-setProducts(mappedProducts);
+        setProducts(mappedProducts);
         setSelectedProductId((currentProductId) =>
           mappedProducts.some((product) => product.id === currentProductId)
             ? currentProductId
@@ -635,10 +635,10 @@ setProducts(mappedProducts);
         })),
         ...(selectedProduct
           ? {
-              precioUnitario: selectedProduct.precio,
-              tiempoPreparacion: selectedProduct.tiempoPreparacion,
-              imagen: selectedProduct.imagen ?? null,
-            }
+            precioUnitario: selectedProduct.precio,
+            tiempoPreparacion: selectedProduct.tiempoPreparacion,
+            imagen: selectedProduct.imagen ?? null,
+          }
           : {}),
       };
 
@@ -809,13 +809,13 @@ setProducts(mappedProducts);
 
   const headerDescription = table
     ? [
-        `Mesa ${table.numero}`,
-        getTableStatusLabel(table.estado),
-        order?.customer.nombre?.trim(),
-        `Mesero ${user.nombre}`,
-      ]
-        .filter((item): item is string => Boolean(item && item.trim()))
-        .join(' · ')
+      `Mesa ${table.numero}`,
+      getTableStatusLabel(table.estado),
+      order?.customer.nombre?.trim(),
+      `Mesero ${user.nombre}`,
+    ]
+      .filter((item): item is string => Boolean(item && item.trim()))
+      .join(' · ')
     : 'Flujo operativo del mesero';
 
   return (
@@ -862,11 +862,10 @@ setProducts(mappedProducts);
                     key={step}
                     type="button"
                     onClick={() => setActiveStep(step)}
-                    className={`rounded-xl px-3 py-2 text-[12px] font-bold capitalize transition-colors md:px-6 ${
-                      activeStep === step
+                    className={`rounded-xl px-3 py-2 text-[12px] font-bold capitalize transition-colors md:px-6 ${activeStep === step
                         ? 'bg-white text-text shadow-sm'
                         : 'text-gray-500 hover:bg-white/60'
-                    }`}
+                      }`}
                   >
                     {step === 'menu' ? 'Menú' : step}
                   </button>
@@ -1016,11 +1015,10 @@ setProducts(mappedProducts);
                             key={category.id}
                             type="button"
                             onClick={() => setSelectedCategoryId(category.id)}
-                            className={`shrink-0 rounded-xl px-4 py-3 text-[12px] font-bold ${
-                              selectedCategoryId === category.id
+                            className={`shrink-0 rounded-xl px-4 py-3 text-[12px] font-bold ${selectedCategoryId === category.id
                                 ? 'bg-primary text-white'
                                 : 'bg-background text-text'
-                            }`}
+                              }`}
                           >
                             {category.nombre}
                           </button>
@@ -1034,10 +1032,10 @@ setProducts(mappedProducts);
                           <div className="grid grid-cols-[48px_1fr_auto] gap-3">
                             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-background text-[22px] overflow-hidden">
                               {typeof product.imagen === 'string' &&
-                              product.imagen.trim() &&
-                              (product.imagen.startsWith('http') ||
-                                product.imagen.startsWith('/') ||
-                                product.imagen.includes('.')) ? (
+                                product.imagen.trim() &&
+                                (product.imagen.startsWith('http') ||
+                                  product.imagen.startsWith('/') ||
+                                  product.imagen.includes('.')) ? (
                                 <img src={product.imagen} alt={product.nombre} className="h-full w-full object-cover" />
                               ) : (
                                 getItemIcon(product.categoryId)
@@ -1090,11 +1088,10 @@ setProducts(mappedProducts);
                         key={activeOrder.id}
                         type="button"
                         onClick={() => setOrder(activeOrder)}
-                        className={`rounded-xl px-3 py-2 text-[11px] font-bold transition-all ${
-                          order?.id === activeOrder.id
+                        className={`rounded-xl px-3 py-2 text-[11px] font-bold transition-all ${order?.id === activeOrder.id
                             ? 'bg-primary text-white shadow-md transform scale-105'
                             : 'bg-background text-gray-500 hover:bg-gray-200'
-                        }`}
+                          }`}
                       >
                         Pedido #{index + 1}
                         <span className="ml-1 opacity-70">({getOrderStatusLabel(activeOrder.estado)})</span>
@@ -1117,13 +1114,12 @@ setProducts(mappedProducts);
                       {orderFlow.map((step, index) => (
                         <div
                           key={step.label}
-                          className={`rounded-xl px-2 py-2 text-center text-[10px] font-bold ${
-                            step.done
+                          className={`rounded-xl px-2 py-2 text-center text-[10px] font-bold ${step.done
                               ? 'bg-success text-white'
                               : step.active
                                 ? 'bg-primary text-white'
                                 : 'bg-background text-gray-400'
-                          }`}
+                            }`}
                         >
                           <span className="block text-[10px] opacity-80">{index + 1}</span>
                           {step.label}
