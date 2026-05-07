@@ -190,18 +190,32 @@ export async function createZoneMock(payload: ZoneFormValues): Promise<Zone> {
 
 export async function listTablesMock(): Promise<RestaurantTable[]> {
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/mesas`);
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/mesas?t=${Date.now()}`, {
+      cache: 'no-store'
+    });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) {
-        const backendTables = data.map((t) => ({
-          id: Number(t.id_mesa ?? t.id),
-          numero: Number(t.numero),
-          capacidad: Number(t.capacidad ?? 0),
-          zoneId: Number(t.id_zona ?? t.zoneId ?? 0),
-          estado: (t.estado ?? 'LIBRE') as TableStatus,
-          activo: Boolean(t.activa ?? t.activo ?? true),
-        }));
+        const backendTables = data.map(
+          (t: {
+            id_mesa?: number | string;
+            id?: number | string;
+            numero: number | string;
+            capacidad?: number | string;
+            id_zona?: number | string;
+            zoneId?: number | string;
+            estado?: string;
+            activa?: boolean;
+            activo?: boolean;
+          }) => ({
+            id: Number(t.id_mesa ?? t.id),
+            numero: Number(t.numero),
+            capacidad: Number(t.capacidad ?? 0),
+            zoneId: Number(t.id_zona ?? t.zoneId ?? 0),
+            estado: (t.estado ?? 'LIBRE') as TableStatus,
+            activo: Boolean(t.activa ?? t.activo ?? true),
+          })
+        );
 
         return applyWaiterTableStatusOverlayMock(backendTables)
           .sort((a, b) => a.numero - b.numero)
@@ -414,7 +428,16 @@ export async function updateTableStatusMock(
     persistTables();
   }
 
-  saveStatusOverlay(tableId, status);
+  if (!backendTable) {
+    saveStatusOverlay(tableId, status);
+  } else {
+    const overlay = readStatusOverlay();
+    if (overlay[String(tableId)]) {
+      delete overlay[String(tableId)];
+      writeStatusOverlay(overlay);
+    }
+  }
+  
   emitRestaurantStateChanged();
   return cloneTable(updatedTable);
 }

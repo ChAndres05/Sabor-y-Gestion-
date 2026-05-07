@@ -5,7 +5,6 @@ import type {
   AddOrderItemPayload,
 } from '../../modules/tables/types/table-order.types';
 import type { ClientOrder } from '../types/client-flow.types';
-import { mapBackendOrder } from '../mappers/client-flow.mapper';
 import { mapBackendOrderToWaiterFrontend } from '../mappers/order.mapper';
 import type { KitchenOrder } from '../types/kitchen.types';
 import { listClientOrdersMock } from '../mocks/client-flow.mock';
@@ -220,14 +219,22 @@ export const ordersApi = {
    * Lista pedidos activos para mesero/admin desde backend.
    */
   async listActiveOrders(): Promise<TableOrder[]> {
-    const tables = await tryJson<BackendTableRecord[]>(`${API_URL}/api/mesas`);
+    const tables = await tryJson<BackendTableRecord[]>(
+      `${API_URL}/api/mesas?t=${Date.now()}`,
+      { cache: 'no-store' }
+    );
+
     const validIds = new Set(
       Array.isArray(tables)
         ? tables.map((table) => Number(table.id_mesa ?? table.id))
         : []
     );
 
-    const backendData = await tryJson<BackendOrderRecord[]>(`${API_URL}/api/pedidos/activos`);
+    const backendData = await tryJson<BackendOrderRecord[]>(
+      `${API_URL}/api/pedidos/activos?t=${Date.now()}`,
+      { cache: 'no-store' }
+    );
+
     const backendOrders = mapBackendOrders(backendData);
 
     return backendOrders.filter(
@@ -244,7 +251,9 @@ export const ordersApi = {
   async searchCustomerByCi(ci: string): Promise<TableOrderCustomer | null> {
     if (!ci || ci === '0') return null;
 
-    const data = await tryJson<BackendCustomerSearchRecord>(`${API_URL}/api/clientes/ci/${ci}`);
+    const data = await tryJson<BackendCustomerSearchRecord>(
+      `${API_URL}/api/clientes/ci/${ci}`
+    );
 
     if (!data) return null;
 
@@ -253,12 +262,55 @@ export const ordersApi = {
 
   /**
    * Lista pedidos asociados a un cliente específico.
+   * Trae activos e historial para que el frontend clasifique.
    */
   async listOrdersByClient(userId: number): Promise<ClientOrder[]> {
-    const data = await tryJson<BackendOrderRecord[]>(`${API_URL}/api/pedidos/cliente/${userId}`);
+    const data = await tryJson<BackendOrderRecord[]>(
+      `${API_URL}/api/clientes/pedidos/historial?id_usuario=${userId}`
+    );
 
     if (Array.isArray(data)) {
-      return data.map((order) => mapBackendOrder(order, userId));
+      return data.map((order) => {
+        const mesa = isRecord(order.mesa) ? order.mesa : undefined;
+        const tableNum = mesa?.numero ?? order.numero_mesa;
+        const sourceVal = mesa || order.origen === 'MESA' ? 'MESA_MESERO' : 'RESERVA';
+
+        const rawItems = Array.isArray(order.detalles_pedido)
+          ? order.detalles_pedido
+          : Array.isArray(order.productos)
+            ? order.productos
+            : [];
+
+        const items = rawItems.map((rawProduct) => {
+          const prod = isRecord(rawProduct) ? rawProduct : {};
+          const presentacion = isRecord(prod.presentacion_producto)
+            ? prod.presentacion_producto
+            : undefined;
+          const producto = isRecord(presentacion?.producto)
+            ? presentacion?.producto
+            : undefined;
+
+          return {
+            id: Number(prod.id_detalle ?? prod.id_detalle_pedido ?? 0),
+            quantity: Number(prod.cantidad ?? 0),
+            name: String(prod.nombre ?? producto?.nombre ?? 'Producto sin nombre'),
+            notes: prod.observaciones ? String(prod.observaciones) : undefined,
+            subtotal: Number(prod.subtotal ?? 0),
+          };
+        });
+
+        return {
+          id: Number(order.id_pedido ?? 0),
+          orderNumber: String(order.numero_pedido ?? order.id_pedido ?? '').padStart(4, '0'),
+          source: sourceVal,
+          tableNumber: tableNum ? String(tableNum) : undefined,
+          status: order.estado,
+          estimatedMinutes: Number(order.tiempo_estimado_minutos ?? 0),
+          total: Number(order.total ?? 0),
+          createdAt: String(order.fecha_hora_pedido ?? ''),
+          items,
+        } as unknown as ClientOrder;
+      });
     }
 
     return listClientOrdersMock(userId);
@@ -268,7 +320,11 @@ export const ordersApi = {
    * Obtiene los pedidos abiertos de una mesa desde backend.
    */
   async getOpenOrdersByTable(tableId: number): Promise<TableOrder[]> {
-    const tables = await tryJson<BackendTableRecord[]>(`${API_URL}/api/mesas`);
+    const tables = await tryJson<BackendTableRecord[]>(
+      `${API_URL}/api/mesas?t=${Date.now()}`,
+      { cache: 'no-store' }
+    );
+
     const tableExists = Array.isArray(tables)
       ? tables.some((table) => Number(table.id_mesa ?? table.id) === Number(tableId))
       : true;
@@ -276,8 +332,10 @@ export const ordersApi = {
     if (!tableExists) return [];
 
     const backendData = await tryJson<BackendOrderRecord | BackendOrderRecord[]>(
-      `${API_URL}/api/pedidos/mesa/${tableId}`
+      `${API_URL}/api/pedidos/mesa/${tableId}?t=${Date.now()}`,
+      { cache: 'no-store' }
     );
+
     const backendOrders = mapBackendOrders(backendData);
 
     return backendOrders.filter(

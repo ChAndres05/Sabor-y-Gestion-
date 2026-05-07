@@ -146,8 +146,10 @@ export default function TableManagementPage({
     }
   }, [API_URL]);
 
-  const loadTables = useCallback(async () => {
-    setIsTablesLoading(true);
+  const loadTables = useCallback(async (isBackgroundRefresh = false) => {
+    if (!isBackgroundRefresh) {
+      setIsTablesLoading(true);
+    }
     try {
       const baseTables = (await listTablesMock()).filter((table) => table.activo);
 
@@ -169,7 +171,9 @@ export default function TableManagementPage({
         message: error instanceof Error ? error.message : 'No se pudieron cargar las mesas',
       });
     } finally {
-      setIsTablesLoading(false);
+      if (!isBackgroundRefresh) {
+        setIsTablesLoading(false);
+      }
     }
   }, []);
 
@@ -180,12 +184,12 @@ export default function TableManagementPage({
 
   useEffect(() => {
     const handleStateChange = () => {
-      void loadTables();
+      void loadTables(true);
     };
 
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === RESTAURANT_STATE_CHANGED_STORAGE_KEY) {
-        void loadTables();
+        void loadTables(true);
       }
     };
 
@@ -533,16 +537,6 @@ export default function TableManagementPage({
           </div>
 
           <div className="mt-4 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                void loadZones();
-                void loadTables();
-              }}
-              className="rounded-2xl bg-white px-4 py-3 text-[14px] font-semibold text-text shadow-sm transition-colors hover:bg-black/5"
-            >
-              Actualizar
-            </button>
 
             {isAdmin && (
               <>
