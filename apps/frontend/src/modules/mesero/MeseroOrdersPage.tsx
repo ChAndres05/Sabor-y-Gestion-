@@ -5,7 +5,7 @@ import {
   requestBillForTableMock,
 } from '../../shared/mocks/table-orders.mock';
 import { pusherClient } from '../../shared/utils/pusher';
-import { listTablesMock, updateTableStatusMock } from '../../shared/mocks/tables.mock';
+import { listTablesMock } from '../../shared/mocks/tables.mock';
 import {
   RESTAURANT_STATE_CHANGED_EVENT,
   RESTAURANT_STATE_CHANGED_STORAGE_KEY,
@@ -180,7 +180,11 @@ export default function MeseroOrdersPage({
       } else {
         await ordersApi.updateOrderStatus(0, status, tableId);
       }
-      await updateTableStatusMock(tableId, 'OCUPADA');
+      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/mesas/${tableId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'OCUPADA' })
+      });
       await loadOrders();
       setFeedback({
         type: 'success',
@@ -203,7 +207,11 @@ export default function MeseroOrdersPage({
 
     try {
       await requestBillForTableMock(tableId);
-      await updateTableStatusMock(tableId, 'CUENTA_SOLICITADA');
+      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/mesas/${tableId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'CUENTA_SOLICITADA' })
+      });
       await loadOrders();
       setFeedback({
         type: 'success',

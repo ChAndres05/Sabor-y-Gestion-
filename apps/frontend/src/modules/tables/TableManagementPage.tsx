@@ -13,7 +13,6 @@ import {
   deleteTableMock,
   updateTableMock,
   getEffectiveTableStatus,
-  updateTableStatusMock,
   listTablesMock,
 } from '../../shared/mocks/tables.mock';
 import { ordersApi } from '../../shared/api/orders.api';
@@ -24,6 +23,7 @@ import {
 import type { AuthUser } from '../auth/types/auth.types';
 import type { ClientNavigationKey } from '../../shared/types/client-flow.types';
 import { clientFlowApi } from '../../shared/api/client-flow.api';
+import { pusherClient } from '../../shared/utils/pusher';
 import type {
   RestaurantTable,
   TableFormValues,
@@ -193,10 +193,17 @@ export default function TableManagementPage({
       }
     };
 
+    const tablesChannel = pusherClient.subscribe('tables-channel');
+    tablesChannel.bind('table-updated', () => {
+      void loadTables(true);
+    });
+
     window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
     window.addEventListener('storage', handleStorageChange);
 
     return () => {
+      tablesChannel.unbind('table-updated');
+      pusherClient.unsubscribe('tables-channel');
       window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
       window.removeEventListener('storage', handleStorageChange);
     };
@@ -410,7 +417,7 @@ export default function TableManagementPage({
               ['REGISTRADO', 'EN_PREPARACION', 'LISTO', 'ENTREGADO'].includes(order.estado)
           );
 
-          if (hasActiveOrders) {
+          if (hasActiveOrders && table.estado !== 'CUENTA_SOLICITADA') {
             setFeedback({
               type: 'error',
               title: 'No se puede liberar',
@@ -425,7 +432,15 @@ export default function TableManagementPage({
           await clientFlowApi.cancelActiveReservationsByTable(table.id);
         }
 
-        await updateTableStatusMock(table.id, nextStatus);
+        const response = await fetch(`${API_URL}/api/mesas/${table.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: nextStatus })
+        });
+        
+        if (!response.ok) {
+          throw new Error('Error al actualizar el estado de la mesa');
+        }
 
         setFeedback({
           type: 'success',

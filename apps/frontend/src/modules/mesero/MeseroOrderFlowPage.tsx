@@ -6,7 +6,7 @@ import { menuApi } from '../menu/menu.api';
 import { mapProductFromBackend } from '../../shared/mappers/menu.mapper';
 import type { BackendProduct } from '../../shared/mappers/menu.mapper';
 import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
-import { getTableByIdMock, updateTableStatusMock } from '../../shared/mocks/tables.mock';
+import { getTableByIdMock } from '../../shared/mocks/tables.mock';
 import { getMockIngredientsForProduct } from '../../shared/mocks/menu-ingredients.mock';
 import { pusherClient } from '../../shared/utils/pusher';
 import type { AuthUser } from '../auth/types/auth.types';
@@ -490,7 +490,11 @@ export default function MeseroOrderFlowPage({
         user.id
       );
 
-      await updateTableStatusMock(tableId, 'OCUPADA');
+      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/mesas/${tableId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'OCUPADA' })
+      });
       await refreshPageState(savedOrder.id);
       setActiveStep('menu');
 
@@ -546,7 +550,11 @@ export default function MeseroOrderFlowPage({
         ? await ordersApi.updateOrderItem(tableId, editingItemId, payload, targetOrderId)
         : await ordersApi.addOrderItem(tableId, payload, targetOrderId);
 
-      await updateTableStatusMock(tableId, 'OCUPADA');
+      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/mesas/${tableId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'OCUPADA' })
+      });
       await refreshPageState(updatedOrder.id);
       resetItemForm();
       setIsItemModalOpen(false);
@@ -624,7 +632,11 @@ export default function MeseroOrderFlowPage({
       }
 
       if (status === 'ENTREGADO') {
-        await updateTableStatusMock(tableId, 'OCUPADA');
+        await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/mesas/${tableId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: 'OCUPADA' })
+        });
       }
 
       await refreshPageState(order?.id);
@@ -678,7 +690,11 @@ export default function MeseroOrderFlowPage({
 
     try {
       await requestBillForTableMock(tableId);
-      await updateTableStatusMock(tableId, 'CUENTA_SOLICITADA');
+      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/mesas/${tableId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'CUENTA_SOLICITADA' })
+      });
       await refreshPageState();
 
       setFeedback({
