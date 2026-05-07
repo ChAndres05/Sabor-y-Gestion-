@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateProductText } from '../validation';
 
 // EDITAR O DESACTIVAR PRODUCTO
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -11,11 +12,46 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // Extraemos los datos. Si viene "disponible" o "activo", es que estamos desactivando/activando
     const { nombre, descripcion, id_categoria, precio, imagen_url, disponible, activo, tiempo_preparacion } = body;
 
+    if (nombre !== undefined) {
+      const nombreValidation = await validateProductText(nombre ?? '', 'El nombre');
+      if (nombreValidation.error) {
+        return NextResponse.json({ error: nombreValidation.error }, { status: 400 });
+      }
+
+      const existing = await prisma.productos.findFirst({
+        where: {
+          nombre: {
+            equals: nombreValidation.value ?? nombre,
+            mode: 'insensitive',
+          },
+          NOT: { id_producto: id },
+        },
+        select: { id_producto: true },
+      });
+
+      if (existing) {
+        return NextResponse.json(
+          { error: 'Nombre de producto ya existe' },
+          { status: 400 }
+        );
+      }
+
+      body.nombre = nombreValidation.value ?? nombre;
+    }
+
+    if (descripcion !== undefined) {
+      const descripcionValidation = await validateProductText(descripcion ?? '', 'La descripción');
+      if (descripcionValidation.error) {
+        return NextResponse.json({ error: descripcionValidation.error }, { status: 400 });
+      }
+      body.descripcion = descripcionValidation.value ?? descripcion;
+    }
+
     const productoActualizado = await prisma.productos.update({
       where: { id_producto: id },
       data: {
-        ...(nombre && { nombre }),
-        ...(descripcion !== undefined && { descripcion }),
+        ...(body.nombre !== undefined && { nombre: body.nombre }),
+        ...(body.descripcion !== undefined && { descripcion: body.descripcion }),
         ...(id_categoria && { id_categoria: Number(id_categoria) }),
         ...(precio !== undefined && { precio: precio ? Number(precio) : null }),
         ...(tiempo_preparacion !== undefined && { tiempo_preparacion: tiempo_preparacion !== null ? Number(tiempo_preparacion) : null }),

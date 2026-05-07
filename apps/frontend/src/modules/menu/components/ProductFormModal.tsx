@@ -1,9 +1,108 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type {
   MenuCategory,
   MenuProduct,
   MenuProductFormValues,
 } from '../types/menu.types';
+
+const MAX_PRODUCT_NAME_LENGTH = 20;
+const MAX_PRODUCT_DESCRIPTION_LENGTH = 255;
+const MAX_PRODUCT_PRICE = 150;
+const MAX_PRODUCT_TIME = 180;
+const PRODUCT_NAME_PATTERN = /^[\p{L}\p{M} ]+$/u;
+const PRICE_PATTERN = /^\d+(\.\d{0,2})?$/;
+const TIME_PATTERN = /^\d+$/;
+
+const normalizeProductName = (value: string) =>
+  value.trim().replace(/\s+/g, ' ');
+
+const enforceSingleSpaces = (value: string) => {
+  const collapsed = value.replace(/\s+/g, ' ');
+  return collapsed.startsWith(' ') ? collapsed.slice(1) : collapsed;
+};
+
+const getProductRealtimeError = (params: {
+  nombre: string;
+  descripcion: string;
+  precio: string;
+  tiempoPreparacion: string;
+}) => {
+  const normalizedNombre = normalizeProductName(params.nombre);
+
+  if (normalizedNombre && normalizedNombre.length > MAX_PRODUCT_NAME_LENGTH) {
+    return `El nombre no puede superar ${MAX_PRODUCT_NAME_LENGTH} caracteres`;
+  }
+
+  if (normalizedNombre && !PRODUCT_NAME_PATTERN.test(normalizedNombre)) {
+    return 'El nombre solo puede contener letras y espacios';
+  }
+
+  if (params.descripcion.length > MAX_PRODUCT_DESCRIPTION_LENGTH) {
+    return `La descripción no puede superar ${MAX_PRODUCT_DESCRIPTION_LENGTH} caracteres`;
+  }
+
+  if (params.precio.trim()) {
+    if (!PRICE_PATTERN.test(params.precio.trim())) {
+      return 'El precio debe ser numérico';
+    }
+
+    const parsedPrice = Number(params.precio);
+
+    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+      return 'El precio debe ser mayor a 0';
+    }
+
+    if (parsedPrice > MAX_PRODUCT_PRICE) {
+      return `El precio no puede superar ${MAX_PRODUCT_PRICE}`;
+    }
+  }
+
+  if (params.tiempoPreparacion.trim()) {
+    if (!TIME_PATTERN.test(params.tiempoPreparacion.trim())) {
+      return 'El tiempo debe ser un número entero';
+    }
+
+    const parsedTime = Number(params.tiempoPreparacion);
+
+    if (!Number.isFinite(parsedTime) || parsedTime <= 0) {
+      return 'El tiempo de preparación debe ser mayor a 0';
+    }
+
+    if (parsedTime > MAX_PRODUCT_TIME) {
+      return `El tiempo no puede superar ${MAX_PRODUCT_TIME} min`;
+    }
+  }
+
+  return '';
+};
+
+const getProductSubmitError = (params: {
+  categoryId: number;
+  nombre: string;
+  descripcion: string;
+  precio: string;
+  tiempoPreparacion: string;
+}) => {
+  const normalizedNombre = normalizeProductName(params.nombre);
+
+  if (!params.categoryId) {
+    return 'Debes seleccionar una categoría';
+  }
+
+  if (!normalizedNombre) {
+    return 'El nombre del producto es obligatorio';
+  }
+
+  if (!params.precio.trim()) {
+    return 'El precio es obligatorio';
+  }
+
+  if (!params.tiempoPreparacion.trim()) {
+    return 'El tiempo de preparación es obligatorio';
+  }
+
+  return getProductRealtimeError(params);
+};
 
 interface ProductFormModalProps {
   open: boolean;
@@ -12,6 +111,7 @@ interface ProductFormModalProps {
   initialProduct?: MenuProduct | null;
   selectedCategoryId?: number | null;
   isSubmitting: boolean;
+  externalError?: string | null;
   onClose: () => void;
   onSubmit: (values: MenuProductFormValues) => Promise<void>;
 }
@@ -51,6 +151,7 @@ export function ProductFormModal({
   initialProduct,
   selectedCategoryId = null,
   isSubmitting,
+  externalError,
   onClose,
   onSubmit,
 }: ProductFormModalProps) {
@@ -72,29 +173,44 @@ export function ProductFormModal({
   const [imagen, setImagen] = useState(initialValues.imagen ?? '');
   const [disponible, setDisponible] = useState(initialValues.disponible);
   const [error, setError] = useState('');
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+
+  const realtimeError = getProductRealtimeError({
+    nombre,
+    descripcion,
+    precio,
+    tiempoPreparacion,
+  });
+  const submitError = submitAttempted
+    ? getProductSubmitError({
+      categoryId,
+      nombre,
+      descripcion,
+      precio,
+      tiempoPreparacion,
+    })
+    : '';
+  const validationError = realtimeError || submitError;
+
+  const errorMessage = error || validationError;
+  const isFormValidForSubmit = !validationError;
+  const isFormBlocked = Boolean(realtimeError);
+
+  useEffect(() => {
+    if (externalError) {
+      setError(externalError);
+    }
+  }, [externalError]);
 
   if (!open) return null;
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!categoryId) {
-      setError('Debes seleccionar una categoría');
-      return;
-    }
+    setSubmitAttempted(true);
 
-    if (!nombre.trim()) {
-      setError('El nombre del producto es obligatorio');
-      return;
-    }
-
-    if (!precio || Number(precio) <= 0) {
-      setError('El precio debe ser mayor a 0');
-      return;
-    }
-
-    if (!tiempoPreparacion || Number(tiempoPreparacion) <= 0) {
-      setError('El tiempo de preparación debe ser mayor a 0');
+    if (!isFormValidForSubmit) {
+      setError(validationError);
       return;
     }
 
@@ -160,7 +276,11 @@ export function ProductFormModal({
             <input
               type="text"
               value={nombre}
-              onChange={(event) => setNombre(event.target.value)}
+              onChange={(event) => {
+                setNombre(enforceSingleSpaces(event.target.value));
+                if (submitAttempted) setSubmitAttempted(false);
+                if (error) setError('');
+              }}
               placeholder="Ej. Pique macho especial"
               className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] outline-none transition-colors focus:border-primary"
             />
@@ -172,7 +292,11 @@ export function ProductFormModal({
             </label>
             <textarea
               value={descripcion}
-              onChange={(event) => setDescripcion(event.target.value)}
+              onChange={(event) => {
+                setDescripcion(enforceSingleSpaces(event.target.value));
+                if (submitAttempted) setSubmitAttempted(false);
+                if (error) setError('');
+              }}
               placeholder="Describe el producto"
               rows={3}
               className="resize-none rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] outline-none transition-colors focus:border-primary"
@@ -187,9 +311,14 @@ export function ProductFormModal({
               <input
                 type="number"
                 min="1"
+                max={MAX_PRODUCT_PRICE}
                 step="0.01"
                 value={precio}
-                onChange={(event) => setPrecio(event.target.value)}
+                onChange={(event) => {
+                  setPrecio(event.target.value);
+                  if (submitAttempted) setSubmitAttempted(false);
+                  if (error) setError('');
+                }}
                 placeholder="0.00"
                 className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] outline-none transition-colors focus:border-primary"
               />
@@ -202,9 +331,14 @@ export function ProductFormModal({
               <input
                 type="number"
                 min="1"
+                max={MAX_PRODUCT_TIME}
                 step="1"
                 value={tiempoPreparacion}
-                onChange={(event) => setTiempoPreparacion(event.target.value)}
+                onChange={(event) => {
+                  setTiempoPreparacion(event.target.value);
+                  if (submitAttempted) setSubmitAttempted(false);
+                  if (error) setError('');
+                }}
                 placeholder="15"
                 className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] outline-none transition-colors focus:border-primary"
               />
@@ -236,9 +370,9 @@ export function ProductFormModal({
             </span>
           </label>
 
-          {error && (
+          {errorMessage && (
             <div className="rounded-2xl bg-alert/10 px-4 py-3 text-[14px] font-medium text-alert">
-              {error}
+              {errorMessage}
             </div>
           )}
 
@@ -253,7 +387,7 @@ export function ProductFormModal({
 
             <button
               type="submit"
-              disabled={isSubmitting || categories.length === 0}
+              disabled={isSubmitting || categories.length === 0 || isFormBlocked}
               className="rounded-2xl bg-primary px-5 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
             >
               {isSubmitting

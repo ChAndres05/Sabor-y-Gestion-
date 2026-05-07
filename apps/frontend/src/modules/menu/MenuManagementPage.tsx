@@ -80,6 +80,7 @@ export default function MenuManagementPage({
   );
   const [isSubmittingProductForm, setIsSubmittingProductForm] =
     useState(false);
+  const [productFormError, setProductFormError] = useState<string | null>(null);
 
   const [openActionMenuId, setOpenActionMenuId] = useState<number | null>(null);
   const [openProductActionMenuId, setOpenProductActionMenuId] = useState<
@@ -250,6 +251,7 @@ export default function MenuManagementPage({
 
   const handleCreateProduct = async (values: MenuProductFormValues) => {
     setIsSubmittingProductForm(true);
+    setProductFormError(null);
 
     try {
       // Adaptamos los datos del formulario al formato esperado por tu backend Prisma
@@ -271,13 +273,11 @@ export default function MenuManagementPage({
       setActiveTab('products');
       setSelectedCategoryId(values.categoryId);
     } catch (error) {
-      setFeedback({
-        type: 'error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'No se pudo crear el producto',
-      });
+      setProductFormError(
+        error instanceof Error
+          ? error.message
+          : 'No se pudo crear el producto'
+      );
     } finally {
       setIsSubmittingProductForm(false);
     }
@@ -287,6 +287,7 @@ export default function MenuManagementPage({
     if (!editingProduct) return;
 
     setIsSubmittingProductForm(true);
+    setProductFormError(null);
 
     try {
       // Adaptamos los datos del formulario al formato esperado por el backend
@@ -307,13 +308,11 @@ export default function MenuManagementPage({
       });
       setSelectedCategoryId(values.categoryId);
     } catch (error) {
-      setFeedback({
-        type: 'error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'No se pudo actualizar el producto',
-      });
+      setProductFormError(
+        error instanceof Error
+          ? error.message
+          : 'No se pudo actualizar el producto'
+      );
     } finally {
       setIsSubmittingProductForm(false);
     }
@@ -629,7 +628,10 @@ export default function MenuManagementPage({
 
                     <button
                       type="button"
-                      onClick={() => setIsCreateProductOpen(true)}
+                      onClick={() => {
+                        setProductFormError(null);
+                        setIsCreateProductOpen(true);
+                      }}
                       disabled={categories.length === 0}
                       className="rounded-2xl bg-primary px-4 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
                     >
@@ -689,6 +691,7 @@ export default function MenuManagementPage({
                         }
                         onEdit={() => {
                           setOpenProductActionMenuId(null);
+                          setProductFormError(null);
                           setEditingProduct(product);
                         }}
                         onToggleStatus={() => openToggleProductConfirm(product)}
@@ -741,7 +744,11 @@ export default function MenuManagementPage({
         categories={categories}
         selectedCategoryId={selectedCategoryId}
         isSubmitting={isSubmittingProductForm}
-        onClose={() => setIsCreateProductOpen(false)}
+        externalError={productFormError}
+        onClose={() => {
+          setProductFormError(null);
+          setIsCreateProductOpen(false);
+        }}
         onSubmit={handleCreateProduct}
       />
 
@@ -752,7 +759,11 @@ export default function MenuManagementPage({
         categories={categories}
         initialProduct={editingProduct}
         isSubmitting={isSubmittingProductForm}
-        onClose={() => setEditingProduct(null)}
+        externalError={productFormError}
+        onClose={() => {
+          setProductFormError(null);
+          setEditingProduct(null);
+        }}
         onSubmit={handleEditProduct}
       />
 
