@@ -49,18 +49,18 @@ type FeedbackState = {
 
 type ConfirmState =
   | {
-      type: 'delete';
-      table: RestaurantTable;
-    }
+    type: 'delete';
+    table: RestaurantTable;
+  }
   | {
-      type: 'deleteZone';
-      zone: Zone;
-    }
+    type: 'deleteZone';
+    zone: Zone;
+  }
   | {
-      type: 'status';
-      table: RestaurantTable;
-      nextStatus: TableStatus;
-    }
+    type: 'status';
+    table: RestaurantTable;
+    nextStatus: TableStatus;
+  }
   | null;
 
 type BackendZone = {
@@ -358,7 +358,10 @@ export default function TableManagementPage({
             method: 'DELETE',
           });
 
-          if (!response.ok) throw new Error('Error al eliminar mesa');
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Error al eliminar mesa');
+          }
         } else {
           await deleteTableMock(confirmState.table.id);
         }
@@ -441,6 +444,8 @@ export default function TableManagementPage({
         title: 'No se pudo completar la acción',
         message: error instanceof Error ? error.message : 'Ocurrió un error inesperado',
       });
+      setConfirmState(null);
+      setOpenActionMenuId(null);
     } finally {
       setIsConfirming(false);
     }
