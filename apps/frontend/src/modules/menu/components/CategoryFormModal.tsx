@@ -10,6 +10,11 @@ const CATEGORY_NAME_PATTERN = /^[\p{L}\p{M} ]+$/u;
 const normalizeCategoryName = (value: string) =>
   value.trim().replace(/\s+/g, ' ');
 
+const enforceSingleSpaces = (value: string) => {
+  const collapsed = value.replace(/\s+/g, ' ');
+  return collapsed.startsWith(' ') ? collapsed.slice(1) : collapsed;
+};
+
 const getCategoryNameError = (value: string) => {
   const normalizedName = normalizeCategoryName(value);
 
@@ -110,7 +115,7 @@ export function CategoryFormModal({
               type="text"
               value={nombre}
               onChange={(event) => {
-                setNombre(event.target.value);
+                setNombre(enforceSingleSpaces(event.target.value));
                 if (!nameTouched) setNameTouched(true);
               }}
               placeholder="Ej. Entradas"
@@ -127,7 +132,9 @@ export function CategoryFormModal({
             </label>
             <textarea
               value={descripcion}
-              onChange={(event) => setDescripcion(event.target.value)}
+              onChange={(event) =>
+                setDescripcion(enforceSingleSpaces(event.target.value))
+              }
               placeholder="Descripción de la categoría"
               rows={3}
               className="resize-none rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-text outline-none transition-colors focus:border-primary"
