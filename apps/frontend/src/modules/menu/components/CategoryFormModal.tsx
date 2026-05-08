@@ -1,14 +1,32 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type {
   MenuCategory,
   MenuCategoryFormValues,
 } from '../types/menu.types';
 
-const MAX_CATEGORY_NAME_LENGTH = 30;
+const MAX_CATEGORY_NAME_LENGTH = 10;
 const CATEGORY_NAME_PATTERN = /^[\p{L}\p{M} ]+$/u;
 
 const normalizeCategoryName = (value: string) =>
   value.trim().replace(/\s+/g, ' ');
+
+const getCategoryNameError = (value: string) => {
+  const normalizedName = normalizeCategoryName(value);
+
+  if (!normalizedName) {
+    return 'El nombre de la categoría es obligatorio';
+  }
+
+  if (normalizedName.length > MAX_CATEGORY_NAME_LENGTH) {
+    return `El nombre no puede superar ${MAX_CATEGORY_NAME_LENGTH} caracteres`;
+  }
+
+  if (!CATEGORY_NAME_PATTERN.test(normalizedName)) {
+    return 'El nombre solo puede contener letras y espacios';
+  }
+
+  return '';
+};
 
 interface CategoryFormModalProps {
   open: boolean;
@@ -34,13 +52,15 @@ export function CategoryFormModal({
     initialCategory?.descripcion ?? ''
   );
   const [activo, setActivo] = useState(initialCategory?.activo ?? true);
-  const [error, setError] = useState('');
+  const [nameTouched, setNameTouched] = useState(false);
 
-  useEffect(() => {
-    if (externalError) {
-      setError(externalError);
-    }
-  }, [externalError]);
+  const remainingNameChars = Math.max(
+    MAX_CATEGORY_NAME_LENGTH - nombre.length,
+    0
+  );
+  const nameError = getCategoryNameError(nombre);
+  const errorMessage = externalError || (nameTouched ? nameError : '');
+  const isNameValid = !nameError;
 
   if (!open) return null;
 
@@ -49,22 +69,11 @@ export function CategoryFormModal({
 
     const normalizedNombre = normalizeCategoryName(nombre);
 
-    if (!normalizedNombre) {
-      setError('El nombre de la categoría es obligatorio');
+    setNameTouched(true);
+
+    if (!isNameValid) {
       return;
     }
-
-    if (normalizedNombre.length > MAX_CATEGORY_NAME_LENGTH) {
-      setError(`El nombre no puede superar ${MAX_CATEGORY_NAME_LENGTH} caracteres`);
-      return;
-    }
-
-    if (!CATEGORY_NAME_PATTERN.test(normalizedNombre)) {
-      setError('El nombre solo puede contener letras y espacios');
-      return;
-    }
-
-    setError('');
 
     await onSubmit({
       nombre: normalizedNombre,
@@ -102,11 +111,14 @@ export function CategoryFormModal({
               value={nombre}
               onChange={(event) => {
                 setNombre(event.target.value);
-                if (error) setError('');
+                if (!nameTouched) setNameTouched(true);
               }}
               placeholder="Ej. Entradas"
               className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-text outline-none transition-colors focus:border-primary"
             />
+            <span className="text-[12px] font-medium text-gray-500">
+              {remainingNameChars} caracteres restantes
+            </span>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -134,9 +146,13 @@ export function CategoryFormModal({
             </span>
           </label>
 
-          {error && (
-            <p className="text-[13px] font-medium text-alert">{error}</p>
-          )}
+          <div className="min-h-[18px]">
+            {errorMessage ? (
+              <p className="text-[13px] font-medium text-alert">
+                {errorMessage}
+              </p>
+            ) : null}
+          </div>
 
           <div className="mt-2 flex items-center justify-end gap-3">
             <button
@@ -150,7 +166,7 @@ export function CategoryFormModal({
 
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !isNameValid}
               className="rounded-2xl bg-primary px-5 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
             >
               {isSubmitting
