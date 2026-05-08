@@ -19,6 +19,69 @@ import type {
   TableOrderStatus,
 } from '../tables/types/table-order.types';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+const MAX_CUSTOMER_NAME_LENGTH = 70;
+const MAX_OBSERVATION_LENGTH = 100;
+const MAX_PHONE_LENGTH = 8;
+const NAME_REFERENCE_PATTERN = /^[\p{L}\p{M}0-9 ]+$/u;
+const OBSERVATION_PATTERN = /^[\p{L}\p{M}0-9 ]+$/u;
+const PHONE_PATTERN = /^\d+$/;
+
+const enforceSingleSpaces = (value: string) => {
+  const collapsed = value.replace(/\s+/g, ' ');
+  return collapsed.startsWith(' ') ? collapsed.slice(1) : collapsed;
+};
+
+const normalizeText = (value: string) =>
+  value.trim().replace(/\s+/g, ' ');
+
+const getCustomerRealtimeError = (name: string, phone: string) => {
+  const normalizedName = normalizeText(name);
+
+  if (normalizedName && normalizedName.length > MAX_CUSTOMER_NAME_LENGTH) {
+    return `El nombre no puede superar ${MAX_CUSTOMER_NAME_LENGTH} caracteres`;
+  }
+
+  if (normalizedName && !NAME_REFERENCE_PATTERN.test(normalizedName)) {
+    return 'El nombre solo puede contener letras, números y espacios';
+  }
+
+  if (phone.trim()) {
+    if (!PHONE_PATTERN.test(phone.trim())) {
+      return 'El teléfono solo puede contener números';
+    }
+
+    if (phone.trim().length > MAX_PHONE_LENGTH) {
+      return `El teléfono no puede superar ${MAX_PHONE_LENGTH} dígitos`;
+    }
+  }
+
+  return '';
+};
+
+const getCustomerSubmitError = (name: string) => {
+  if (!normalizeText(name)) {
+    return 'El nombre del cliente es obligatorio';
+  }
+
+  return '';
+};
+
+const getObservationRealtimeError = (value: string) => {
+  const normalized = normalizeText(value);
+
+  if (normalized && normalized.length > MAX_OBSERVATION_LENGTH) {
+    return `La observación no puede superar ${MAX_OBSERVATION_LENGTH} caracteres`;
+  }
+
+  if (normalized && !OBSERVATION_PATTERN.test(normalized)) {
+    return 'La observación solo puede contener letras, números y espacios';
+  }
+
+  return '';
+};
+
 type FlowStep = 'cliente' | 'menu' | 'pedido';
 
 type FeedbackState = {
@@ -155,6 +218,8 @@ export default function MeseroOrderFlowPage({
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerFound, setCustomerFound] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [customerError, setCustomerError] = useState('');
+  const [customerSubmitAttempted, setCustomerSubmitAttempted] = useState(false);
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<number>(0);
   const [selectedProductId, setSelectedProductId] = useState<number>(0);
@@ -163,6 +228,7 @@ export default function MeseroOrderFlowPage({
   const [ingredientSelections, setIngredientSelections] = useState<IngredientSelection[]>([]);
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+  const [itemError, setItemError] = useState('');
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
@@ -191,6 +257,21 @@ export default function MeseroOrderFlowPage({
   const hasCustomIngredients = ingredientSelections.some(
     (ingredient) => ingredient.incluido !== ingredient.incluidoPorDefecto
   );
+
+  const customerRealtimeError = getCustomerRealtimeError(
+    customerName,
+    customerPhone
+  );
+  const customerSubmitError = customerSubmitAttempted
+    ? getCustomerSubmitError(customerName)
+    : '';
+  const customerValidationError = customerRealtimeError || customerSubmitError;
+  const customerErrorMessage = customerError || customerValidationError;
+  const isCustomerBlocked = Boolean(customerRealtimeError);
+
+  const itemRealtimeError = getObservationRealtimeError(observation);
+  const itemErrorMessage = itemError || itemRealtimeError;
+  const isItemBlocked = Boolean(itemRealtimeError);
 
   const orderFlow = [
     {
@@ -332,22 +413,22 @@ export default function MeseroOrderFlowPage({
 
       try {
         const productsDataRaw = await menuApi.getProductos();
-const mappedProducts: OrderCatalogProduct[] = (productsDataRaw as BackendProduct[])
-  .map(mapProductFromBackend)
-  .filter((product) => product.categoryId === selectedCategoryId && product.disponible)
-  .map((product) => ({
-    id: product.id,
-    categoryId: product.categoryId,
-    nombre: product.nombre,
-    descripcion: product.descripcion,
-    precio: product.precio,
-    tiempoPreparacion: product.tiempoPreparacion,
-    disponible: product.disponible,
-    ingredientes: product.ingredientes,
-    imagen: product.imagen ?? null,
-  }));
+        const mappedProducts: OrderCatalogProduct[] = (productsDataRaw as BackendProduct[])
+          .map(mapProductFromBackend)
+          .filter((product) => product.categoryId === selectedCategoryId && product.disponible)
+          .map((product) => ({
+            id: product.id,
+            categoryId: product.categoryId,
+            nombre: product.nombre,
+            descripcion: product.descripcion,
+            precio: product.precio,
+            tiempoPreparacion: product.tiempoPreparacion,
+            disponible: product.disponible,
+            ingredientes: product.ingredientes,
+            imagen: product.imagen ?? null,
+          }));
 
-setProducts(mappedProducts);
+        setProducts(mappedProducts);
         setSelectedProductId((currentProductId) =>
           mappedProducts.some((product) => product.id === currentProductId)
             ? currentProductId
@@ -379,6 +460,7 @@ setProducts(mappedProducts);
     setQuantity('1');
     setObservation('');
     setIngredientSelections(buildDefaultIngredients(selectedProduct));
+    setItemError('');
   };
 
   const openProductModal = (product: OrderCatalogProduct) => {
@@ -443,13 +525,50 @@ setProducts(mappedProducts);
     setSelectedCustomerId(null);
     setCustomerCi('');
     setCustomerPhone('00000000');
-    setCustomerName(table ? `Cliente no registrado - mesa ${table.numero}` : 'Cliente no registrado');
+    setCustomerName(
+      table ? `Cliente no registrado mesa ${table.numero}` : 'Cliente no registrado'
+    );
+    setCustomerError('');
+    setCustomerSubmitAttempted(false);
+  };
+
+  const validateOffensiveText = async (text: string, label: string) => {
+    if (!text.trim()) return null;
+
+    const response = await fetch(`${API_URL}/api/validaciones/ofensivas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, label }),
+    });
+
+    if (response.ok) return null;
+
+    const data = await response.json().catch(() => ({}));
+    return data.error || `${label} contiene palabras no permitidas`;
   };
 
   const handleSaveCustomer = async () => {
     setIsSavingCustomer(true);
+    setCustomerSubmitAttempted(true);
 
     try {
+      if (customerValidationError) {
+        setCustomerError(customerValidationError);
+        return;
+      }
+
+      const offensiveError = await validateOffensiveText(
+        customerName,
+        'El nombre'
+      );
+
+      if (offensiveError) {
+        setCustomerError(offensiveError);
+        return;
+      }
+
+      setCustomerError('');
+
       await ordersApi.saveOrderCustomer(tableId, {
         nombre: customerName,
         telefono: customerPhone,
@@ -483,6 +602,23 @@ setProducts(mappedProducts);
     setIsSavingItem(true);
 
     try {
+      if (itemRealtimeError) {
+        setItemError(itemRealtimeError);
+        return;
+      }
+
+      const offensiveError = await validateOffensiveText(
+        observation,
+        'La observación'
+      );
+
+      if (offensiveError) {
+        setItemError(offensiveError);
+        return;
+      }
+
+      setItemError('');
+
       const targetOrderId = order?.id;
       const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
 
@@ -499,10 +635,10 @@ setProducts(mappedProducts);
         })),
         ...(selectedProduct
           ? {
-              precioUnitario: selectedProduct.precio,
-              tiempoPreparacion: selectedProduct.tiempoPreparacion,
-              imagen: selectedProduct.imagen ?? null,
-            }
+            precioUnitario: selectedProduct.precio,
+            tiempoPreparacion: selectedProduct.tiempoPreparacion,
+            imagen: selectedProduct.imagen ?? null,
+          }
           : {}),
       };
 
@@ -673,13 +809,13 @@ setProducts(mappedProducts);
 
   const headerDescription = table
     ? [
-        `Mesa ${table.numero}`,
-        getTableStatusLabel(table.estado),
-        order?.customer.nombre?.trim(),
-        `Mesero ${user.nombre}`,
-      ]
-        .filter((item): item is string => Boolean(item && item.trim()))
-        .join(' · ')
+      `Mesa ${table.numero}`,
+      getTableStatusLabel(table.estado),
+      order?.customer.nombre?.trim(),
+      `Mesero ${user.nombre}`,
+    ]
+      .filter((item): item is string => Boolean(item && item.trim()))
+      .join(' · ')
     : 'Flujo operativo del mesero';
 
   return (
@@ -726,11 +862,10 @@ setProducts(mappedProducts);
                     key={step}
                     type="button"
                     onClick={() => setActiveStep(step)}
-                    className={`rounded-xl px-3 py-2 text-[12px] font-bold capitalize transition-colors md:px-6 ${
-                      activeStep === step
-                        ? 'bg-white text-text shadow-sm'
-                        : 'text-gray-500 hover:bg-white/60'
-                    }`}
+                    className={`rounded-xl px-3 py-2 text-[12px] font-bold capitalize transition-colors md:px-6 ${activeStep === step
+                      ? 'bg-white text-text shadow-sm'
+                      : 'text-gray-500 hover:bg-white/60'
+                      }`}
                   >
                     {step === 'menu' ? 'Menú' : step}
                   </button>
@@ -755,6 +890,7 @@ setProducts(mappedProducts);
                         onChange={(event) => {
                           setCustomerCi(event.target.value);
                           setCustomerFound(false);
+                          if (customerError) setCustomerError('');
                         }}
                         placeholder="Ej. 5678123"
                         disabled={!canSaveCustomer}
@@ -786,7 +922,11 @@ setProducts(mappedProducts);
                     <input
                       type="text"
                       value={customerName}
-                      onChange={(event) => setCustomerName(event.target.value)}
+                      onChange={(event) => {
+                        setCustomerName(enforceSingleSpaces(event.target.value));
+                        if (customerSubmitAttempted) setCustomerSubmitAttempted(false);
+                        if (customerError) setCustomerError('');
+                      }}
                       placeholder="Nombre del cliente o referencia de mesa"
                       disabled={!canSaveCustomer}
                       className="rounded-xl border border-gray-300 bg-white px-3 py-3 text-[14px] outline-none focus:border-primary disabled:opacity-60"
@@ -798,12 +938,23 @@ setProducts(mappedProducts);
                     <input
                       type="text"
                       value={customerPhone}
-                      onChange={(event) => setCustomerPhone(event.target.value)}
+                      onChange={(event) => {
+                        const digitsOnly = event.target.value.replace(/\D/g, '');
+                        setCustomerPhone(digitsOnly.slice(0, MAX_PHONE_LENGTH));
+                        if (customerSubmitAttempted) setCustomerSubmitAttempted(false);
+                        if (customerError) setCustomerError('');
+                      }}
                       placeholder="Opcional"
                       disabled={!canSaveCustomer}
                       className="rounded-xl border border-gray-300 bg-white px-3 py-3 text-[14px] outline-none focus:border-primary disabled:opacity-60"
                     />
                   </div>
+
+                  {customerErrorMessage && (
+                    <p className="text-[12px] font-semibold text-alert">
+                      {customerErrorMessage}
+                    </p>
+                  )}
 
                   <div className="rounded-2xl bg-background px-4 py-3 text-[12px] font-medium text-gray-500">
                     {customerFound
@@ -814,7 +965,7 @@ setProducts(mappedProducts);
                   <button
                     type="button"
                     onClick={() => void handleSaveCustomer()}
-                    disabled={isSavingCustomer || !canSaveCustomer}
+                    disabled={isSavingCustomer || !canSaveCustomer || isCustomerBlocked}
                     className="w-full rounded-xl bg-primary px-5 py-3 text-[14px] font-bold text-white disabled:opacity-60"
                   >
                     {isSavingCustomer
@@ -864,11 +1015,10 @@ setProducts(mappedProducts);
                             key={category.id}
                             type="button"
                             onClick={() => setSelectedCategoryId(category.id)}
-                            className={`shrink-0 rounded-xl px-4 py-3 text-[12px] font-bold ${
-                              selectedCategoryId === category.id
-                                ? 'bg-primary text-white'
-                                : 'bg-background text-text'
-                            }`}
+                            className={`shrink-0 rounded-xl px-4 py-3 text-[12px] font-bold ${selectedCategoryId === category.id
+                              ? 'bg-primary text-white'
+                              : 'bg-background text-text'
+                              }`}
                           >
                             {category.nombre}
                           </button>
@@ -882,10 +1032,10 @@ setProducts(mappedProducts);
                           <div className="grid grid-cols-[48px_1fr_auto] gap-3">
                             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-background text-[22px] overflow-hidden">
                               {typeof product.imagen === 'string' &&
-                              product.imagen.trim() &&
-                              (product.imagen.startsWith('http') ||
-                                product.imagen.startsWith('/') ||
-                                product.imagen.includes('.')) ? (
+                                product.imagen.trim() &&
+                                (product.imagen.startsWith('http') ||
+                                  product.imagen.startsWith('/') ||
+                                  product.imagen.includes('.')) ? (
                                 <img src={product.imagen} alt={product.nombre} className="h-full w-full object-cover" />
                               ) : (
                                 getItemIcon(product.categoryId)
@@ -938,11 +1088,10 @@ setProducts(mappedProducts);
                         key={activeOrder.id}
                         type="button"
                         onClick={() => setOrder(activeOrder)}
-                        className={`rounded-xl px-3 py-2 text-[11px] font-bold transition-all ${
-                          order?.id === activeOrder.id
-                            ? 'bg-primary text-white shadow-md transform scale-105'
-                            : 'bg-background text-gray-500 hover:bg-gray-200'
-                        }`}
+                        className={`rounded-xl px-3 py-2 text-[11px] font-bold transition-all ${order?.id === activeOrder.id
+                          ? 'bg-primary text-white shadow-md transform scale-105'
+                          : 'bg-background text-gray-500 hover:bg-gray-200'
+                          }`}
                       >
                         Pedido #{index + 1}
                         <span className="ml-1 opacity-70">({getOrderStatusLabel(activeOrder.estado)})</span>
@@ -965,13 +1114,12 @@ setProducts(mappedProducts);
                       {orderFlow.map((step, index) => (
                         <div
                           key={step.label}
-                          className={`rounded-xl px-2 py-2 text-center text-[10px] font-bold ${
-                            step.done
-                              ? 'bg-success text-white'
-                              : step.active
-                                ? 'bg-primary text-white'
-                                : 'bg-background text-gray-400'
-                          }`}
+                          className={`rounded-xl px-2 py-2 text-center text-[10px] font-bold ${step.done
+                            ? 'bg-success text-white'
+                            : step.active
+                              ? 'bg-primary text-white'
+                              : 'bg-background text-gray-400'
+                            }`}
                         >
                           <span className="block text-[10px] opacity-80">{index + 1}</span>
                           {step.label}
@@ -1207,7 +1355,10 @@ setProducts(mappedProducts);
                   <input
                     type="text"
                     value={observation}
-                    onChange={(event) => setObservation(event.target.value)}
+                    onChange={(event) => {
+                      setObservation(enforceSingleSpaces(event.target.value));
+                      if (itemError) setItemError('');
+                    }}
                     placeholder="Ej. Sin locoto"
                     className="rounded-xl border border-gray-300 bg-white px-3 py-3 text-[14px] outline-none focus:border-primary"
                   />
@@ -1302,12 +1453,23 @@ setProducts(mappedProducts);
                 <button
                   type="button"
                   onClick={() => void handleSaveItem()}
-                  disabled={isSavingItem || !selectedProductId || !quantity || Number(quantity) < 1}
+                  disabled={
+                    isSavingItem ||
+                    !selectedProductId ||
+                    !quantity ||
+                    Number(quantity) < 1 ||
+                    isItemBlocked
+                  }
                   className="rounded-xl bg-primary px-4 py-3 text-[13px] font-bold text-white disabled:opacity-60"
                 >
                   {isSavingItem ? 'Guardando...' : editingItemId ? 'Listo' : 'Crear'}
                 </button>
               </div>
+              {itemErrorMessage && (
+                <p className="pt-2 text-[12px] font-semibold text-alert">
+                  {itemErrorMessage}
+                </p>
+              )}
             </div>
           </section>
         </div>
