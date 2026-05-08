@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateCategoryName } from '../validation';
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> } 
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const resolvedParams = await params; // CRÍTICO: Desempaquetar params
@@ -17,8 +18,46 @@ export async function PATCH(
       descripcion?: string;
       activo?: boolean;
     } = {};
-    if (body.nombre !== undefined) dataToUpdate.nombre = body.nombre;
-    if (body.descripcion !== undefined) dataToUpdate.descripcion = body.descripcion;
+    if (body.nombre !== undefined) {
+      if (typeof body.nombre !== 'string') {
+        return NextResponse.json({ error: 'Nombre inválido' }, { status: 400 });
+      }
+
+      const validation = await validateCategoryName(body.nombre);
+
+      if (validation.error) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+
+      const existing = await prisma.categorias.findFirst({
+        where: {
+          nombre: {
+            equals: validation.value,
+            mode: 'insensitive',
+          },
+          NOT: { id_categoria: id },
+        },
+        select: { id_categoria: true },
+      });
+
+      if (existing) {
+        return NextResponse.json(
+          { error: 'Nombre de categoría ya existe' },
+          { status: 400 }
+        );
+      }
+
+      dataToUpdate.nombre = validation.value;
+    }
+
+    if (body.descripcion !== undefined) {
+      if (typeof body.descripcion !== 'string') {
+        return NextResponse.json({ error: 'Descripción inválida' }, { status: 400 });
+      }
+
+      dataToUpdate.descripcion = body.descripcion;
+    }
+
     if (body.activo !== undefined) dataToUpdate.activo = body.activo;
 
     const actualizada = await prisma.categorias.update({

@@ -1,14 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type {
   MenuCategory,
   MenuCategoryFormValues,
 } from '../types/menu.types';
+
+const MAX_CATEGORY_NAME_LENGTH = 30;
+const CATEGORY_NAME_PATTERN = /^[\p{L}\p{M} ]+$/u;
+
+const normalizeCategoryName = (value: string) =>
+  value.trim().replace(/\s+/g, ' ');
 
 interface CategoryFormModalProps {
   open: boolean;
   mode: 'create' | 'edit';
   initialCategory?: MenuCategory | null;
   isSubmitting?: boolean;
+  externalError?: string | null;
   onClose: () => void;
   onSubmit: (values: MenuCategoryFormValues) => Promise<void>;
 }
@@ -18,6 +25,7 @@ export function CategoryFormModal({
   mode,
   initialCategory,
   isSubmitting = false,
+  externalError,
   onClose,
   onSubmit,
 }: CategoryFormModalProps) {
@@ -28,20 +36,38 @@ export function CategoryFormModal({
   const [activo, setActivo] = useState(initialCategory?.activo ?? true);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (externalError) {
+      setError(externalError);
+    }
+  }, [externalError]);
+
   if (!open) return null;
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!nombre.trim()) {
+    const normalizedNombre = normalizeCategoryName(nombre);
+
+    if (!normalizedNombre) {
       setError('El nombre de la categoría es obligatorio');
+      return;
+    }
+
+    if (normalizedNombre.length > MAX_CATEGORY_NAME_LENGTH) {
+      setError(`El nombre no puede superar ${MAX_CATEGORY_NAME_LENGTH} caracteres`);
+      return;
+    }
+
+    if (!CATEGORY_NAME_PATTERN.test(normalizedNombre)) {
+      setError('El nombre solo puede contener letras y espacios');
       return;
     }
 
     setError('');
 
     await onSubmit({
-      nombre,
+      nombre: normalizedNombre,
       descripcion,
       activo,
     });
@@ -74,7 +100,10 @@ export function CategoryFormModal({
             <input
               type="text"
               value={nombre}
-              onChange={(event) => setNombre(event.target.value)}
+              onChange={(event) => {
+                setNombre(event.target.value);
+                if (error) setError('');
+              }}
               placeholder="Ej. Entradas"
               className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-text outline-none transition-colors focus:border-primary"
             />
