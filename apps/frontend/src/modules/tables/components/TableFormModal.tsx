@@ -23,7 +23,7 @@ function getInitialValues(
     return {
       numero: initialTable.numero,
       capacidad: initialTable.capacidad,
-      zoneId: initialTable.zoneId,
+      zoneId: initialTable.zoneId ?? zones[0]?.id ?? 0,
       activo: initialTable.activo,
     };
   }

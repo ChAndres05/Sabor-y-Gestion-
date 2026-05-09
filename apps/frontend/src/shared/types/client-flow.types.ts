@@ -21,7 +21,9 @@ export interface ClientReservation {
 }
 
 export interface ClientReservationRequest {
-  userId: number;
+  userId: number;           // fallback / client flow compatibility
+  clientUserId?: number;    // the actual client (null for staff-created reservations)
+  registrarUserId?: number; // the staff member creating the reservation
   table: RestaurantTable;
   zone?: Zone;
   people: number;
