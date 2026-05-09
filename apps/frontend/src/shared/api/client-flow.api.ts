@@ -58,83 +58,58 @@ async function updateTableStatusBackend(tableId: number, status: TableStatus): P
   }
 }
 
+function mergeReservationsById(backend: ClientReservation[], mock: ClientReservation[]): ClientReservation[] {
+  const mergedMap = new Map<number, ClientReservation>();
+  backend.forEach(r => mergedMap.set(r.id, r));
+  mock.forEach(r => mergedMap.set(r.id, r));
+  return Array.from(mergedMap.values());
+}
+
 export const clientFlowApi = {
   async listReservations(userId: number): Promise<ClientReservation[]> {
-    // data === null  → backend falló, usar mock
-    // data === []    → backend OK pero sin reservas, NO mezclar con mock
     const data = await tryJson<BackendReservation[]>(`${API_URL}/api/reservas/cliente/${userId}`);
+    const backendReservations = Array.isArray(data) ? data.map(mapBackendReservation) : [];
+    const mockReservations = await listClientReservationsMock(userId);
 
-    if (data !== null) {
-      return data
-        .map(mapBackendReservation)
-        .filter(r => r.userId === userId)
-        .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
-    }
-
-    // Fallback: backend no disponible
-    return (await listClientReservationsMock(userId))
+    return mergeReservationsById(backendReservations, mockReservations)
       .filter(r => r.userId === userId)
       .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
   },
 
   async listAllReservations(): Promise<ClientReservation[]> {
-    // data === null  → backend falló, usar mock
-    // data === []    → backend OK pero vacío, NO mezclar con mock
     const data = await tryJson<BackendReservation[]>(`${API_URL}/api/reservas`);
+    const backendReservations = Array.isArray(data) ? data.map(mapBackendReservation) : [];
+    const mockReservations = await listAllReservationsMock();
 
-    if (data !== null) {
-      return data
-        .map(mapBackendReservation)
-        .sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
-    }
-
-    // Fallback: backend no disponible
-    return (await listAllReservationsMock())
+    return mergeReservationsById(backendReservations, mockReservations)
       .sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
   },
 
   async createReservation(payload: ClientReservationRequest): Promise<ClientReservation> {
-    const body = JSON.stringify({
-      // id_usuario_cliente: only set when there's a real client (not staff)
-      ...(payload.clientUserId ? { id_usuario_cliente: payload.clientUserId } : {}),
-      id_mesa: payload.table.id,
-      // id_usuario_registro: the staff member or client who registered the reservation
-      id_usuario_registro: payload.registrarUserId ?? payload.userId,
-      fecha_hora_reserva: `${payload.date}T${payload.time}:00`,
-      cantidad_personas: payload.people,
-      observaciones: payload.observations,
+    const data = await tryJson<BackendReservation>(`${API_URL}/api/reservas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id_usuario_cliente: payload.userId,
+        id_mesa: payload.table.id,
+        id_usuario_registro: payload.userId,
+        fecha_hora_reserva: `${payload.date}T${payload.time}:00`,
+        cantidad_personas: payload.people,
+        observaciones: payload.observations,
+      }),
     });
 
-    let response: Response;
-    try {
-      response = await fetch(`${API_URL}/api/reservas`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-      });
-    } catch (networkError) {
-      // Backend totalmente inaccesible → usar mock como fallback
-      console.warn('[createReservation] Backend no disponible, usando mock:', networkError);
-      const mockRes = await createClientReservationMock(payload);
-      const { updateTableStatusMock } = await import('../mocks/tables.mock');
-      await updateTableStatusMock(payload.table.id, 'RESERVADA');
-      return mockRes;
+    if (data) {
+      await updateTableStatusBackend(payload.table.id, 'RESERVADA');
+      return mapBackendReservation(data);
     }
-
-    if (!response.ok) {
-      // Backend respondió con error → leer mensaje y lanzar error real
-      let errorMsg = `Error ${response.status} al crear la reserva`;
-      try {
-        const errorBody = await response.json() as { error?: string };
-        if (errorBody.error) errorMsg = errorBody.error;
-      } catch { /* ignorar si no hay JSON */ }
-      console.error('[createReservation] Error del backend:', errorMsg);
-      throw new Error(errorMsg);
-    }
-
-    const data = await response.json() as BackendReservation;
-    console.log('[createReservation] Reserva creada en BD:', data);
-    return mapBackendReservation(data);
+    
+    const mockRes = await createClientReservationMock(payload);
+    // En mock actualizamos la mesa a RESERVADA para que Admin/Mesero la vean
+    const { updateTableStatusMock } = await import('../mocks/tables.mock');
+    await updateTableStatusMock(payload.table.id, 'RESERVADA');
+    
+    return mockRes;
   },
 
   async cancelReservation(userId: number, reservationId: number, tableId?: number): Promise<ClientReservation> {
