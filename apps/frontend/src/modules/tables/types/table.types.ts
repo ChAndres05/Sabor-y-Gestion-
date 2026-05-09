@@ -15,7 +15,8 @@ export interface RestaurantTable {
   id: number;
   numero: number;
   capacidad: number;
-  zoneId: number;
+  zoneId?: number;
+  zoneName?: string;
   estado: TableStatus;
   activo: boolean;
 }

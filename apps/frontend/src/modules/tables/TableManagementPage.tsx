@@ -151,19 +151,50 @@ export default function TableManagementPage({
       setIsTablesLoading(true);
     }
     try {
-      const baseTables = (await listTablesMock()).filter((table) => table.activo);
+      // Try to fetch tables from the real backend first
+      const response = await fetch(`${API_URL}/api/mesas`);
 
-      const [activeOrders, reservations] = await Promise.all([
-        ordersApi.listActiveOrders(),
-        clientFlowApi.listAllReservations(),
-      ]);
+      let mappedTables: RestaurantTable[] = [];
 
-      const updatedTables = baseTables.map((table) => ({
-        ...table,
-        estado: getEffectiveTableStatus(table, activeOrders, reservations),
-      }));
+      if (response.ok) {
+        const backendMesas = await response.json() as Array<{
+          id_mesa: number;
+          numero: number;
+          capacidad: number;
+          estado: string;
+          id_zona: number | null;
+          zona: { id_zona: number; nombre: string; activo?: boolean } | null;
+          activa: boolean;
+          posicion_x?: number;
+          posicion_y?: number;
+          forma?: string;
+        }>;
 
-      setTables(updatedTables);
+        mappedTables = backendMesas
+          .filter((m) => m.activa)
+          .map((m) => ({
+            id: m.id_mesa,
+            numero: m.numero,
+            capacidad: m.capacidad,
+            estado: m.estado as RestaurantTable['estado'],
+            zoneId: m.id_zona ?? undefined,
+            zoneName: m.zona?.nombre,
+            activo: m.activa,
+          }));
+      } else {
+        // Fallback to mock if backend is not available
+        const baseTables = (await listTablesMock()).filter((table) => table.activo);
+        const [activeOrders, reservations] = await Promise.all([
+          ordersApi.listActiveOrders(),
+          clientFlowApi.listAllReservations(),
+        ]);
+        mappedTables = baseTables.map((table) => ({
+          ...table,
+          estado: getEffectiveTableStatus(table, activeOrders, reservations),
+        }));
+      }
+
+      setTables(mappedTables);
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -175,7 +206,7 @@ export default function TableManagementPage({
         setIsTablesLoading(false);
       }
     }
-  }, []);
+  }, [API_URL]);
 
   useEffect(() => {
     void loadZones();
@@ -489,10 +520,15 @@ export default function TableManagementPage({
         ].indexOf(mes) + 1;
 
       const formattedDate = `${currentYear}-${String(monthIndex).padStart(2, '0')}-${dia.padStart(2, '0')}`;
-      const userId = user?.id || 1;
+      // userId is the logged-in user (admin or waiter acting as registrar)
+      // For CLIENTE role, userId is also the client. For ADMIN/MESERO, the client is unknown.
+      const userId = user?.id ?? null;
+      const isClientRole = role === 'CLIENTE';
 
       await clientFlowApi.createReservation({
-        userId,
+        userId: userId ?? 0,
+        clientUserId: isClientRole ? (userId ?? undefined) : undefined,
+        registrarUserId: userId ?? undefined,
         table: reservingTable,
         zone: zones.find((zone) => zone.id === reservingTable.zoneId),
         people: reservingTable.capacidad,
