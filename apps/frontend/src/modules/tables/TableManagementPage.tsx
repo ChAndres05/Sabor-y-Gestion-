@@ -64,27 +64,28 @@ export default function TableManagementPage({
   onBack,
   onOpenTableOrder,
   user,
-  onNavigate,
 }: TableManagementPageProps) {
   const isAdmin = role === 'ADMIN';
-  const isClient = role === 'CLIENTE';
+  
+  // Estados de Filtros
+  const [filterPeople, setFilterPeople] = useState<number | ''>('');
+  const [filterOnlyAvailable, setFilterOnlyAvailable] = useState<boolean>(false);
+  const [selectedZoneId, setSelectedZoneId] = useState<ZoneFilter>('ALL');
 
-  const [filterPeople, setFilterPeople] = useState<number | ''>(2);
-  const [filterOnlyAvailable, setFilterOnlyAvailable] = useState<boolean>(true);
+  // Estados de Datos
   const [zones, setZones] = useState<Zone[]>([]);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [isZonesLoading, setIsZonesLoading] = useState(true);
   const [isTablesLoading, setIsTablesLoading] = useState(true);
-  const [selectedZoneId, setSelectedZoneId] = useState<ZoneFilter>('ALL');
+
+  // Estados de UI y Modales
   const [isCreateZoneOpen, setIsCreateZoneOpen] = useState(false);
   const [isCreateTableOpen, setIsCreateTableOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<RestaurantTable | null>(null);
-  const [isSubmittingZoneForm, setIsSubmittingZoneForm] = useState(false);
-  const [isSubmittingTableForm, setIsSubmittingTableForm] = useState(false);
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [openActionMenuId, setOpenActionMenuId] = useState<number | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const [reservingTable, setReservingTable] = useState<RestaurantTable | null>(null);
-  const [isConfirming, setIsConfirming] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
   const loadZones = useCallback(async () => {
@@ -139,18 +140,18 @@ export default function TableManagementPage({
     };
   }, [loadTables]);
 
+  // Filtrado Dinámico para todos los roles
   const filteredTables = useMemo(() => {
-    let result = tables;
-    if (selectedZoneId !== 'ALL') result = result.filter((t) => t.zoneId === selectedZoneId);
-    if (isClient) {
-      if (filterPeople !== '') result = result.filter((t) => t.capacidad >= filterPeople);
-      if (filterOnlyAvailable) result = result.filter((t) => t.estado === 'LIBRE');
-    }
-    return result;
-  }, [tables, selectedZoneId, isClient, filterPeople, filterOnlyAvailable]);
+    return tables.filter((t) => {
+      const matchZone = selectedZoneId === 'ALL' || t.zoneId === selectedZoneId;
+      const matchPeople = filterPeople === '' || t.capacidad >= filterPeople;
+      const matchAvailable = !filterOnlyAvailable || t.estado === 'LIBRE';
+      return matchZone && matchPeople && matchAvailable;
+    });
+  }, [tables, selectedZoneId, filterPeople, filterOnlyAvailable]);
 
   const handleCreateZone = async (values: ZoneFormValues) => {
-    setIsSubmittingZoneForm(true);
+    setIsSubmittingForm(true);
     try {
       await tablesApi.createZone(values);
       setIsCreateZoneOpen(false);
@@ -159,12 +160,12 @@ export default function TableManagementPage({
     } catch (error) {
       setFeedback({ type: 'error', title: 'Error', message: (error as Error).message });
     } finally {
-      setIsSubmittingZoneForm(false);
+      setIsSubmittingForm(false);
     }
   };
 
   const handleCreateTable = async (values: TableFormValues) => {
-    setIsSubmittingTableForm(true);
+    setIsSubmittingForm(true);
     try {
       await tablesApi.createTable(values);
       setIsCreateTableOpen(false);
@@ -173,13 +174,13 @@ export default function TableManagementPage({
     } catch (error) {
       setFeedback({ type: 'error', title: 'Error', message: (error as Error).message });
     } finally {
-      setIsSubmittingTableForm(false);
+      setIsSubmittingForm(false);
     }
   };
 
   const handleEditTable = async (values: TableFormValues) => {
     if (!editingTable) return;
-    setIsSubmittingTableForm(true);
+    setIsSubmittingForm(true);
     try {
       await tablesApi.updateTable(editingTable.id, values);
       setEditingTable(null);
@@ -188,13 +189,13 @@ export default function TableManagementPage({
     } catch (error) {
       setFeedback({ type: 'error', title: 'Error', message: (error as Error).message });
     } finally {
-      setIsSubmittingTableForm(false);
+      setIsSubmittingForm(false);
     }
   };
 
   const handleConfirmAction = async () => {
     if (!confirmState) return;
-    setIsConfirming(true);
+    setIsSubmittingForm(true);
     try {
       if (confirmState.type === 'delete') {
         await tablesApi.deleteTable(confirmState.table.id);
@@ -205,101 +206,89 @@ export default function TableManagementPage({
         await tablesApi.updateStatus(confirmState.table.id, confirmState.nextStatus);
       }
       setConfirmState(null);
-      await loadZones();
-      await loadTables();
+      await loadTables(true);
     } catch (error) {
       setFeedback({ type: 'error', title: 'Error', message: (error as Error).message });
     } finally {
-      setIsConfirming(false);
-    }
-  };
-
-  const handleReservationConfirm = async (mes: string, dia: string, horaInicio: string) => {
-    if (!reservingTable) return;
-    setIsConfirming(true);
-    try {
-      const currentYear = new Date().getFullYear();
-      const monthIndex = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'].indexOf(mes) + 1;
-      const formattedDate = `${currentYear}-${String(monthIndex).padStart(2, '0')}-${dia.padStart(2, '0')}`;
-      
-      await clientFlowApi.createReservation({
-        userId: user?.id || 1,
-        table: reservingTable,
-        zone: zones.find(z => z.id === reservingTable.zoneId),
-        people: reservingTable.capacidad,
-        date: formattedDate,
-        time: horaInicio,
-        observations: role === 'CLIENTE' ? 'Reserva cliente.' : 'Reserva personal.',
-      });
-
-      setReservingTable(null);
-      await loadTables();
-      if (isClient && onNavigate) onNavigate('reservations');
-    } catch (error) {
-      setFeedback({ type: 'error', title: 'Error', message: (error as Error).message });
-    } finally {
-      setIsConfirming(false);
+      setIsSubmittingForm(false);
     }
   };
 
   return (
-    <main className="h-screen w-screen overflow-hidden bg-background px-4 py-6 text-text flex flex-col">
+    <main className="h-screen w-screen overflow-hidden bg-background px-4 py-6 text-text flex flex-col font-sans">
       <div className="mx-auto flex h-full w-full max-w-screen-xl flex-col overflow-hidden">
         <div className="shrink-0">
           <button type="button" onClick={onBack} className="mb-4 text-[28px]">☰</button>
-          <h1 className="text-title font-bold">Gestión de mesas</h1>
-          <p className="mt-1 text-[14px] leading-5 text-gray-500">Administra el salón y gestiona pedidos utilizando los datos del backend.</p>
+          <h1 className="text-title font-bold text-text">Gestión de mesas</h1>
+          <p className="mt-1 text-[14px] leading-5 text-gray-500">Mapeo del salón y pedidos sincronizados con el backend.</p>
+          
           <div className="mt-4"><TableSummaryCards tables={tables} /></div>
+
+          {/* Filtros Globales (Admin, Mesero y Cliente) */}
+          <div className="mt-6 grid gap-3 md:grid-cols-[auto_1fr_auto] items-end bg-white p-4 rounded-[1.5rem] shadow-sm border border-gray-50">
+            <label className="block">
+              <span className="text-[11px] font-black text-gray-400 uppercase">Capacidad Mín.</span>
+              <input 
+                type="number" 
+                min="1" 
+                value={filterPeople} 
+                onChange={(e) => setFilterPeople(e.target.value === '' ? '' : Number(e.target.value))} 
+                className="mt-2 w-24 rounded-xl border border-gray-100 bg-background p-3 text-[14px] font-bold outline-none focus:border-primary" 
+              />
+            </label>
+
+            <div className="block">
+              <span className="text-[11px] font-black text-gray-400 uppercase">Filtrar por Zona</span>
+              {isZonesLoading ? (
+                <div className="mt-2 h-12 w-full animate-pulse bg-gray-100 rounded-xl" />
+              ) : (
+                <div className="mt-2">
+                  <ZoneFilterChips 
+                    zones={zones} 
+                    selectedZoneId={selectedZoneId} 
+                    onSelectZone={setSelectedZoneId} 
+                    onDeleteZone={isAdmin ? (z) => setConfirmState({ type: 'deleteZone', zone: z }) : undefined} 
+                  />
+                </div>
+              )}
+            </div>
+
+            <label className="flex h-[50px] cursor-pointer items-center gap-3 rounded-xl bg-background px-4">
+              <input 
+                type="checkbox" 
+                checked={filterOnlyAvailable} 
+                onChange={(e) => setFilterOnlyAvailable(e.target.checked)} 
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" 
+              />
+              <span className="text-[14px] font-bold text-text">Solo disponibles</span>
+            </label>
+          </div>
           
           {isAdmin && (
             <div className="mt-4 flex gap-3">
-              <button onClick={() => setIsCreateZoneOpen(true)} className="rounded-2xl bg-white px-4 py-3 font-semibold shadow-sm transition-colors hover:bg-black/5">+ Nueva zona</button>
-              <button onClick={() => setIsCreateTableOpen(true)} disabled={zones.length === 0} className="rounded-2xl bg-primary px-4 py-3 font-semibold text-white transition-colors hover:bg-primary-hover">+ Nueva mesa</button>
+              <button onClick={() => setIsCreateZoneOpen(true)} className="rounded-2xl bg-white px-4 py-3 font-semibold shadow-sm border border-gray-100 hover:bg-gray-50 transition-colors">+ Nueva zona</button>
+              <button onClick={() => setIsCreateTableOpen(true)} disabled={zones.length === 0} className="rounded-2xl bg-primary px-4 py-3 font-semibold text-white shadow-md hover:bg-primary-hover transition-colors">+ Nueva mesa</button>
             </div>
           )}
 
-          {isClient ? (
-            <div className="mt-4 rounded-[1.5rem] bg-white p-4 shadow-sm">
-              <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
-                <label className="block">
-                  <span className="text-[12px] font-bold uppercase tracking-wide text-gray-500">CANTIDAD DE PERSONAS</span>
-                  <input type="number" min="1" value={filterPeople} onChange={(e) => setFilterPeople(e.target.value === '' ? '' : Number(e.target.value))} className="mt-2 w-full rounded-2xl border border-gray-200 px-4 py-3 text-[14px] font-medium outline-none transition-colors focus:border-primary" />
-                </label>
-                <label className="block">
-                  <span className="text-[12px] font-bold uppercase tracking-wide text-gray-500">ZONA</span>
-                  <select value={selectedZoneId} onChange={(e) => setSelectedZoneId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))} className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] font-medium outline-none transition-colors focus:border-primary">
-                    <option value="ALL">Todas las zonas</option>
-                    {zones.map((zone) => (<option key={zone.id} value={zone.id}>{zone.nombre}</option>))}
-                  </select>
-                </label>
-                <label className="flex h-[50px] cursor-pointer items-center gap-3 rounded-2xl bg-background px-4">
-                  <input type="checkbox" checked={filterOnlyAvailable} onChange={(e) => setFilterOnlyAvailable(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
-                  <span className="text-[14px] font-bold text-text">Solo disponibles</span>
-                </label>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-4">
-              {isZonesLoading ? (<div className="rounded-2xl bg-white px-4 py-3 text-[14px] text-gray-500">Cargando zonas...</div>) : (
-                <ZoneFilterChips zones={zones} selectedZoneId={selectedZoneId} onSelectZone={setSelectedZoneId} onDeleteZone={isAdmin ? (z) => setConfirmState({ type: 'deleteZone', zone: z }) : undefined} />
-              )}
-            </div>
-          )}
-
-          <div className="mt-4 flex items-center justify-between">
-            <h2 className="text-subtitle font-bold text-text">Mesas</h2>
-            <span className="text-[13px] font-medium text-gray-500">{filteredTables.length} resultados</span>
+          <div className="mt-6 flex items-center justify-between">
+            <h2 className="text-subtitle font-bold text-text uppercase tracking-tight">Distribución de Mesas</h2>
+            <span className="text-[13px] font-medium text-gray-400">{filteredTables.length} mesas encontradas</span>
           </div>
         </div>
 
-        <div className="mt-4 flex-1 overflow-y-auto">
-          {isTablesLoading ? (<p className="p-5 text-gray-500">Cargando mesas...</p>) : filteredTables.length === 0 ? (
-            <div className="rounded-2xl bg-white p-5 text-center shadow-sm">
-              <p className="text-[16px] font-semibold text-text">No hay mesas en esta zona</p>
-              <p className="mt-2 text-[14px] text-gray-500">Prueba con otra zona o reserva.</p>
+        <div className="mt-4 flex-1 overflow-y-auto pr-1">
+          {isTablesLoading ? (
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              {[1, 2, 3, 4].map(i => <div key={i} className="h-32 animate-pulse bg-white rounded-3xl" />)}
+            </div>
+          ) : filteredTables.length === 0 ? (
+            <div className="rounded-3xl bg-white p-10 text-center shadow-sm border border-dashed border-gray-200">
+              <p className="text-[16px] font-bold text-gray-400">No hay mesas con estos filtros</p>
+              <p className="mt-1 text-[13px] text-gray-300">Intenta cambiando la zona o la capacidad mínima.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 pb-10">
               {filteredTables.map((table) => (
                 <TableCard 
                   key={table.id} 
@@ -319,11 +308,34 @@ export default function TableManagementPage({
         </div>
       </div>
 
-      <ZoneFormModal open={isCreateZoneOpen} onClose={() => setIsCreateZoneOpen(false)} onSubmit={handleCreateZone} isSubmitting={isSubmittingZoneForm} />
-      <TableFormModal open={isCreateTableOpen} mode="create" zones={zones} onClose={() => setIsCreateTableOpen(false)} onSubmit={handleCreateTable} isSubmitting={isSubmittingTableForm} />
-      <TableFormModal open={Boolean(editingTable)} mode="edit" zones={zones} initialTable={editingTable} onClose={() => setEditingTable(null)} onSubmit={handleEditTable} isSubmitting={isSubmittingTableForm} />
-      <ConfirmModal open={Boolean(confirmState)} title={confirmState?.type === 'delete' ? '¿Eliminar mesa?' : confirmState?.type === 'deleteZone' ? '¿Eliminar zona?' : '¿Cambiar estado?'} description={confirmState?.type === 'delete' ? 'Esta acción no se puede deshacer.' : confirmState?.type === 'deleteZone' ? `Esta acción eliminará la zona "${confirmState.zone.nombre}" y todas sus mesas asociadas.` : confirmState?.type === 'status' ? `La mesa ${confirmState.table.numero} cambiará a estado ${getStatusLabel(confirmState.nextStatus)}.` : ''} confirmLabel={confirmState?.type === 'delete' || confirmState?.type === 'deleteZone' ? 'Eliminar' : 'Confirmar'} onConfirm={handleConfirmAction} onClose={() => setConfirmState(null)} isLoading={isConfirming} />
-      <ReservationModal open={Boolean(reservingTable)} onConfirm={handleReservationConfirm} onClose={() => setReservingTable(null)} isLoading={isConfirming} />
+      {/* Modales de Gestión */}
+      <ZoneFormModal open={isCreateZoneOpen} onClose={() => setIsCreateZoneOpen(false)} onSubmit={handleCreateZone} isSubmitting={isSubmittingForm} />
+      <TableFormModal open={isCreateTableOpen} mode="create" zones={zones} onClose={() => setIsCreateTableOpen(false)} onSubmit={handleCreateTable} isSubmitting={isSubmittingForm} />
+      <TableFormModal open={Boolean(editingTable)} mode="edit" zones={zones} initialTable={editingTable || undefined} onClose={() => setEditingTable(null)} onSubmit={handleEditTable} isSubmitting={isSubmittingForm} />
+      
+      <ConfirmModal 
+        open={Boolean(confirmState)} 
+        title={confirmState?.type === 'delete' ? '¿Eliminar mesa?' : confirmState?.type === 'deleteZone' ? '¿Eliminar zona?' : '¿Cambiar estado?'} 
+        description={confirmState?.type === 'delete' ? 'Esta acción no se puede deshacer.' : confirmState?.type === 'deleteZone' ? `Se eliminará la zona "${confirmState.zone.nombre}" y sus mesas.` : `La mesa ${confirmState?.table?.numero} cambiará a ${getStatusLabel(confirmState?.nextStatus || 'LIBRE')}.`} 
+        confirmLabel={confirmState?.type === 'delete' || confirmState?.type === 'deleteZone' ? 'Eliminar' : 'Confirmar'} 
+        onConfirm={handleConfirmAction} 
+        onClose={() => setConfirmState(null)} 
+        isLoading={isSubmittingForm} 
+      />
+
+      {/* MODAL DE RESERVA ÚNICO */}
+      {reservingTable && (
+        <ReservationModal 
+          open={Boolean(reservingTable)} 
+          onClose={() => setReservingTable(null)} 
+          onSuccess={() => { void loadTables(true); }} 
+          tableId={reservingTable.id} 
+          tableNumber={reservingTable.numero} 
+          tableCapacity={reservingTable.capacidad} 
+          waiterId={user?.id || 1} 
+        />
+      )}
+
       <FeedbackModal open={Boolean(feedback)} title={feedback?.title || ''} message={feedback?.message || ''} type={feedback?.type || 'info'} onClose={() => setFeedback(null)} />
     </main>
   );

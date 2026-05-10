@@ -67,7 +67,7 @@ export default function AdminReservationsPage({ onBack, onOpenReservationOrder, 
   const handleCancelReservation = async (reservation: ClientReservation) => {
     setIsSubmitting(true);
     try {
-      await clientFlowApi.cancelReservation(reservation.userId, reservation.id, reservation.tableId);
+      await clientFlowApi.cancelReservation(reservation.userId, reservation.id);
       await loadReservations();
       setFeedback({ type: 'success', title: 'Éxito', message: 'Reserva cancelada correctamente.' });
     } catch (error) {

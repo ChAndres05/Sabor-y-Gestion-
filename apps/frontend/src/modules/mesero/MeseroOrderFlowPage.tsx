@@ -1,3 +1,4 @@
+import { clientFlowApi } from '../../shared/api/client-flow.api';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import { ordersApi } from '../../shared/api/orders.api';
@@ -421,51 +422,34 @@ export default function MeseroOrderFlowPage({
   };
 
   const handleSearchCustomer = async () => {
-    if (!customerCi.trim()) {
+  if (!customerCi.trim()) return;
+  setIsSearchingCustomer(true);
+  try {
+    const foundCustomer = await clientFlowApi.findClientByCI(customerCi);
+    if (!foundCustomer) {
+      setCustomerFound(false);
+      setSelectedCustomerId(null);
       setFeedback({
         type: 'info',
-        title: 'Ingresa un CI',
-        message: 'Escribe el CI del cliente para buscarlo.',
+        title: 'Invitado nuevo',
+        message: 'El CI no está registrado. Por favor, ingresa el nombre y apellido manualmente para la pre-factura.',
       });
       return;
     }
-
-    setIsSearchingCustomer(true);
-
-    try {
-      const foundCustomer = await ordersApi.searchCustomerByCi(customerCi);
-
-      if (!foundCustomer) {
-        setCustomerFound(false);
-        setSelectedCustomerId(null);
-        setFeedback({
-          type: 'info',
-          title: 'Cliente no encontrado',
-          message: 'Puedes continuar como cliente no registrado y completar una referencia manual.',
-        });
-        return;
-      }
-
-      setCustomerName(foundCustomer.nombre);
-      setCustomerPhone(foundCustomer.telefono);
-      setCustomerCi(foundCustomer.ci);
-      setCustomerFound(true);
-      setSelectedCustomerId(foundCustomer.idUsuario ?? null);
-      setFeedback({
-        type: 'success',
-        title: 'Cliente encontrado',
-        message: 'Los datos del cliente se completaron automáticamente.',
-      });
-    } catch (error) {
-      setFeedback({
-        type: 'error',
-        title: 'No se pudo buscar',
-        message: error instanceof Error ? error.message : 'Ocurrió un error inesperado',
-      });
-    } finally {
-      setIsSearchingCustomer(false);
-    }
-  };
+    setCustomerName(`${foundCustomer.nombre} ${foundCustomer.apellido}`);
+    setCustomerPhone(foundCustomer.correo); 
+    setCustomerFound(true);
+    setSelectedCustomerId(Number(foundCustomer.id.replace('u-', '')));
+  } catch { // Quitamos la variable (error) para que el lint no se queje
+    setFeedback({ 
+      type: 'error', 
+      title: 'Error de búsqueda', 
+      message: 'No se pudo conectar con el servidor.' 
+    });
+  } finally {
+    setIsSearchingCustomer(false);
+  }
+};
 
   const handleUseUnregisteredCustomer = () => {
     setCustomerFound(false);
@@ -837,9 +821,11 @@ export default function MeseroOrderFlowPage({
                       type="text"
                       value={customerName}
                       onChange={(event) => setCustomerName(event.target.value)}
-                      placeholder="Nombre del cliente o referencia de mesa"
-                      disabled={!canSaveCustomer}
-                      className="rounded-xl border border-gray-300 bg-white px-3 py-3 text-[14px] outline-none focus:border-primary disabled:opacity-60"
+                      placeholder="Nombre completo del invitado"
+                      disabled={customerFound}
+                      className={`rounded-xl border border-gray-300 bg-white px-3 py-3 text-[14px] outline-none focus:border-primary ${
+                        customerFound ? 'opacity-60 bg-gray-50' : ''
+                      }`}
                     />
                   </div>
 

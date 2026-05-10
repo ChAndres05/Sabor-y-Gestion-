@@ -4,22 +4,29 @@ import type {
   ClientReservation,
   ClientReservationRequest,
 } from '../types/client-flow.types';
-import type { TableStatus } from '../../modules/tables/types/table.types';
 import {
   mapBackendReservation,
   mapBackendOrder,
   type BackendReservation,
   type BackendOrder,
 } from '../mappers/client-flow.mapper';
-import { ordersApi } from './orders.api';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+export interface UserSearchResponse {
+  id: string;
+  nombre: string;
+  apellido: string;
+  documento: string;
+  rol: string;
+  correo: string;
+  estado: boolean;
+}
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 async function safeFetchJson<T>(url: string, init?: RequestInit): Promise<T | null> {
   try {
     const response = await fetch(url, init);
     const contentType = response.headers.get("content-type");
-    // Si el servidor responde con un error o no es JSON (ej. devuelve un HTML 404), abortamos
     if (!response.ok || !contentType || !contentType.includes("application/json")) {
       return null;
     }
@@ -30,22 +37,9 @@ async function safeFetchJson<T>(url: string, init?: RequestInit): Promise<T | nu
   }
 }
 
-async function updateTableStatusBackend(tableId: number, status: TableStatus): Promise<boolean> {
-  try {
-    const res = await fetch(`${API_URL}/api/mesas/${tableId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado: status }),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 export const clientFlowApi = {
   async listReservations(userId: number): Promise<ClientReservation[]> {
-    const data = await safeFetchJson<BackendReservation[]>(`${API_URL}/api/reservas/usuario/${userId}`);
+    const data = await safeFetchJson<BackendReservation[]>(`${API_URL}/api/reservas/cliente/${userId}`);
     if (!data || !Array.isArray(data)) return [];
     
     return data
@@ -54,8 +48,7 @@ export const clientFlowApi = {
   },
 
   async listAllReservations(): Promise<ClientReservation[]> {
-    // IMPORTANTE: Si esta ruta /api/admin/reservas no existe en el back, devolverá []
-    const data = await safeFetchJson<BackendReservation[]>(`${API_URL}/api/admin/reservas`);
+    const data = await safeFetchJson<BackendReservation[]>(`${API_URL}/api/reservas`);
     if (!data || !Array.isArray(data)) return [];
     
     return data
@@ -68,10 +61,10 @@ export const clientFlowApi = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id_usuario: payload.userId,
+        id_usuario_cliente: payload.userId,
         id_mesa: payload.table.id,
-        fecha: payload.date,
-        hora_inicio: payload.time,
+        id_usuario_registro: payload.userId,
+        fecha_hora_reserva: `${payload.date}T${payload.time}:00Z`,
         cantidad_personas: payload.people,
         observaciones: payload.observations,
       }),
@@ -80,25 +73,17 @@ export const clientFlowApi = {
     if (!res.ok) throw new Error('Error al crear la reserva en el servidor');
     
     const data = await res.json() as BackendReservation;
-    await updateTableStatusBackend(payload.table.id, 'RESERVADA');
     return mapBackendReservation(data);
   },
 
-  async cancelReservation(userId: number, reservationId: number, tableId?: number): Promise<void> {
+  async cancelReservation(_userId: number, reservationId: number): Promise<void> {
     const res = await fetch(`${API_URL}/api/reservas/${reservationId}`, {
-      method: 'DELETE',
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, tableId })
+      body: JSON.stringify({ estado: 'CANCELADA' })
     });
 
     if (!res.ok) throw new Error('No se pudo cancelar la reserva.');
-    
-    if (tableId) {
-      const activeOrders = await ordersApi.getOpenOrdersByTable(tableId);
-      if (activeOrders.length === 0) {
-        await updateTableStatusBackend(tableId, 'LIBRE');
-      }
-    }
   },
 
   async listOrders(userId: number): Promise<ClientOrder[]> {
@@ -116,7 +101,7 @@ export const clientFlowApi = {
         id_reserva: payload.reservationId,
         observaciones: payload.notes,
         detalles: payload.items.map((item) => ({
-          nombre: item.name,
+          id_presentacion_producto: item.id,
           cantidad: item.quantity,
           precio_unitario: item.unitPrice,
           subtotal: item.subtotal,
@@ -127,4 +112,11 @@ export const clientFlowApi = {
 
     if (!res.ok) throw new Error('Error al enviar el pedido a cocina.');
   },
+
+  async findClientByCI(ci: string): Promise<UserSearchResponse | null> {
+    const data = await safeFetchJson<UserSearchResponse[]>(`${API_URL}/api/busqueda?q=${ci}`);
+    if (!data || !Array.isArray(data)) return null;
+    const cliente = data.find(u => u.documento === ci);
+    return cliente || null;
+  }
 };
