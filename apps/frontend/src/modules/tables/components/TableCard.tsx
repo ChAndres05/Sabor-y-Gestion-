@@ -14,43 +14,23 @@ interface TableCardProps {
 
 function getStatusStyles(status: TableStatus) {
   switch (status) {
-    case 'LIBRE':
-      return 'bg-success text-white';
-    case 'OCUPADA':
-      return 'bg-alert text-white';
-    case 'RESERVADA':
-      return 'bg-process text-white';
-    case 'CUENTA_SOLICITADA':
-      return 'bg-info text-white';
-    case 'FUERA_DE_SERVICIO':
-      return 'bg-gray-500 text-white';
+    case 'LIBRE': return 'bg-success text-white';
+    case 'OCUPADA': return 'bg-alert text-white';
+    case 'RESERVADA': return 'bg-process text-white';
+    case 'CUENTA_SOLICITADA': return 'bg-info text-white';
+    case 'FUERA_DE_SERVICIO': return 'bg-gray-500 text-white';
   }
 }
 
 function getStatusLabel(status: TableStatus) {
   switch (status) {
-    case 'LIBRE':
-      return 'Libre';
-    case 'OCUPADA':
-      return 'Ocupada';
-    case 'RESERVADA':
-      return 'Reservada';
-    case 'CUENTA_SOLICITADA':
-      return 'Cuenta solicitada';
-    case 'FUERA_DE_SERVICIO':
-      return 'Fuera de servicio';
+    case 'LIBRE': return 'Libre';
+    case 'OCUPADA': return 'Ocupada';
+    case 'RESERVADA': return 'Reservada';
+    case 'CUENTA_SOLICITADA': return 'Cuenta solicitada';
+    case 'FUERA_DE_SERVICIO': return 'Fuera de servicio';
   }
 }
-
-const ADMIN_STATUSES: TableStatus[] = [
-  'LIBRE',
-  'OCUPADA',
-  'RESERVADA',
-  'CUENTA_SOLICITADA',
-  'FUERA_DE_SERVICIO',
-];
-
-const WAITER_STATUSES: TableStatus[] = ['LIBRE', 'OCUPADA', 'RESERVADA', 'CUENTA_SOLICITADA', 'FUERA_DE_SERVICIO'];
 
 export function TableCard({
   role,
@@ -65,14 +45,28 @@ export function TableCard({
 }: TableCardProps) {
   const isAdmin = role === 'ADMIN';
   const isClient = role === 'CLIENTE';
-  const availableStatuses = isAdmin ? ADMIN_STATUSES : isClient ? (table.estado === 'LIBRE' ? ['RESERVADA'] as TableStatus[] : []) : WAITER_STATUSES;
+
+  const getAvailableStatuses = (): TableStatus[] => {
+    if (isClient) {
+      return table.estado === 'LIBRE' ? ['RESERVADA'] : [];
+    }
+
+    const baseStatuses: TableStatus[] = ['RESERVADA', 'FUERA_DE_SERVICIO'];
+    const canReleaseManually = isAdmin || (table.estado !== 'OCUPADA' && table.estado !== 'CUENTA_SOLICITADA');
+    
+    const statuses = [...baseStatuses];
+    if (canReleaseManually) statuses.push('LIBRE');
+    if (table.estado === 'OCUPADA') statuses.push('CUENTA_SOLICITADA');
+
+    return statuses;
+  };
+
+  const availableStatuses = getAvailableStatuses();
   const canManageOrder = !isClient && table.estado !== 'FUERA_DE_SERVICIO';
 
   return (
     <article
-      className={`relative rounded-[1.5rem] p-4 shadow-sm ${getStatusStyles(
-        table.estado
-      )}`}
+      className={`relative rounded-[1.5rem] p-4 shadow-sm transition-all ${getStatusStyles(table.estado)}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -101,14 +95,14 @@ export function TableCard({
       </div>
 
       {menuOpen && (
-        <div className="absolute right-3 top-12 z-20 min-w-[210px] overflow-hidden rounded-2xl bg-white text-text shadow-xl">
+        <div className="absolute right-3 top-12 z-20 min-w-[210px] overflow-hidden rounded-2xl bg-white text-text shadow-xl border border-black/5">
           {canManageOrder && (
             <button
               type="button"
               onClick={onManageOrder}
-              className="block w-full px-4 py-3 text-left text-[14px] font-medium transition-colors hover:bg-black/5"
+              className="block w-full px-4 py-3 text-left text-[14px] font-bold text-primary border-b border-black/5 hover:bg-black/5"
             >
-              Gestionar pedido
+              {table.estado === 'OCUPADA' ? 'Ver/Editar Pedido' : 'Gestionar pedido'}
             </button>
           )}
 
@@ -116,19 +110,9 @@ export function TableCard({
             <button
               type="button"
               onClick={onEdit}
-              className="block w-full px-4 py-3 text-left text-[14px] font-medium transition-colors hover:bg-black/5"
+              className="block w-full px-4 py-3 text-left text-[14px] font-medium hover:bg-black/5"
             >
-              Editar mesa
-            </button>
-          )}
-
-          {!isClient && table.estado === 'RESERVADA' && availableStatuses.includes('RESERVADA') && (
-            <button
-              type="button"
-              onClick={() => onChangeStatus('RESERVADA')}
-              className="block w-full px-4 py-3 text-left text-[14px] font-medium transition-colors hover:bg-black/5"
-            >
-              Editar reserva
+              🛠️ Configurar mesa
             </button>
           )}
 
@@ -141,7 +125,10 @@ export function TableCard({
                 onClick={() => onChangeStatus(status)}
                 className="block w-full px-4 py-3 text-left text-[14px] font-medium transition-colors hover:bg-black/5"
               >
-                {status === 'RESERVADA' ? 'Hacer una reserva' : `Marcar ${getStatusLabel(status).toLowerCase()}`}
+                {status === 'RESERVADA' ? '📅 Hacer una reserva' : 
+                 status === 'LIBRE' ? '🔓 Liberar mesa' :
+                 status === 'CUENTA_SOLICITADA' ? '💰 Solicitar cuenta' :
+                 `Marcar ${getStatusLabel(status).toLowerCase()}`}
               </button>
             ))}
 
@@ -149,9 +136,9 @@ export function TableCard({
             <button
               type="button"
               onClick={onDelete}
-              className="block w-full px-4 py-3 text-left text-[14px] font-medium text-alert transition-colors hover:bg-alert/5"
+              className="block w-full px-4 py-3 text-left text-[14px] font-medium text-alert border-t border-black/5 hover:bg-alert/5"
             >
-              Eliminar mesa
+              🗑️ Eliminar mesa
             </button>
           )}
         </div>
