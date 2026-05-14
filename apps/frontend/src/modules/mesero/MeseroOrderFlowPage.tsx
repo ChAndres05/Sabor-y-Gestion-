@@ -60,11 +60,11 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
   const [order, setOrder] = useState<TableOrder | null>(null);
   const [activeOrders, setActiveOrders] = useState<TableOrder[]>([]);
   const [categories, setCategories] = useState<OrderCatalogCategory[]>([]);
+  const [allMenuProducts, setAllMenuProducts] = useState<OrderCatalogProduct[]>([]);
   const [products, setProducts] = useState<OrderCatalogProduct[]>([]);
-
   const [customerCi, setCustomerCi] = useState('');
   const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState(''); 
   const [customerFound, setCustomerFound] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number>(0);
@@ -82,7 +82,8 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
   const [isRequestingBill, setIsRequestingBill] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
   const skipNextIngredientHydration = useRef(false);
-
+  const refreshPageStateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
   const selectedProduct = useMemo(() => products.find((product) => product.id === selectedProductId) ?? null, [products, selectedProductId]);
   const isBillRequested = table?.estado === 'CUENTA_SOLICITADA';
   const canEditItems = Boolean(order) && !isBillRequested && order?.estado === 'REGISTRADO';
@@ -118,9 +119,16 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
     return ordersData;
   }, [tableId]);
 
-  const refreshPageState = useCallback(async (preferredOrderId?: number) => {
-    await Promise.all([refreshOrders(preferredOrderId), refreshTable()]);
+  const refreshPageState = useCallback((preferredOrderId?: number) => {
+    if (refreshPageStateTimer.current) clearTimeout(refreshPageStateTimer.current);
+    refreshPageStateTimer.current = setTimeout(() => {
+      void Promise.all([refreshOrders(preferredOrderId), refreshTable()]);
+    }, 300);
   }, [refreshOrders, refreshTable]);
+
+  useEffect(() => {
+    return () => { if (refreshPageStateTimer.current) clearTimeout(refreshPageStateTimer.current); };
+  }, []);
 
   useEffect(() => {
     const channel = pusherClient.subscribe('tables-channel');
@@ -128,66 +136,72 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
       const updatedTableId = Number(updatedOrder.id_mesa ?? updatedOrder.tableId);
       if (updatedTableId === tableId) {
         const preferredOrderId = Number(updatedOrder.id_pedido ?? updatedOrder.orderId);
-        void refreshPageState(Number.isFinite(preferredOrderId) ? preferredOrderId : undefined);
+        refreshPageState(Number.isFinite(preferredOrderId) ? preferredOrderId : undefined);
       }
     };
     channel.bind('table-order-updated', handleTableOrderUpdated);
     return () => { channel.unbind('table-order-updated', handleTableOrderUpdated); pusherClient.unsubscribe('tables-channel'); };
   }, [tableId, refreshPageState]);
 
-  // CORRECCIÓN: Separamos la carga inicial (una sola vez) de la carga dinámica
   useEffect(() => {
     const loadInitialData = async () => {
       setIsLoading(true);
       try {
-        const [tableData, categoriesData, ordersData] = await Promise.all([ tablesApi.getTableById(tableId), menuApi.getCategories('', 'activas'), ordersApi.getOpenOrdersByTable(tableId) ]);
-        setTable(tableData); setCategories(categoriesData); setActiveOrders(ordersData);
+        const [tableData, categoriesData, ordersData, productsDataRaw] = await Promise.all([ 
+          tablesApi.getTableById(tableId), 
+          menuApi.getCategories('', 'activas'), 
+          ordersApi.getOpenOrdersByTable(tableId),
+          menuApi.getProductos()
+        ]);
+        
+        setTable(tableData); 
+        setCategories(categoriesData); 
+        setActiveOrders(ordersData);
+
+        const mappedAllProducts: OrderCatalogProduct[] = (productsDataRaw as BackendProduct[])
+          .map(mapProductFromBackend)
+          .filter((product) => product.disponible)
+          .map((product) => ({ id: product.id, presentacionId: product.presentacionId, categoryId: product.categoryId, nombre: product.nombre, descripcion: product.descripcion, precio: product.precio, tiempoPreparacion: product.tiempoPreparacion, disponible: product.disponible, ingredientes: product.ingredientes, imagen: product.imagen ?? null }));
+        
+        setAllMenuProducts(mappedAllProducts);
 
         const currentOrder = ordersData.find((activeOrder) => activeOrder.estado === 'REGISTRADO') ?? ordersData[0] ?? null;
         setOrder(currentOrder);
 
         if (currentOrder) {
-          setCustomerName(currentOrder.customer.nombre); setCustomerPhone(currentOrder.customer.telefono); setCustomerCi(currentOrder.customer.ci === '0' ? '' : currentOrder.customer.ci);
-          setCustomerFound(Boolean(currentOrder.customer.idUsuario)); setSelectedCustomerId(currentOrder.customer.idUsuario ?? null); setActiveStep(currentOrder.items.length > 0 ? 'pedido' : 'menu');
+          setCustomerName(currentOrder.customer.nombre); 
+          // 🛡️ CORRECCIÓN CORREO: Ya no usa el teléfono de fallback
+          setCustomerEmail((currentOrder.customer as { correo?: string }).correo || ''); 
+          setCustomerCi(currentOrder.customer.ci === '0' ? '' : currentOrder.customer.ci);
+          setCustomerFound(Boolean(currentOrder.customer.idUsuario)); 
+          setSelectedCustomerId(currentOrder.customer.idUsuario ?? null); 
+          setActiveStep(currentOrder.items.length > 0 ? 'pedido' : 'menu');
         } else {
-          setCustomerName(''); setCustomerPhone(''); setCustomerCi(''); setSelectedCustomerId(null); setActiveStep('cliente');
+          setCustomerName(''); setCustomerEmail(''); setCustomerCi(''); setSelectedCustomerId(null); setActiveStep('cliente');
         }
 
-        // Cargamos los productos de la primera categoría por defecto si hay
         if (categoriesData.length > 0) {
             const firstCatId = categoriesData[0].id;
             setSelectedCategoryId(firstCatId);
-            const productsDataRaw = await menuApi.getProductos();
-            const mappedProducts: OrderCatalogProduct[] = (productsDataRaw as BackendProduct[])
-                .map(mapProductFromBackend).filter((product) => product.categoryId === firstCatId && product.disponible)
-                .map((product) => ({ id: product.id, presentacionId: product.presentacionId, categoryId: product.categoryId, nombre: product.nombre, descripcion: product.descripcion, precio: product.precio, tiempoPreparacion: product.tiempoPreparacion, disponible: product.disponible, ingredientes: product.ingredientes, imagen: product.imagen ?? null }));
-            setProducts(mappedProducts);
+            setProducts(mappedAllProducts.filter(p => p.categoryId === firstCatId));
         }
       } catch (error) { console.error(error); setFeedback({ type: 'error', title: 'No se pudo cargar', message: 'Ocurrió un error al cargar el flujo de mesero' }); } finally { setIsLoading(false); }
     };
     void loadInitialData();
-  }, [tableId]); // SOLO SE EJECUTA AL ENTRAR A LA MESA
+  }, [tableId]);
 
   useEffect(() => {
-    const handleStateChange = () => { void refreshPageState(); };
+    const handleStateChange = () => { refreshPageState(); };
     window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
     return () => { window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange); };
   }, [refreshPageState]);
 
   useEffect(() => {
-    const loadProductsSilently = async () => {
-      if (!selectedCategoryId) return;
-      try {
-        const productsDataRaw = await menuApi.getProductos();
-        const mappedProducts: OrderCatalogProduct[] = (productsDataRaw as BackendProduct[])
-          .map(mapProductFromBackend).filter((product) => product.categoryId === selectedCategoryId && product.disponible)
-          .map((product) => ({ id: product.id, presentacionId: product.presentacionId, categoryId: product.categoryId, nombre: product.nombre, descripcion: product.descripcion, precio: product.precio, tiempoPreparacion: product.tiempoPreparacion, disponible: product.disponible, ingredientes: product.ingredientes, imagen: product.imagen ?? null }));
-        setProducts(mappedProducts);
-        setSelectedProductId((currentProductId) => mappedProducts.some((product) => product.id === currentProductId) ? currentProductId : mappedProducts[0]?.id ?? 0);
-      } catch (error) { console.error('Error productos silente:', error); }
-    };
-    void loadProductsSilently();
-  }, [selectedCategoryId]);
+    if (!selectedCategoryId || allMenuProducts.length === 0) return;
+    const filteredProducts = allMenuProducts.filter(p => p.categoryId === selectedCategoryId);
+    setProducts(filteredProducts);
+    setSelectedProductId((currentId) => filteredProducts.some((p) => p.id === currentId) ? currentId : filteredProducts[0]?.id ?? 0);
+  }, [selectedCategoryId, allMenuProducts]);
 
   useEffect(() => {
     if (skipNextIngredientHydration.current) { skipNextIngredientHydration.current = false; return; }
@@ -203,18 +217,22 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
     try {
       const foundCustomer = await clientFlowApi.findClientByCI(customerCi);
       if (!foundCustomer) { setCustomerFound(false); setSelectedCustomerId(null); setFeedback({ type: 'info', title: 'Invitado nuevo', message: 'El CI no está registrado. Ingresa datos manuales.' }); return; }
-      setCustomerName(`${foundCustomer.nombre} ${foundCustomer.apellido}`); setCustomerPhone(foundCustomer.correo); setCustomerFound(true); setSelectedCustomerId(Number(foundCustomer.id.replace('u-', '')));
+      setCustomerName(`${foundCustomer.nombre} ${foundCustomer.apellido}`); 
+      setCustomerEmail(foundCustomer.correo || ''); 
+      setCustomerFound(true); 
+      setSelectedCustomerId(Number(foundCustomer.id.replace('u-', '')));
     } catch { setFeedback({ type: 'error', title: 'Error de búsqueda', message: 'No se pudo conectar con el servidor.' }); } finally { setIsSearchingCustomer(false); }
   };
 
-  const handleUseUnregisteredCustomer = () => { setCustomerFound(false); setSelectedCustomerId(null); setCustomerCi(''); setCustomerPhone('00000000'); setCustomerName(table ? `Cliente no registrado - mesa ${table.numero}` : 'Cliente no registrado'); };
+  const handleUseUnregisteredCustomer = () => { setCustomerFound(false); setSelectedCustomerId(null); setCustomerCi(''); setCustomerEmail(''); setCustomerName(table ? `Cliente no registrado - mesa ${table.numero}` : 'Cliente no registrado'); };
 
   const handleSaveCustomer = async () => {
     setIsSavingCustomer(true);
     try {
       if (order) { await tablesApi.updateStatus(tableId, 'OCUPADA'); setActiveStep('menu'); setFeedback({ type: 'success', title: 'Pedido retomado', message: 'Se reanudó el pedido actual de la mesa.' }); setIsSavingCustomer(false); return; }
-      const savedOrder = await ordersApi.saveOrderCustomer(tableId, { nombre: customerName, telefono: customerPhone, ci: customerCi, idUsuario: customerFound ? selectedCustomerId : null }, user.id);
-      await tablesApi.updateStatus(tableId, 'OCUPADA'); await refreshPageState(savedOrder.id); setActiveStep('menu');
+      const payload = { nombre: customerName, telefono: '00000000', correo: customerEmail, ci: customerCi, idUsuario: customerFound ? selectedCustomerId : null };
+      const savedOrder = await ordersApi.saveOrderCustomer(tableId, payload as never, user.id);
+      await tablesApi.updateStatus(tableId, 'OCUPADA'); refreshPageState(savedOrder.id); setActiveStep('menu');
       setFeedback({ type: 'success', title: 'Pedido abierto', message: 'La mesa quedó ocupada y ya puedes agregar productos.' });
     } catch (error) { setFeedback({ type: 'error', title: 'No se pudo guardar', message: error instanceof Error ? error.message : 'Ocurrió un error inesperado' }); } finally { setIsSavingCustomer(false); }
   };
@@ -228,7 +246,7 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
         categoriaId: selectedCategoryId, ...(selectedCategory?.nombre ? { categoriaNombre: selectedCategory.nombre } : {}), productoId: selectedProductId, ...(selectedProduct?.presentacionId ? { presentacionId: selectedProduct.presentacionId } : {}), ...(selectedProduct?.nombre ? { productoNombre: selectedProduct.nombre } : {}), cantidad: Number(quantity), observacion: observation, ingredientes: ingredientSelections.map((ingredient) => ({ nombre: ingredient.nombre, incluido: ingredient.incluido })), ...(selectedProduct ? { precioUnitario: selectedProduct.precio, tiempoPreparacion: selectedProduct.tiempoPreparacion, imagen: selectedProduct.imagen ?? null } : {}),
       };
       const updatedOrder = editingItemId ? await ordersApi.updateOrderItem(tableId, editingItemId, payload, targetOrderId) : await ordersApi.addOrderItem(tableId, payload, targetOrderId);
-      await tablesApi.updateStatus(tableId, 'OCUPADA'); await refreshPageState(updatedOrder.id); resetItemForm(); setIsItemModalOpen(false); setActiveStep('pedido');
+      await tablesApi.updateStatus(tableId, 'OCUPADA'); refreshPageState(updatedOrder.id); resetItemForm(); setIsItemModalOpen(false); setActiveStep('pedido');
       setFeedback({ type: 'success', title: editingItemId ? 'Item actualizado' : 'Item agregado', message: editingItemId ? 'El item se actualizó correctamente.' : 'El producto se agregó al pedido actual.' });
     } catch (error) { setFeedback({ type: 'error', title: 'No se pudo guardar', message: error instanceof Error ? error.message : 'Ocurrió un error inesperado' }); } finally { setIsSavingItem(false); }
   };
@@ -244,7 +262,7 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
     try {
       if (order) await ordersApi.updateOrderStatus(order.id, status, tableId); else await ordersApi.updateOrderStatus(0, status, tableId);
       if (status === 'ENTREGADO') await tablesApi.updateStatus(tableId, 'OCUPADA');
-      await refreshPageState(order?.id); setActiveStep('pedido'); setFeedback({ type: 'success', title: 'Estado actualizado', message: `El pedido ahora está ${getOrderStatusLabel(status).toLowerCase()}.` });
+      refreshPageState(order?.id); setActiveStep('pedido'); setFeedback({ type: 'success', title: 'Estado actualizado', message: `El pedido ahora está ${getOrderStatusLabel(status).toLowerCase()}.` });
     } catch (error) { setFeedback({ type: 'error', title: 'No se pudo cambiar', message: error instanceof Error ? error.message : 'Error inesperado' }); } finally { setIsChangingStatus(false); }
   };
 
@@ -256,7 +274,7 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
 
   const handleRequestBill = async () => {
     setIsRequestingBill(true);
-    try { await tablesApi.updateStatus(tableId, 'CUENTA_SOLICITADA'); await refreshPageState(); setFeedback({ type: 'success', title: 'Cuenta solicitada', message: 'La mesa quedó en cuenta solicitada y lista para caja.' }); } catch (error) { setFeedback({ type: 'error', title: 'Error', message: error instanceof Error ? error.message : 'No se pudo solicitar cuenta' }); } finally { setIsRequestingBill(false); }
+    try { await tablesApi.updateStatus(tableId, 'CUENTA_SOLICITADA'); refreshPageState(); setFeedback({ type: 'success', title: 'Cuenta solicitada', message: 'La mesa quedó en cuenta solicitada y lista para caja.' }); } catch (error) { setFeedback({ type: 'error', title: 'Error', message: error instanceof Error ? error.message : 'No se pudo solicitar cuenta' }); } finally { setIsRequestingBill(false); }
   };
 
   const handleToggleIngredient = (ingredientId: number) => { setIngredientSelections((current) => current.map((ingredient) => ingredient.id === ingredientId ? { ...ingredient, incluido: !ingredient.incluido } : ingredient)); };
@@ -309,7 +327,7 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-[13px] font-semibold text-text">Correo electrónico</label>
-                    <input type="text" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Opcional" disabled={!canSaveCustomer} className="rounded-xl border border-gray-300 bg-white px-3 py-3 text-[14px] outline-none focus:border-primary disabled:opacity-60" />
+                    <input type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="Opcional" disabled={!canSaveCustomer} className="rounded-xl border border-gray-300 bg-white px-3 py-3 text-[14px] outline-none focus:border-primary disabled:opacity-60" />
                   </div>
                   <div className="rounded-2xl bg-background px-4 py-3 text-[12px] font-medium text-gray-500">{customerFound ? 'Cliente encontrado correctamente.' : 'Sin cliente registrado seleccionado. Se enviará como pedido de mesa.'}</div>
                   <button type="button" onClick={() => void handleSaveCustomer()} disabled={isSavingCustomer || !canSaveCustomer} className="w-full rounded-xl bg-primary px-5 py-3 text-[14px] font-bold text-white disabled:opacity-60">{isSavingCustomer ? 'Guardando...' : order ? 'Actualizar y continuar' : 'Abrir pedido'}</button>
@@ -473,7 +491,14 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl bg-background p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Precio</p><p className="text-[16px] font-bold text-text">{selectedProduct ? formatCurrency(selectedProduct.precio * (Number(quantity) || 1)) : 'Bs 0.00'}</p></div>
-                <div className="rounded-xl bg-background p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Tiempo</p><p className="text-[16px] font-bold text-text">{selectedProduct ? `${selectedProduct.tiempoPreparacion * (Number(quantity) || 1)} min` : '0 min'}</p></div>
+                <div className="rounded-xl bg-background p-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Tiempo estimado</p>
+                  <p className="text-[16px] font-bold text-text">
+                    {selectedProduct 
+                      ? `~${selectedProduct.tiempoPreparacion + (Number(quantity) > 1 ? 5 : 0)} min` 
+                      : '0 min'}
+                  </p>
+                </div>
               </div>
               <div>
                 <div className="mb-2 flex items-center justify-between gap-3"><div><p className="text-[13px] font-bold text-text">Ingredientes</p><p className="text-[12px] text-gray-500">Switch activo = lleva.</p></div><span className={`relative inline-flex h-6 w-11 rounded-full ${hasCustomIngredients ? 'bg-success' : 'bg-gray-300'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow ${hasCustomIngredients ? 'translate-x-6' : 'translate-x-1'}`} /></span></div>

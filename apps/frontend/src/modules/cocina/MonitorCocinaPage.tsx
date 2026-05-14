@@ -9,7 +9,24 @@ interface Order { id: number; orderNumber: number; items: OrderItem[]; status: O
 interface MonitorCocinaPageProps { onBack: () => void; user?: { id?: number; id_usuario?: number; nombre: string; rol: string }; }
 
 type BackendDetallePedido = { id_detalle_pedido: number; cantidad: number; observaciones?: string | null; preparado?: boolean; esta_preparado?: boolean; preparado_cocina?: boolean; presentacion_producto?: { producto?: { nombre?: string; }; }; };
-type BackendPedido = { id_pedido: number; estado?: string; detalles_pedido?: BackendDetallePedido[]; armado?: boolean; esta_armado?: boolean; origen?: 'mesa' | 'reserva'; source?: 'mesa' | 'reserva'; mesa?: { numero?: number; nro_mesa?: number; }; numero_mesa?: number; cliente?: { nombre?: string; }; cliente_nombre?: string; hora_reserva?: string; reservationTime?: string; preparar_desde?: string; prepareFrom?: string; };
+type BackendPedido = { 
+  id_pedido: number; 
+  estado?: string; 
+  detalles_pedido?: BackendDetallePedido[]; 
+  armado?: boolean; 
+  esta_armado?: boolean; 
+  origen?: 'mesa' | 'reserva'; 
+  source?: 'mesa' | 'reserva'; 
+  mesa?: { numero?: number; nro_mesa?: number; }; 
+  numero_mesa?: number; 
+  cliente?: { nombre?: string; }; 
+  cliente_nombre?: string; 
+  hora_reserva?: string; 
+  reservationTime?: string; 
+  preparar_desde?: string; 
+  prepareFrom?: string;
+  fecha_pedido?: string;
+};
 
 function getCheckedItemsFromStorage(): Record<string, boolean> {
   try { return JSON.parse(localStorage.getItem('gestionysabor_kitchen_checked_items') || '{}'); } catch { return {}; }
@@ -27,6 +44,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState('');
+  
   const lockedOrders = useRef<Set<number>>(new Set());
 
   const updateBackendStatus = useCallback(async (id: number, nuevoEstado: string) => {
@@ -41,18 +59,18 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
 
   const fetchPedidos = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/api/cocina/pedidos?t=${Date.now()}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        }
-      });
+      // Sin headers de caché para no molestar a CORS
+      const response = await fetch(`${API_URL}/api/cocina/pedidos?t=${Date.now()}`, { cache: 'no-store' });
       
       if (!response.ok) throw new Error('No se pudieron cargar los pedidos');
       const data = (await response.json()) as BackendPedido[];
       const checkedData = getCheckedItemsFromStorage();
-      const pedidosListosParaCocina = data.filter((o) => o.estado && o.estado.toUpperCase() !== 'REGISTRADO');
+      
+      // 🛡️ Filtramos los pedidos que ya no pertenecen a cocina para evitar parpadeos
+      const pedidosListosParaCocina = data.filter((o) => {
+        const estadoActual = o.estado?.toUpperCase();
+        return estadoActual && !['REGISTRADO', 'ENTREGADO', 'PAGADO', 'CANCELADO'].includes(estadoActual);
+      });
 
       setOrders((prevOrders) =>
         pedidosListosParaCocina.map((backendOrder) => {
@@ -75,7 +93,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
               notes: detalle.observaciones ?? null,
               checked: typeof backendChecked === 'boolean' ? backendChecked : existingItem?.checked ?? checkedData[storageKey] ?? false,
             };
-          }).sort((a, b) => a.id - b.id); 
+          }).sort((a, b) => a.id - b.id);
 
           const hasCheckedItem = mappedItems.some((item) => item.checked);
           let uiStatus: OrderStatus = 'pending';
@@ -84,14 +102,19 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
           if (backendState === 'LISTO') uiStatus = 'ready';
           else if (backendState === 'EN_PREPARACION' || backendState === 'PREPARANDO') uiStatus = hasCheckedItem ? 'preparing' : 'pending';
 
+          if (existingOrder?.status === 'ready') {
+            uiStatus = 'ready';
+          }
+
           return {
             id: backendOrder.id_pedido, orderNumber: backendOrder.id_pedido, status: uiStatus,
-            isToggled: backendOrder.armado ?? backendOrder.esta_armado ?? existingOrder?.isToggled ?? false,
+            isToggled: existingOrder?.status === 'ready' ? true : (backendOrder.armado ?? backendOrder.esta_armado ?? existingOrder?.isToggled ?? false),
             source: backendOrder.origen ?? backendOrder.source,
             tableNumber: backendOrder.numero_mesa ?? backendOrder.mesa?.numero ?? backendOrder.mesa?.nro_mesa,
             customerName: backendOrder.cliente_nombre ?? backendOrder.cliente?.nombre,
             reservationTime: backendOrder.hora_reserva ?? backendOrder.reservationTime,
-            prepareFrom: backendOrder.preparar_desde ?? backendOrder.prepareFrom,
+            // ⏱️ Leemos fecha_pedido limpiamente
+            prepareFrom: backendOrder.fecha_pedido ?? backendOrder.preparar_desde ?? backendOrder.prepareFrom,
             items: mappedItems,
           };
         })
@@ -133,7 +156,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
     const orderToToggle = orders.find((order) => order.id === id);
     if (!orderToToggle || orderToToggle.status === 'ready') return;
     
-    lockOrder(id); 
+    lockOrder(id);
     const newToggledState = !orderToToggle.isToggled;
     setOrders((prev) => prev.map((order) => order.id === id ? { ...order, isToggled: newToggledState } : order));
     
@@ -147,7 +170,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
     const item = order.items[itemIndex];
     if (!item || item.checked) return;
 
-    lockOrder(orderId); 
+    lockOrder(orderId);
     const newChecked = true;
     
     setOrders((prevOrders) =>
@@ -168,7 +191,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
     const order = orders.find((currentOrder) => currentOrder.id === id);
     if (!order || order.status === 'ready') return;
     
-    lockOrder(id); 
+    lockOrder(id);
     setOrders((prev) => prev.map((currentOrder) => currentOrder.id === id ? { ...currentOrder, status: 'ready' } : currentOrder));
     
     try { await updateBackendStatus(id, 'LISTO'); } 
@@ -196,7 +219,20 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
         {orders.map((order) => (
-          <div key={order.id} className="border-2 border-black bg-[#F2E9DC] rounded-[20px] p-5 flex flex-col min-h-[240px] shadow-sm">
+          <div key={order.id} className="border-2 border-black bg-[#F2E9DC] rounded-[20px] p-5 flex flex-col min-h-[240px] shadow-sm relative overflow-hidden">
+            
+            {order.status !== 'ready' && order.prepareFrom && (
+              <div className={`absolute top-0 right-0 px-3 py-1 text-[10px] font-black border-l-2 border-b-2 border-black 
+                ${(() => {
+                  const diff = Math.floor((new Date().getTime() - new Date(order.prepareFrom!).getTime()) / 60000);
+                  if (diff >= 30) return 'bg-red-500 text-white animate-pulse';
+                  if (diff >= 15) return 'bg-yellow-400 text-black';
+                  return 'bg-white text-black';
+                })()}`}>
+                {Math.floor((new Date().getTime() - new Date(order.prepareFrom!).getTime()) / 60000)} MIN EN ESPERA
+              </div>
+            )}
+
             <div className="flex justify-between items-center mb-4">
               <div className="flex flex-col">
                 <span className="text-[10px] font-black w-14 leading-[1.1]">NÚMERO DE ORDEN</span>

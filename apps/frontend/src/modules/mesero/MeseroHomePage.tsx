@@ -1,7 +1,4 @@
-import { useEffect, useState } from 'react';
-import { tablesApi } from '../../shared/api/tables.api';
 import type { AuthUser } from '../auth/types/auth.types';
-import type { Zone } from '../tables/types/table.types';
 
 interface MeseroHomePageProps {
   user: AuthUser;
@@ -22,25 +19,6 @@ export default function MeseroHomePage({
   onOpenTables,
   onOpenOrders,
 }: MeseroHomePageProps) {
-  const [zones, setZones] = useState<Zone[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    const fetchZones = async () => {
-      setIsLoading(true);
-      try {
-        const data = await tablesApi.listZones();
-        setZones(data);
-      } catch (error) {
-        console.error('Error al cargar zonas en el inicio:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchZones();
-  }, []);
-
   return (
     <div className="min-h-screen bg-primary px-4 py-8 font-sans text-white">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col">
@@ -72,23 +50,6 @@ export default function MeseroHomePage({
                   <span className="mt-1 block text-[12px] font-medium opacity-75">
                     {item.description}
                   </span>
-                  
-                  {item.key === 'mesas' && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {isLoading ? (
-                        <span className="text-[10px] opacity-50 animate-pulse">Sincronizando zonas...</span>
-                      ) : (
-                        <>
-                          {zones.slice(0, 3).map(z => (
-                            <span key={z.id} className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] uppercase tracking-wider">
-                              {z.nombre}
-                            </span>
-                          ))}
-                          {zones.length > 3 && <span className="text-[10px] opacity-60">...</span>}
-                        </>
-                      )}
-                    </div>
-                  )}
                 </span>
                 <span className="text-[20px] font-bold">{'>'}</span>
               </button>
