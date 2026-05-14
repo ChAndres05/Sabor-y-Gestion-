@@ -174,7 +174,6 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
     return () => { window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange); };
   }, [refreshPageState]);
 
-  // CORRECCIÓN: Carga SILENCIOSA de productos al cambiar categoría (Sin poner la pantalla en "Cargando...")
   useEffect(() => {
     const loadProductsSilently = async () => {
       if (!selectedCategoryId) return;
@@ -309,7 +308,7 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
                     <input type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nombre completo del invitado" disabled={customerFound} className={`rounded-xl border border-gray-300 bg-white px-3 py-3 text-[14px] outline-none focus:border-primary ${customerFound ? 'opacity-60 bg-gray-50' : ''}`} />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <label className="text-[13px] font-semibold text-text">Teléfono</label>
+                    <label className="text-[13px] font-semibold text-text">Correo electrónico</label>
                     <input type="text" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Opcional" disabled={!canSaveCustomer} className="rounded-xl border border-gray-300 bg-white px-3 py-3 text-[14px] outline-none focus:border-primary disabled:opacity-60" />
                   </div>
                   <div className="rounded-2xl bg-background px-4 py-3 text-[12px] font-medium text-gray-500">{customerFound ? 'Cliente encontrado correctamente.' : 'Sin cliente registrado seleccionado. Se enviará como pedido de mesa.'}</div>

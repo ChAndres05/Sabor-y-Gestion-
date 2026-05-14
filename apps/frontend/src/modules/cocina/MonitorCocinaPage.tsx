@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { pusherClient } from '../../shared/utils/pusher';
 import { RESTAURANT_STATE_CHANGED_EVENT, RESTAURANT_STATE_CHANGED_STORAGE_KEY } from '../../shared/utils/events';
 import { cocinaApi } from './api/cocina.api';
@@ -27,6 +27,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState('');
+  const lockedOrders = useRef<Set<number>>(new Set());
 
   const updateBackendStatus = useCallback(async (id: number, nuevoEstado: string) => {
     try {
@@ -40,8 +41,15 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
 
   const fetchPedidos = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/api/cocina/pedidos`);
-      if (!response.ok) throw new Error('No se pudieron cargar los pedidos de cocina');
+      const response = await fetch(`${API_URL}/api/cocina/pedidos?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) throw new Error('No se pudieron cargar los pedidos');
       const data = (await response.json()) as BackendPedido[];
       const checkedData = getCheckedItemsFromStorage();
       const pedidosListosParaCocina = data.filter((o) => o.estado && o.estado.toUpperCase() !== 'REGISTRADO');
@@ -49,6 +57,11 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
       setOrders((prevOrders) =>
         pedidosListosParaCocina.map((backendOrder) => {
           const existingOrder = prevOrders.find((order) => order.id === backendOrder.id_pedido);
+          
+          if (existingOrder && lockedOrders.current.has(backendOrder.id_pedido)) {
+            return existingOrder; 
+          }
+
           const detalles = backendOrder.detalles_pedido ?? [];
           const mappedItems = detalles.map((detalle) => {
             const name = detalle.presentacion_producto?.producto?.nombre ?? 'Producto';
@@ -62,12 +75,12 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
               notes: detalle.observaciones ?? null,
               checked: typeof backendChecked === 'boolean' ? backendChecked : existingItem?.checked ?? checkedData[storageKey] ?? false,
             };
-          });
+          }).sort((a, b) => a.id - b.id); 
 
           const hasCheckedItem = mappedItems.some((item) => item.checked);
           let uiStatus: OrderStatus = 'pending';
           const backendState = backendOrder.estado?.toUpperCase();
-
+          
           if (backendState === 'LISTO') uiStatus = 'ready';
           else if (backendState === 'EN_PREPARACION' || backendState === 'PREPARANDO') uiStatus = hasCheckedItem ? 'preparing' : 'pending';
 
@@ -111,44 +124,55 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
     };
   }, [fetchPedidos]);
 
+  const lockOrder = (id: number) => {
+    lockedOrders.current.add(id);
+    setTimeout(() => { lockedOrders.current.delete(id); }, 5000);
+  };
+
   const toggleOrder = async (id: number) => {
     const orderToToggle = orders.find((order) => order.id === id);
     if (!orderToToggle || orderToToggle.status === 'ready') return;
+    
+    lockOrder(id); 
     const newToggledState = !orderToToggle.isToggled;
-    setOrders((prevOrders) => prevOrders.map((order) => order.id === id ? { ...order, isToggled: newToggledState } : order));
-    try { await cocinaApi.actualizarEstadoArmado(id, newToggledState); } catch (error) { console.error('Error al actualizar armado:', error); }
+    setOrders((prev) => prev.map((order) => order.id === id ? { ...order, isToggled: newToggledState } : order));
+    
+    try { await cocinaApi.actualizarEstadoArmado(id, newToggledState); } 
+    catch (error) { console.error('Error al actualizar armado:', error); }
   };
 
   const toggleItemChecked = async (orderId: number, itemIndex: number) => {
     const order = orders.find((currentOrder) => currentOrder.id === orderId);
     if (!order || order.status === 'ready') return;
-
     const item = order.items[itemIndex];
-    
-    // 🔴 BLOQUEO ABSOLUTO: Si el plato ya está marcado (checked === true), no hacemos nada. ¡Prohibido desmarcar!
     if (!item || item.checked) return;
 
-    const newChecked = true; // Solo permitimos avanzar
+    lockOrder(orderId); 
+    const newChecked = true;
     
     setOrders((prevOrders) =>
       prevOrders.map((currentOrder) => {
-        if (currentOrder.id !== orderId || currentOrder.status === 'ready') return currentOrder;
+        if (currentOrder.id !== orderId) return currentOrder;
         const updatedItems = currentOrder.items.map((currentItem, index) => index === itemIndex ? { ...currentItem, checked: newChecked } : currentItem);
         let newStatus = currentOrder.status;
-        if (currentOrder.status === 'pending') newStatus = 'preparing'; // Flujo unidireccional
+        if (currentOrder.status === 'pending') newStatus = 'preparing';
         saveCheckedItemInStorage(orderId, item.id, item.name, newChecked);
         return { ...currentOrder, items: updatedItems, status: newStatus };
       })
     );
-
-    try { await cocinaApi.marcarPlatoPreparado(item.id, newChecked); } catch (error) { console.error('Error BD:', error); }
+    try { await cocinaApi.marcarPlatoPreparado(item.id, newChecked); } 
+    catch (error) { console.error('Error BD:', error); }
   };
 
   const setReady = async (id: number) => {
     const order = orders.find((currentOrder) => currentOrder.id === id);
     if (!order || order.status === 'ready') return;
-    setOrders((prevOrders) => prevOrders.map((currentOrder) => currentOrder.id === id ? { ...currentOrder, status: 'ready' } : currentOrder));
-    await updateBackendStatus(id, 'LISTO'); await fetchPedidos();
+    
+    lockOrder(id); 
+    setOrders((prev) => prev.map((currentOrder) => currentOrder.id === id ? { ...currentOrder, status: 'ready' } : currentOrder));
+    
+    try { await updateBackendStatus(id, 'LISTO'); } 
+    catch (error) { console.error(error); }
   };
 
   if (isLoading) return <div className="min-h-screen p-8 text-[#1c1c1c] bg-[#F2E9DC] flex items-center justify-center"><p className="text-xl font-bold">Cargando monitor de cocina...</p></div>;
