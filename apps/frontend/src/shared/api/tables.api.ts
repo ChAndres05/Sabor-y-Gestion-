@@ -4,6 +4,47 @@ import type { Zone, RestaurantTable, TableFormValues, ZoneFormValues, TableStatu
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export const tablesApi = {
+  
+  /**
+   * Lista TODAS las mesas registradas (Sabemos que esta ruta GET sí existe y funciona).
+   */
+  async listTables(): Promise<RestaurantTable[]> {
+    const res = await fetch(`${API_URL}/api/admin/mesas`);
+    if (!res.ok) throw new Error('Error al cargar mesas');
+    const data = (await res.json()) as BackendTableResponse[];
+    return data.map(mapBackendTable);
+  },
+
+  /**
+   * Obtiene una sola mesa filtrando la lista completa.
+   * Esto evita el error 405 porque no llamamos a la ruta /api/mesas/[id] con GET.
+   */
+  async getTableById(tableId: number): Promise<RestaurantTable | null> {
+    try {
+      const mesas = await this.listTables();
+      const mesaEncontrada = mesas.find(m => m.id === tableId);
+      return mesaEncontrada || null;
+    } catch (error) {
+      console.error(`Error al obtener la mesa ${tableId}:`, error);
+      return null;
+    }
+  },
+
+  async updateStatus(id: number, status: TableStatus): Promise<void> {
+    const res = await fetch(`${API_URL}/api/mesas/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estado: status }),
+    });
+    
+    if (!res.ok) throw new Error('No se pudo actualizar el estado de la mesa');
+  },
+
+  async deleteTable(id: number): Promise<void> {
+    const res = await fetch(`${API_URL}/api/admin/mesas/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('No se pudo eliminar la mesa');
+  },
+
   async listZones(): Promise<Zone[]> {
     const res = await fetch(`${API_URL}/api/admin/zonas`);
     if (!res.ok) throw new Error('Error al cargar zonas');
@@ -24,13 +65,6 @@ export const tablesApi = {
   async deleteZone(id: number): Promise<void> {
     const res = await fetch(`${API_URL}/api/zonas/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('No se pudo eliminar la zona');
-  },
-
-  async listTables(): Promise<RestaurantTable[]> {
-    const res = await fetch(`${API_URL}/api/admin/mesas`);
-    if (!res.ok) throw new Error('Error al cargar mesas');
-    const data = (await res.json()) as BackendTableResponse[];
-    return data.map(mapBackendTable).filter(t => t.activo);
   },
 
   async createTable(values: TableFormValues): Promise<RestaurantTable> {
@@ -61,18 +95,4 @@ export const tablesApi = {
     if (!res.ok) throw new Error('No se pudo actualizar la mesa');
     return mapBackendTable((await res.json()) as BackendTableResponse);
   },
-
-  async updateStatus(id: number, status: TableStatus): Promise<void> {
-    const res = await fetch(`${API_URL}/api/mesas/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado: status }),
-    });
-    if (!res.ok) throw new Error('No se pudo actualizar el estado');
-  },
-
-  async deleteTable(id: number): Promise<void> {
-    const res = await fetch(`${API_URL}/api/admin/mesas/${id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('No se pudo eliminar la mesa');
-  }
 };

@@ -39,6 +39,38 @@ export function mapBackendOrderToWaiterFrontend(
     ? `${stringValue(customer.nombre)} ${stringValue(customer.apellido)}`.trim()
     : stringValue(backendOrder.cliente_nombre, 'Cliente general');
 
+  // 1. Extraemos y mapeamos los items primero
+  const mappedItems = asArray(backendOrder.detalles_pedido).map((rawDetail) => {
+    const detalle = asRecord(rawDetail);
+    const pres = asRecord(detalle.presentacion_producto ?? detalle.presentacionProducto);
+    const prod = asRecord(pres.producto ?? detalle.producto);
+    const cat = asRecord(prod.categoria ?? prod.categorias);
+
+    return {
+      id: numberValue(detalle.id_detalle_pedido ?? detalle.id, 0),
+      productoId: numberValue(pres.id_presentacion_producto ?? prod.id_producto ?? detalle.id_presentacion_producto, 0),
+      nombreProducto: stringValue(prod.nombre ?? detalle.nombreProducto, 'Producto'),
+      categoriaId: numberValue(cat.id_categoria ?? prod.id_categoria, 0),
+      categoriaNombre: stringValue(cat.nombre, 'Sin categoría'),
+      cantidad: numberValue(detalle.cantidad, 1),
+      observacion: stringValue(detalle.observaciones ?? detalle.observacion),
+      ingredientes: asArray(detalle.ingredientes_detalle ?? detalle.ingredientes).map((rawIngredient) => {
+        const ingredient = asRecord(rawIngredient);
+        return {
+          nombre: stringValue(ingredient.nombre),
+          incluido: Boolean(ingredient.incluido),
+        };
+      }) as TableOrderItemIngredient[],
+      precioUnitario: numberValue(detalle.precio_unitario ?? detalle.precioUnitario, 0),
+      tiempoPreparacion: numberValue(pres.tiempo_preparacion_minutos ?? prod.tiempo_preparacion, 0),
+      subtotal: numberValue(detalle.subtotal, 0),
+      imagen: stringValue(prod.imagen_url ?? prod.imagen, '') || null,
+    };
+  });
+
+  // 2. MAGIA MATEMÁTICA: Calculamos el tiempo total correcto (Tiempo Base * Cantidad)
+  const tiempoTotalCalculado = mappedItems.reduce((acc, item) => acc + (item.tiempoPreparacion * item.cantidad), 0);
+
   return {
     id: orderId,
     tableId: numberValue(backendOrder.id_mesa ?? backendOrder.tableId, 0),
@@ -54,38 +86,13 @@ export function mapBackendOrderToWaiterFrontend(
       telefono: stringValue(customer.telefono, '00000000'),
       ci: customer.usuario_ci ? String(customer.usuario_ci) : '0',
     },
-    items: asArray(backendOrder.detalles_pedido).map((rawDetail) => {
-      const detalle = asRecord(rawDetail);
-      const pres = asRecord(detalle.presentacion_producto ?? detalle.presentacionProducto);
-      const prod = asRecord(pres.producto ?? detalle.producto);
-      const cat = asRecord(prod.categoria ?? prod.categorias);
-
-      return {
-        id: numberValue(detalle.id_detalle_pedido ?? detalle.id, 0),
-        productoId: numberValue(pres.id_presentacion_producto ?? prod.id_producto ?? detalle.id_presentacion_producto, 0),
-        nombreProducto: stringValue(prod.nombre ?? detalle.nombreProducto, 'Producto'),
-        categoriaId: numberValue(cat.id_categoria ?? prod.id_categoria, 0),
-        categoriaNombre: stringValue(cat.nombre, 'Sin categoría'),
-        cantidad: numberValue(detalle.cantidad, 1),
-        observacion: stringValue(detalle.observaciones ?? detalle.observacion),
-        ingredientes: asArray(detalle.ingredientes_detalle ?? detalle.ingredientes).map((rawIngredient) => {
-          const ingredient = asRecord(rawIngredient);
-          return {
-            nombre: stringValue(ingredient.nombre),
-            incluido: Boolean(ingredient.incluido),
-          };
-        }) as TableOrderItemIngredient[],
-        precioUnitario: numberValue(detalle.precio_unitario ?? detalle.precioUnitario, 0),
-        tiempoPreparacion: numberValue(pres.tiempo_preparacion_minutos ?? prod.tiempo_preparacion, 0),
-        subtotal: numberValue(detalle.subtotal, 0),
-        imagen: stringValue(prod.imagen_url ?? prod.imagen, '') || null,
-      };
-    }),
+    items: mappedItems,
     subtotal: numberValue(backendOrder.subtotal, 0),
     impuesto: 0,
     descuento: 0,
     total: numberValue(backendOrder.total ?? backendOrder.subtotal, 0),
-    tiempoEstimadoMinutos: numberValue(backendOrder.tiempo_estimado_minutos ?? backendOrder.tiempoEstimadoMinutos, 0),
+    // 3. Asignamos el tiempo calculado (o el del backend como respaldo)
+    tiempoEstimadoMinutos: tiempoTotalCalculado > 0 ? tiempoTotalCalculado : numberValue(backendOrder.tiempo_estimado_minutos ?? backendOrder.tiempoEstimadoMinutos, 0),
     observaciones: stringValue(backendOrder.observaciones),
     fechaCreacion: stringValue(backendOrder.fecha_hora_pedido ?? backendOrder.fechaCreacion, new Date().toISOString()),
   };

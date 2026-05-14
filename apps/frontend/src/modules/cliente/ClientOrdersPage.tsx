@@ -1,3 +1,6 @@
+// frontend/src/modules/cliente/ClientOrdersPage.tsx
+// Refactorización: Se añade escucha de tables-channel para no perder eventos de estado de cocina o mesero.
+
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import type { AuthUser } from '../auth/types/auth.types';
@@ -115,14 +118,21 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
   useEffect(() => {
     void loadOrders();
 
-    const channel = pusherClient.subscribe('orders-channel');
-    channel.bind('order-updated', () => {
+    const ordersChannel = pusherClient.subscribe('orders-channel');
+    const tablesChannel = pusherClient.subscribe('tables-channel'); // Añadido para asegurar recepción
+
+    const handleUpdate = () => {
       void loadOrders();
-    });
+    };
+
+    ordersChannel.bind('order-updated', handleUpdate);
+    tablesChannel.bind('table-order-updated', handleUpdate); // Añadido
 
     return () => {
-      channel.unbind('order-updated');
+      ordersChannel.unbind_all();
+      tablesChannel.unbind_all();
       pusherClient.unsubscribe('orders-channel');
+      pusherClient.unsubscribe('tables-channel');
     };
   }, [loadOrders]);
 

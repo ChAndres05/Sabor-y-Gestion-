@@ -42,7 +42,6 @@ function stringFromRecord(
 ): string {
   for (const key of keys) {
     const value = record[key];
-
     if (typeof value === 'string' && value.trim()) {
       return value;
     }
@@ -62,7 +61,6 @@ async function readApiErrorMessage(response: Response, fallback: string): Promis
   } catch {
     try {
       const text = await response.text();
-
       if (text.trim()) return text;
     } catch {
       return fallback;
@@ -75,7 +73,6 @@ async function readApiErrorMessage(response: Response, fallback: string): Promis
 async function tryJson<T>(url: string, init?: RequestInit): Promise<T | null> {
   try {
     const response = await fetch(url, init);
-
     if (!response.ok) return null;
 
     const text = await response.text();
@@ -112,56 +109,14 @@ async function requestOk(
   fallbackErrorMessage: string
 ): Promise<void> {
   const response = await fetch(url, init);
-
   if (!response.ok) {
     throw new Error(await readApiErrorMessage(response, fallbackErrorMessage));
   }
 }
 
-function getBackendStatusCandidates(status: TableOrderStatus): string[] {
-  if (status === 'EN_PREPARACION') {
-    return ['COCINA', 'EN_PREPARACION'];
-  }
-
-  return [status];
-}
-
-async function tryUpdateBackendOrderStatus(
-  orderId: number,
-  status: TableOrderStatus
-): Promise<boolean> {
-  const statusCandidates = getBackendStatusCandidates(status);
-  const endpointCandidates = [
-    `${API_URL}/api/pedidos/${orderId}/estado`,
-    `${API_URL}/api/pedidos/${orderId}`,
-  ];
-  const methodCandidates: Array<'PATCH' | 'PUT'> = ['PATCH', 'PUT'];
-
-  for (const endpoint of endpointCandidates) {
-    for (const method of methodCandidates) {
-      for (const backendStatus of statusCandidates) {
-        try {
-          const response = await fetch(endpoint, {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ estado: backendStatus }),
-          });
-
-          if (response.ok) return true;
-        } catch {
-          // Probamos el siguiente endpoint/formato.
-        }
-      }
-    }
-  }
-
-  return false;
-}
-
 function getTargetOrder(orders: TableOrder[], orderId?: number): TableOrder | null {
   if (typeof orderId === 'number') {
     const selectedOrder = orders.find((order) => order.id === orderId);
-
     if (selectedOrder) return selectedOrder;
   }
 
@@ -175,7 +130,6 @@ function mapCustomerSearchRecord(
   const firstName = typeof data.nombre === 'string' ? data.nombre : '';
   const lastName = typeof data.apellido === 'string' ? data.apellido : '';
   const fullName = `${firstName} ${lastName}`.trim();
-
   return {
     idUsuario:
       data.id_usuario === null || typeof data.id_usuario === 'undefined'
@@ -202,13 +156,16 @@ function buildOrderBody(
     id_mesa: tableId,
     id_usuario_mesero: waiterUserId,
     id_usuario_cliente: customer.idUsuario ?? null,
+    // Enviamos los datos del cliente invitado para que el backend los registre
+    cliente_nombre: !customer.idUsuario ? customer.nombre : undefined,
+    cliente_telefono: !customer.idUsuario ? customer.telefono : undefined,
+    cliente_ci: !customer.idUsuario ? customer.ci : undefined,
     observaciones,
   };
 }
 
 function mapBackendOrders(data: BackendOrderRecord | BackendOrderRecord[] | null): TableOrder[] {
   if (!data) return [];
-
   return (Array.isArray(data) ? data : [data]).map((order) =>
     mapBackendOrderToWaiterFrontend(order)
   );
@@ -223,18 +180,15 @@ export const ordersApi = {
       `${API_URL}/api/mesas?t=${Date.now()}`,
       { cache: 'no-store' }
     );
-
     const validIds = new Set(
       Array.isArray(tables)
         ? tables.map((table) => Number(table.id_mesa ?? table.id))
         : []
     );
-
     const backendData = await tryJson<BackendOrderRecord[]>(
       `${API_URL}/api/pedidos/activos?t=${Date.now()}`,
       { cache: 'no-store' }
     );
-
     const backendOrders = mapBackendOrders(backendData);
 
     return backendOrders.filter(
@@ -250,13 +204,11 @@ export const ordersApi = {
    */
   async searchCustomerByCi(ci: string): Promise<TableOrderCustomer | null> {
     if (!ci || ci === '0') return null;
-
     const data = await tryJson<BackendCustomerSearchRecord>(
       `${API_URL}/api/clientes/ci/${ci}`
     );
 
     if (!data) return null;
-
     return mapCustomerSearchRecord(data, ci);
   },
 
@@ -268,7 +220,6 @@ export const ordersApi = {
     const data = await tryJson<BackendOrderRecord[]>(
       `${API_URL}/api/clientes/pedidos/historial?id_usuario=${userId}`
     );
-
     if (Array.isArray(data)) {
       return data.map((order) => {
         const mesa = isRecord(order.mesa) ? order.mesa : undefined;
@@ -324,18 +275,15 @@ export const ordersApi = {
       `${API_URL}/api/mesas?t=${Date.now()}`,
       { cache: 'no-store' }
     );
-
     const tableExists = Array.isArray(tables)
       ? tables.some((table) => Number(table.id_mesa ?? table.id) === Number(tableId))
       : true;
 
     if (!tableExists) return [];
-
     const backendData = await tryJson<BackendOrderRecord | BackendOrderRecord[]>(
       `${API_URL}/api/pedidos/mesa/${tableId}?t=${Date.now()}`,
       { cache: 'no-store' }
     );
-
     const backendOrders = mapBackendOrders(backendData);
 
     return backendOrders.filter(
@@ -348,7 +296,6 @@ export const ordersApi = {
    */
   async getActiveOrder(tableId: number): Promise<TableOrder | null> {
     const orders = await this.getOpenOrdersByTable(tableId);
-
     if (orders.length === 0) return null;
 
     return orders.find((order) => order.estado === 'REGISTRADO') ?? orders[0];
@@ -368,7 +315,6 @@ export const ordersApi = {
       waiterUserId,
       'Pedido creado desde flujo de mesa'
     );
-
     const data = await requestJson<BackendOrderRecord>(
       `${API_URL}/api/pedidos`,
       {
@@ -378,13 +324,11 @@ export const ordersApi = {
       },
       'No se pudo abrir el pedido en backend.'
     );
-
     emitRestaurantStateChanged();
 
     const createdOrder = data ? mapBackendOrderToWaiterFrontend(data) : null;
     const fullOrders = await this.getOpenOrdersByTable(tableId);
     const fullOrder = getTargetOrder(fullOrders, createdOrder?.id);
-
     if (fullOrder) return fullOrder;
 
     if (createdOrder) return createdOrder;
@@ -428,12 +372,10 @@ export const ordersApi = {
       },
       'No se pudo agregar el producto al pedido en backend.'
     );
-
     emitRestaurantStateChanged();
 
     const updatedOrders = await this.getOpenOrdersByTable(tableId);
     const updatedTargetOrder = getTargetOrder(updatedOrders, targetOrder.id);
-
     if (!updatedTargetOrder) {
       throw new Error('El producto se agregó, pero no se pudo recuperar el pedido actualizado.');
     }
@@ -477,12 +419,10 @@ export const ordersApi = {
       },
       'No se pudo actualizar el producto del pedido en backend.'
     );
-
     emitRestaurantStateChanged();
 
     const updatedOrders = await this.getOpenOrdersByTable(tableId);
     const updatedTargetOrder = getTargetOrder(updatedOrders, targetOrder.id);
-
     if (!updatedTargetOrder) {
       throw new Error('El producto se actualizó, pero no se pudo recuperar el pedido actualizado.');
     }
@@ -512,7 +452,6 @@ export const ordersApi = {
       },
       'No se pudo eliminar el producto del pedido en backend.'
     );
-
     emitRestaurantStateChanged();
   },
 
@@ -531,11 +470,16 @@ export const ordersApi = {
       throw new Error('No hay un pedido activo para esta mesa.');
     }
 
-    const backendUpdated = await tryUpdateBackendOrderStatus(targetOrder.id, status);
-
-    if (!backendUpdated) {
-      throw new Error('No se pudo actualizar el estado del pedido en backend.');
-    }
+    // Llamada directa, exacta y limpia a la ruta de tu backend
+    await requestOk(
+      `${API_URL}/api/pedidos/${targetOrder.id}/estado`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: status }),
+      },
+      'No se pudo actualizar el estado del pedido.'
+    );
 
     emitRestaurantStateChanged();
   },
@@ -561,7 +505,6 @@ export const ordersApi = {
       waiterUserId,
       'Pedido adicional creado desde flujo de mesa'
     );
-
     const data = await requestJson<BackendOrderRecord>(
       `${API_URL}/api/pedidos`,
       {
@@ -571,13 +514,11 @@ export const ordersApi = {
       },
       'No se pudo crear el nuevo pedido en backend.'
     );
-
     emitRestaurantStateChanged();
 
     const createdOrder = data ? mapBackendOrderToWaiterFrontend(data) : null;
     const fullOrders = await this.getOpenOrdersByTable(tableId);
     const fullOrder = getTargetOrder(fullOrders, createdOrder?.id);
-
     if (fullOrder) return fullOrder;
 
     if (createdOrder) return createdOrder;

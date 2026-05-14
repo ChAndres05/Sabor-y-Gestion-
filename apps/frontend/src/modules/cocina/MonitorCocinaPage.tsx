@@ -1,574 +1,201 @@
 import { useCallback, useEffect, useState } from 'react';
 import { pusherClient } from '../../shared/utils/pusher';
-import {
-  RESTAURANT_STATE_CHANGED_EVENT,
-  RESTAURANT_STATE_CHANGED_STORAGE_KEY,
-} from '../../shared/utils/events';
+import { RESTAURANT_STATE_CHANGED_EVENT, RESTAURANT_STATE_CHANGED_STORAGE_KEY } from '../../shared/utils/events';
 import { cocinaApi } from './api/cocina.api';
 
-interface OrderItem {
-  id: number;
-  name: string;
-  quantity: number;
-  checked: boolean;
-  notes: string | null;
-}
-
+interface OrderItem { id: number; name: string; quantity: number; checked: boolean; notes: string | null; }
 type OrderStatus = 'pending' | 'preparing' | 'ready';
+interface Order { id: number; orderNumber: number; items: OrderItem[]; status: OrderStatus; isToggled: boolean; source?: 'mesa' | 'reserva'; tableNumber?: number; customerName?: string; reservationTime?: string; prepareFrom?: string; }
+interface MonitorCocinaPageProps { onBack: () => void; user?: { id?: number; id_usuario?: number; nombre: string; rol: string }; }
 
-interface Order {
-  id: number;
-  orderNumber: number;
-  items: OrderItem[];
-  status: OrderStatus;
-  isToggled: boolean;
-  source?: 'mesa' | 'reserva';
-  tableNumber?: number;
-  customerName?: string;
-  reservationTime?: string;
-  prepareFrom?: string;
-}
-
-interface MonitorCocinaPageProps {
-  onBack: () => void;
-  user?: { id?: number; id_usuario?: number; nombre: string; rol: string };
-}
-
-type BackendDetallePedido = {
-  id_detalle_pedido: number;
-  cantidad: number;
-  observaciones?: string | null;
-  preparado?: boolean;
-  esta_preparado?: boolean;
-  preparado_cocina?: boolean;
-  presentacion_producto?: {
-    producto?: {
-      nombre?: string;
-    };
-  };
-};
-
-type BackendPedido = {
-  id_pedido: number;
-  estado?: string;
-  detalles_pedido?: BackendDetallePedido[];
-  armado?: boolean;
-  esta_armado?: boolean;
-  origen?: 'mesa' | 'reserva';
-  source?: 'mesa' | 'reserva';
-  mesa?: {
-    numero?: number;
-    nro_mesa?: number;
-  };
-  numero_mesa?: number;
-  cliente?: {
-    nombre?: string;
-  };
-  cliente_nombre?: string;
-  hora_reserva?: string;
-  reservationTime?: string;
-  preparar_desde?: string;
-  prepareFrom?: string;
-};
-
-function mapBackendStatus(status?: string): OrderStatus {
-  const normalizedStatus = status?.toUpperCase();
-
-  if (normalizedStatus === 'LISTO') {
-    return 'ready';
-  }
-
-  if (normalizedStatus === 'EN_PREPARACION' || normalizedStatus === 'PREPARANDO') {
-    return 'preparing';
-  }
-
-  return 'pending';
-}
+type BackendDetallePedido = { id_detalle_pedido: number; cantidad: number; observaciones?: string | null; preparado?: boolean; esta_preparado?: boolean; preparado_cocina?: boolean; presentacion_producto?: { producto?: { nombre?: string; }; }; };
+type BackendPedido = { id_pedido: number; estado?: string; detalles_pedido?: BackendDetallePedido[]; armado?: boolean; esta_armado?: boolean; origen?: 'mesa' | 'reserva'; source?: 'mesa' | 'reserva'; mesa?: { numero?: number; nro_mesa?: number; }; numero_mesa?: number; cliente?: { nombre?: string; }; cliente_nombre?: string; hora_reserva?: string; reservationTime?: string; preparar_desde?: string; prepareFrom?: string; };
 
 function getCheckedItemsFromStorage(): Record<string, boolean> {
-  try {
-    return JSON.parse(localStorage.getItem('gestionysabor_kitchen_checked_items') || '{}');
-  } catch {
-    return {};
-  }
+  try { return JSON.parse(localStorage.getItem('gestionysabor_kitchen_checked_items') || '{}'); } catch { return {}; }
 }
 
 function saveCheckedItemInStorage(orderId: number, itemId: number, itemName: string, checked: boolean) {
   const checkedData = getCheckedItemsFromStorage();
   const itemKey = `${orderId}-${itemId}-${itemName}`;
-
-  if (checked) {
-    checkedData[itemKey] = true;
-  } else {
-    delete checkedData[itemKey];
-  }
-
+  if (checked) checkedData[itemKey] = true; else delete checkedData[itemKey];
   localStorage.setItem('gestionysabor_kitchen_checked_items', JSON.stringify(checkedData));
 }
 
 export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPageProps) {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState('');
 
-  const updateBackendStatus = useCallback(
-    async (id: number, nuevoEstado: string) => {
-      try {
-        await fetch(`${API_URL}/api/pedidos/${id}/estado`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            estado: nuevoEstado,
-            id_usuario: user?.id_usuario || user?.id,
-          }),
-        });
-      } catch (error) {
-        console.error('Error actualizando estado en BD:', error);
-      }
-    },
-    [API_URL, user?.id, user?.id_usuario]
-  );
+  const updateBackendStatus = useCallback(async (id: number, nuevoEstado: string) => {
+    try {
+      await fetch(`${API_URL}/api/pedidos/${id}/estado`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: nuevoEstado, id_usuario: user?.id_usuario || user?.id }),
+      });
+    } catch (error) { console.error('Error actualizando estado en BD:', error); }
+  }, [API_URL, user?.id, user?.id_usuario]);
 
   const fetchPedidos = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/api/cocina/pedidos`);
-
-      if (!response.ok) {
-        throw new Error('No se pudieron cargar los pedidos de cocina');
-      }
-
+      if (!response.ok) throw new Error('No se pudieron cargar los pedidos de cocina');
       const data = (await response.json()) as BackendPedido[];
       const checkedData = getCheckedItemsFromStorage();
+      const pedidosListosParaCocina = data.filter((o) => o.estado && o.estado.toUpperCase() !== 'REGISTRADO');
 
       setOrders((prevOrders) =>
-        data.map((backendOrder) => {
+        pedidosListosParaCocina.map((backendOrder) => {
           const existingOrder = prevOrders.find((order) => order.id === backendOrder.id_pedido);
           const detalles = backendOrder.detalles_pedido ?? [];
+          const mappedItems = detalles.map((detalle) => {
+            const name = detalle.presentacion_producto?.producto?.nombre ?? 'Producto';
+            const existingItem = existingOrder?.items.find((item) => item.id === detalle.id_detalle_pedido);
+            const storageKey = `${backendOrder.id_pedido}-${detalle.id_detalle_pedido}-${name}`;
+            const backendChecked = detalle.preparado ?? detalle.esta_preparado ?? detalle.preparado_cocina;
+            return {
+              id: detalle.id_detalle_pedido,
+              name,
+              quantity: detalle.cantidad,
+              notes: detalle.observaciones ?? null,
+              checked: typeof backendChecked === 'boolean' ? backendChecked : existingItem?.checked ?? checkedData[storageKey] ?? false,
+            };
+          });
+
+          const hasCheckedItem = mappedItems.some((item) => item.checked);
+          let uiStatus: OrderStatus = 'pending';
+          const backendState = backendOrder.estado?.toUpperCase();
+
+          if (backendState === 'LISTO') uiStatus = 'ready';
+          else if (backendState === 'EN_PREPARACION' || backendState === 'PREPARANDO') uiStatus = hasCheckedItem ? 'preparing' : 'pending';
 
           return {
-            id: backendOrder.id_pedido,
-            orderNumber: backendOrder.id_pedido,
-            status: mapBackendStatus(backendOrder.estado),
-            isToggled:
-              backendOrder.armado ??
-              backendOrder.esta_armado ??
-              existingOrder?.isToggled ??
-              false,
+            id: backendOrder.id_pedido, orderNumber: backendOrder.id_pedido, status: uiStatus,
+            isToggled: backendOrder.armado ?? backendOrder.esta_armado ?? existingOrder?.isToggled ?? false,
             source: backendOrder.origen ?? backendOrder.source,
-            tableNumber:
-              backendOrder.numero_mesa ??
-              backendOrder.mesa?.numero ??
-              backendOrder.mesa?.nro_mesa,
+            tableNumber: backendOrder.numero_mesa ?? backendOrder.mesa?.numero ?? backendOrder.mesa?.nro_mesa,
             customerName: backendOrder.cliente_nombre ?? backendOrder.cliente?.nombre,
             reservationTime: backendOrder.hora_reserva ?? backendOrder.reservationTime,
             prepareFrom: backendOrder.preparar_desde ?? backendOrder.prepareFrom,
-            items: detalles.map((detalle) => {
-              const name = detalle.presentacion_producto?.producto?.nombre ?? 'Producto';
-              const existingItem = existingOrder?.items.find(
-                (item) => item.id === detalle.id_detalle_pedido
-              );
-              const storageKey = `${backendOrder.id_pedido}-${detalle.id_detalle_pedido}-${name}`;
-
-              const backendChecked =
-                detalle.preparado ?? detalle.esta_preparado ?? detalle.preparado_cocina;
-
-              return {
-                id: detalle.id_detalle_pedido,
-                name,
-                quantity: detalle.cantidad,
-                notes: detalle.observaciones ?? null,
-                checked:
-                  typeof backendChecked === 'boolean'
-                    ? backendChecked
-                    : existingItem?.checked ?? checkedData[storageKey] ?? false,
-              };
-            }),
+            items: mappedItems,
           };
         })
       );
-    } catch (error) {
-      console.error('Error cargando pedidos:', error);
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (error) { console.error('Error cargando pedidos:', error); } finally { setIsLoading(false); }
   }, [API_URL]);
 
   useEffect(() => {
-    const updateTime = () => {
-      setCurrentTime(
-        new Date().toLocaleTimeString('es-ES', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        })
-      );
-    };
-
-    updateTime();
-    const timer = setInterval(updateTime, 1000);
-
-    return () => clearInterval(timer);
+    const updateTime = () => setCurrentTime(new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: true }));
+    updateTime(); const timer = setInterval(updateTime, 1000); return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
     void fetchPedidos();
-
-    const handleStateChange = () => {
-      void fetchPedidos();
-    };
-
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === RESTAURANT_STATE_CHANGED_STORAGE_KEY) {
-        void fetchPedidos();
-      }
-    };
-
+    const handleStateChange = () => { void fetchPedidos(); };
+    const handleStorageChange = (event: StorageEvent) => { if (event.key === RESTAURANT_STATE_CHANGED_STORAGE_KEY) void fetchPedidos(); };
     window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
     window.addEventListener('storage', handleStorageChange);
 
     const channel = pusherClient.subscribe('cocina-channel');
-    channel.bind('nuevo-pedido', fetchPedidos);
-    channel.bind('pedido-actualizado', fetchPedidos);
-    channel.bind('detalle-actualizado', fetchPedidos);
-    channel.bind('pedido-armado', fetchPedidos);
+    channel.bind('nuevo-pedido', fetchPedidos); channel.bind('pedido-actualizado', fetchPedidos);
+    channel.bind('detalle-actualizado', fetchPedidos); channel.bind('pedido-armado', fetchPedidos);
 
     return () => {
       window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
       window.removeEventListener('storage', handleStorageChange);
-      channel.unbind('nuevo-pedido', fetchPedidos);
-      channel.unbind('pedido-actualizado', fetchPedidos);
-      channel.unbind('detalle-actualizado', fetchPedidos);
-      channel.unbind('pedido-armado', fetchPedidos);
+      channel.unbind('nuevo-pedido', fetchPedidos); channel.unbind('pedido-actualizado', fetchPedidos);
+      channel.unbind('detalle-actualizado', fetchPedidos); channel.unbind('pedido-armado', fetchPedidos);
       pusherClient.unsubscribe('cocina-channel');
     };
   }, [fetchPedidos]);
 
   const toggleOrder = async (id: number) => {
     const orderToToggle = orders.find((order) => order.id === id);
-
-    if (!orderToToggle || orderToToggle.status === 'ready') {
-      return;
-    }
-
+    if (!orderToToggle || orderToToggle.status === 'ready') return;
     const newToggledState = !orderToToggle.isToggled;
-
-    setOrders((prevOrders) =>
-      prevOrders.map((order) =>
-        order.id === id ? { ...order, isToggled: newToggledState } : order
-      )
-    );
-
-    try {
-      await cocinaApi.actualizarEstadoArmado(id, newToggledState);
-    } catch (error) {
-      console.error('Error al actualizar armado en BD:', error);
-    }
+    setOrders((prevOrders) => prevOrders.map((order) => order.id === id ? { ...order, isToggled: newToggledState } : order));
+    try { await cocinaApi.actualizarEstadoArmado(id, newToggledState); } catch (error) { console.error('Error al actualizar armado:', error); }
   };
 
   const toggleItemChecked = async (orderId: number, itemIndex: number) => {
     const order = orders.find((currentOrder) => currentOrder.id === orderId);
-
-    if (!order || order.status === 'ready') {
-      return;
-    }
+    if (!order || order.status === 'ready') return;
 
     const item = order.items[itemIndex];
+    
+    // 🔴 BLOQUEO ABSOLUTO: Si el plato ya está marcado (checked === true), no hacemos nada. ¡Prohibido desmarcar!
+    if (!item || item.checked) return;
 
-    if (!item) {
-      return;
-    }
-
-    const newChecked = !item.checked;
-    let nextBackendStatus: string | null = null;
-
+    const newChecked = true; // Solo permitimos avanzar
+    
     setOrders((prevOrders) =>
       prevOrders.map((currentOrder) => {
-        if (currentOrder.id !== orderId || currentOrder.status === 'ready') {
-          return currentOrder;
-        }
-
-        const updatedItems = currentOrder.items.map((currentItem, index) =>
-          index === itemIndex ? { ...currentItem, checked: newChecked } : currentItem
-        );
-
-        const hasCheckedItem = updatedItems.some((currentItem) => currentItem.checked);
+        if (currentOrder.id !== orderId || currentOrder.status === 'ready') return currentOrder;
+        const updatedItems = currentOrder.items.map((currentItem, index) => index === itemIndex ? { ...currentItem, checked: newChecked } : currentItem);
         let newStatus = currentOrder.status;
-
-        if (hasCheckedItem && currentOrder.status === 'pending') {
-          newStatus = 'preparing';
-          nextBackendStatus = 'EN_PREPARACION';
-        }
-
-        if (!hasCheckedItem && currentOrder.status === 'preparing') {
-          newStatus = 'pending';
-          nextBackendStatus = 'REGISTRADO';
-        }
-
+        if (currentOrder.status === 'pending') newStatus = 'preparing'; // Flujo unidireccional
         saveCheckedItemInStorage(orderId, item.id, item.name, newChecked);
-
-        return {
-          ...currentOrder,
-          items: updatedItems,
-          status: newStatus,
-        };
+        return { ...currentOrder, items: updatedItems, status: newStatus };
       })
     );
 
-    try {
-      await cocinaApi.marcarPlatoPreparado(item.id, newChecked);
-    } catch (error) {
-      console.error('Error al actualizar el detalle del plato en BD:', error);
-    }
-
-    if (nextBackendStatus) {
-      void updateBackendStatus(orderId, nextBackendStatus);
-    }
+    try { await cocinaApi.marcarPlatoPreparado(item.id, newChecked); } catch (error) { console.error('Error BD:', error); }
   };
 
   const setReady = async (id: number) => {
     const order = orders.find((currentOrder) => currentOrder.id === id);
-
-    if (!order || order.status === 'ready') {
-      return;
-    }
-
-    setOrders((prevOrders) =>
-      prevOrders.map((currentOrder) =>
-        currentOrder.id === id ? { ...currentOrder, status: 'ready' } : currentOrder
-      )
-    );
-
-    await updateBackendStatus(id, 'LISTO');
-    await fetchPedidos();
+    if (!order || order.status === 'ready') return;
+    setOrders((prevOrders) => prevOrders.map((currentOrder) => currentOrder.id === id ? { ...currentOrder, status: 'ready' } : currentOrder));
+    await updateBackendStatus(id, 'LISTO'); await fetchPedidos();
   };
 
-  const pendingCount = orders.filter((order) => order.status === 'pending').length;
-  const preparingCount = orders.filter((order) => order.status === 'preparing').length;
-  const readyCount = orders.filter((order) => order.status === 'ready').length;
-  const reservationCount = orders.filter((order) => order.source === 'reserva').length;
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen font-sans p-4 sm:p-6 md:p-8 text-[#1c1c1c] bg-[#F2E9DC] flex items-center justify-center">
-        <p className="text-xl font-bold">Cargando monitor de cocina...</p>
-      </div>
-    );
-  }
+  if (isLoading) return <div className="min-h-screen p-8 text-[#1c1c1c] bg-[#F2E9DC] flex items-center justify-center"><p className="text-xl font-bold">Cargando monitor de cocina...</p></div>;
 
   return (
     <div className="min-h-screen font-sans p-4 sm:p-6 md:p-8 text-[#1c1c1c] bg-[#F2E9DC]">
-      <div className="mb-6 max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <button
-                onClick={onBack}
-                className="p-2 -ml-2 rounded-xl hover:bg-black/5 transition-colors text-[#1c1c1c]"
-              >
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="3" y1="12" x2="21" y2="12" />
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <line x1="3" y1="18" x2="21" y2="18" />
-                </svg>
-              </button>
-              <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight">
-                Monitor de Cocina
-              </h1>
-            </div>
-            <p className="text-[#8c8c8c] text-sm sm:text-[15px] font-medium sm:ml-12">
-              Pedidos pendientes ordenados por antigüedad
-            </p>
-          </div>
+      <div className="mb-6 max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3 mb-1"><button onClick={onBack} className="p-2 -ml-2 rounded-xl hover:bg-black/5">←</button><h1 className="text-2xl font-bold">Monitor de Cocina</h1></div>
+          <p className="text-[#8c8c8c] text-sm font-medium sm:ml-12">Pedidos pendientes</p>
         </div>
       </div>
-
-      <div className="bg-white rounded-[24px] p-4 sm:p-5 shadow-sm mb-8 max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex flex-wrap gap-4 sm:gap-5 text-[11px] font-black tracking-wider">
-          <div className="flex items-center gap-2">
-            <div className="w-[6px] h-[6px] rounded-full bg-[#ef4444]" />
-            <span>{pendingCount} PENDIENTES</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-[6px] h-[6px] rounded-full bg-[#eab308]" />
-            <span>{preparingCount} EN PREPARACIÓN</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-[6px] h-[6px] rounded-full bg-[#22c55e]" />
-            <span>{readyCount} LISTOS</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-[6px] h-[6px] rounded-full bg-[#4A7DA8]" />
-            <span>{reservationCount} DE RESERVA</span>
-          </div>
+      <div className="bg-white rounded-[24px] p-5 shadow-sm mb-8 max-w-7xl mx-auto flex justify-between items-center">
+        <div className="flex gap-5 text-[11px] font-black">
+          <div className="flex items-center gap-2"><div className="w-[6px] h-[6px] rounded-full bg-[#ef4444]" /><span>{orders.filter(o => o.status === 'pending').length} PENDIENTES</span></div>
+          <div className="flex items-center gap-2"><div className="w-[6px] h-[6px] rounded-full bg-[#eab308]" /><span>{orders.filter(o => o.status === 'preparing').length} PREPARANDO</span></div>
+          <div className="flex items-center gap-2"><div className="w-[6px] h-[6px] rounded-full bg-[#22c55e]" /><span>{orders.filter(o => o.status === 'ready').length} LISTOS</span></div>
         </div>
-
-        <div className="flex items-center justify-between w-full sm:w-auto gap-4 text-[#9ca3af] text-sm font-medium">
-          <span className="hidden sm:inline">{currentTime}</span>
-        </div>
+        <span className="text-[#9ca3af] text-sm font-medium">{currentTime}</span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 max-w-7xl mx-auto">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
         {orders.map((order) => (
-          <div
-            key={order.id}
-            className="border-2 border-black bg-[#F2E9DC] rounded-[20px] p-5 flex flex-col justify-between min-h-[240px] shadow-sm hover:shadow-md transition-shadow"
-          >
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-[10px] font-black w-14 leading-[1.1] tracking-wide text-[#1c1c1c]">
-                  NÚMERO DE ORDEN
-                </span>
-
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-[9px] font-black px-2 py-1 rounded-[6px] text-white uppercase tracking-widest ${
-                      order.status === 'ready'
-                        ? 'bg-[#22c55e]'
-                        : order.status === 'preparing'
-                          ? 'bg-[#eab308]'
-                          : 'bg-[#ef4444]'
-                    }`}
-                  >
-                    {order.status === 'ready'
-                      ? 'Listo'
-                      : order.status === 'preparing'
-                        ? 'Preparando'
-                        : 'Pendiente'}
-                  </span>
-                  <span className="text-[22px] font-bold border-2 border-black rounded-[12px] w-12 h-10 flex items-center justify-center text-[#1c1c1c] bg-[#F2E9DC]">
-                    {order.orderNumber}
-                  </span>
-                </div>
+          <div key={order.id} className="border-2 border-black bg-[#F2E9DC] rounded-[20px] p-5 flex flex-col min-h-[240px] shadow-sm">
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-[10px] font-black w-14 leading-[1.1]">NÚMERO DE ORDEN</span>
+              <div className="flex items-center gap-2">
+                <span className={`text-[9px] font-black px-2 py-1 rounded-[6px] text-white uppercase ${order.status === 'ready' ? 'bg-[#22c55e]' : order.status === 'preparing' ? 'bg-[#eab308]' : 'bg-[#ef4444]'}`}>{order.status === 'ready' ? 'Listo' : order.status === 'preparing' ? 'Preparando' : 'Pendiente'}</span>
+                <span className="text-[22px] font-bold border-2 border-black rounded-[12px] w-12 h-10 flex items-center justify-center">{order.orderNumber}</span>
               </div>
-
-              {order.source === 'reserva' && (
-                <div className="mb-4 rounded-[12px] border-2 border-[#4A7DA8] bg-white p-3 text-[11px] font-bold leading-4 text-[#1c1c1c]">
-                  <p>PEDIDO DE RESERVA</p>
-                  <p>
-                    Mesa: {order.tableNumber} · Cliente: {order.customerName}
-                  </p>
-                  <p>
-                    Hora reserva: {order.reservationTime} · Preparar desde: {order.prepareFrom}
-                  </p>
-                </div>
-              )}
-
-              <ul className="space-y-3 mb-6">
-                {order.items.map((item, index) => (
-                  <li
-                    key={item.id}
-                    className={`flex justify-between items-start group ${
-                      order.status === 'ready' ? 'cursor-default' : 'cursor-pointer'
-                    }`}
-                    onClick={() =>
-                      order.status !== 'ready' && void toggleItemChecked(order.id, index)
-                    }
-                  >
-                    <div className="flex flex-col pr-2">
-                      <span
-                        className={`text-[15px] font-bold transition-colors ${
-                          item.checked
-                            ? 'text-[#8c8c8c] line-through'
-                            : 'text-[#1c1c1c]'
-                        }`}
-                      >
-                        {item.quantity} {item.name}
-                      </span>
-
-                      {item.notes && (
-                        <span
-                          className={`text-[12px] italic mt-0.5 ${
-                            item.checked
-                              ? 'text-[#8c8c8c] line-through'
-                              : 'text-[#ef4444]'
-                          }`}
-                        >
-                          * {item.notes}
-                        </span>
-                      )}
-                    </div>
-
-                    <div
-                      className={`w-[18px] h-[18px] mt-1 rounded-full border-2 border-black flex shrink-0 items-center justify-center transition-colors ${
-                        item.checked
-                          ? 'bg-transparent text-[#1c1c1c]'
-                          : 'bg-transparent text-transparent'
-                      }`}
-                    >
-                      {item.checked && (
-                        <svg
-                          className="w-3 h-3 text-[#1c1c1c]"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={3}
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
             </div>
-
+            <ul className="space-y-3 mb-6">
+              {order.items.map((item, index) => (
+                <li key={item.id} className={`flex justify-between items-start ${order.status === 'ready' || item.checked ? 'cursor-default' : 'cursor-pointer'}`} onClick={() => order.status !== 'ready' && !item.checked && void toggleItemChecked(order.id, index)}>
+                  <div className="flex flex-col pr-2">
+                    <span className={`text-[15px] font-bold ${item.checked ? 'text-[#8c8c8c] line-through' : 'text-[#1c1c1c]'}`}>{item.quantity} {item.name}</span>
+                    {item.notes && <span className={`text-[12px] italic mt-0.5 ${item.checked ? 'text-[#8c8c8c] line-through' : 'text-[#ef4444]'}`}>* {item.notes}</span>}
+                  </div>
+                  <div className={`w-[18px] h-[18px] mt-1 rounded-full border-2 border-black flex items-center justify-center ${item.checked ? 'bg-transparent' : 'text-transparent'}`}>
+                    {item.checked && <svg className="w-3 h-3 text-[#1c1c1c]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                  </div>
+                </li>
+              ))}
+            </ul>
             <div className="flex justify-between items-center mt-auto pt-2">
-              <button
-                onClick={() => void toggleOrder(order.id)}
-                disabled={
-                  order.status === 'ready' || !order.items.every((item) => item.checked)
-                }
-                className={`w-[46px] h-[24px] rounded-full flex items-center p-1 transition-colors ${
-                  order.isToggled ? 'bg-[#182033]' : 'bg-[#a3aab8]'
-                } ${
-                  order.status === 'ready' || !order.items.every((item) => item.checked)
-                    ? 'opacity-50 cursor-not-allowed'
-                    : ''
-                }`}
-              >
-                <div
-                  className={`w-[18px] h-[18px] rounded-full bg-[#f2e9dc] shadow-sm transition-transform ${
-                    order.isToggled ? 'translate-x-[20px]' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-
-              <button
-                onClick={() => void setReady(order.id)}
-                disabled={
-                  order.status === 'ready' ||
-                  !order.items.every((item) => item.checked) ||
-                  !order.isToggled
-                }
-                className={`text-[11px] font-bold px-4 py-1.5 rounded-[8px] transition-colors border-2 ${
-                  order.isToggled
-                    ? 'bg-[#c25134] border-[#c25134] text-white shadow-sm'
-                    : 'bg-white border-white text-[#c25134] shadow-sm'
-                } ${
-                  order.status === 'ready' ||
-                  !order.items.every((item) => item.checked) ||
-                  !order.isToggled
-                    ? 'opacity-50 cursor-not-allowed hover:bg-transparent hover:text-inherit'
-                    : ''
-                }`}
-              >
-                LISTO
-              </button>
+              <button onClick={() => void toggleOrder(order.id)} disabled={order.status === 'ready' || !order.items.every((i) => i.checked)} className={`w-[46px] h-[24px] rounded-full flex items-center p-1 ${order.isToggled ? 'bg-[#182033]' : 'bg-[#a3aab8]'} ${order.status === 'ready' || !order.items.every((i) => i.checked) ? 'opacity-50 cursor-not-allowed' : ''}`}><div className={`w-[18px] h-[18px] rounded-full bg-[#f2e9dc] shadow-sm transition-transform ${order.isToggled ? 'translate-x-[20px]' : 'translate-x-0'}`} /></button>
+              <button onClick={() => void setReady(order.id)} disabled={order.status === 'ready' || !order.items.every((i) => i.checked) || !order.isToggled} className={`text-[11px] font-bold px-4 py-1.5 rounded-[8px] border-2 ${order.isToggled ? 'bg-[#c25134] border-[#c25134] text-white' : 'bg-white border-white text-[#c25134]'} ${order.status === 'ready' || !order.items.every((i) => i.checked) || !order.isToggled ? 'opacity-50 cursor-not-allowed' : ''}`}>LISTO</button>
             </div>
           </div>
         ))}
