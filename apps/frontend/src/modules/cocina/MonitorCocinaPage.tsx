@@ -174,7 +174,12 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
         {orders.map((order) => (
           <div key={order.id} className="border-2 border-black bg-[#F2E9DC] rounded-[20px] p-5 flex flex-col min-h-[240px] shadow-sm">
             <div className="flex justify-between items-center mb-4">
-              <span className="text-[10px] font-black w-14 leading-[1.1]">NÚMERO DE ORDEN</span>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black w-14 leading-[1.1]">NÚMERO DE ORDEN</span>
+                {order.tableNumber && (
+                  <span className="text-[16px] font-black text-[#c25134] mt-0.5">MESA {order.tableNumber}</span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <span className={`text-[9px] font-black px-2 py-1 rounded-[6px] text-white uppercase ${order.status === 'ready' ? 'bg-[#22c55e]' : order.status === 'preparing' ? 'bg-[#eab308]' : 'bg-[#ef4444]'}`}>{order.status === 'ready' ? 'Listo' : order.status === 'preparing' ? 'Preparando' : 'Pendiente'}</span>
                 <span className="text-[22px] font-bold border-2 border-black rounded-[12px] w-12 h-10 flex items-center justify-center">{order.orderNumber}</span>

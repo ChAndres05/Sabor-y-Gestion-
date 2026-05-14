@@ -12,6 +12,7 @@ export async function GET() {
             },
             // Hacemos los includes exactos que tu frontend espera leer
             include: {
+                mesa: true,
                 detalles_pedido: {
                     include: {
                         presentacion_producto: {

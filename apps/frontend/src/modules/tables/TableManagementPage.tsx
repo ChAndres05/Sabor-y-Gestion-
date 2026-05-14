@@ -222,7 +222,7 @@ export default function TableManagementPage({
           <h1 className="text-title font-bold text-text">Gestión de mesas</h1>
           <p className="mt-1 text-[14px] leading-5 text-gray-500">Mapeo del salón y pedidos sincronizados con el backend.</p>
           
-          <div className="mt-4"><TableSummaryCards tables={tables} /></div>
+          {role !== 'CLIENTE' && <div className="mt-4"><TableSummaryCards tables={tables} role={role} /></div>}
 
           {/* Filtros Globales (Admin, Mesero y Cliente) */}
           <div className="mt-6 grid gap-3 md:grid-cols-[auto_1fr_auto] items-end bg-white p-4 rounded-[1.5rem] shadow-sm border border-gray-50">
