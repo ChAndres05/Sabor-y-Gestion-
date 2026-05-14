@@ -2,18 +2,24 @@ import React, { useState, useMemo } from 'react';
 import { useCajaStore } from '../../store/cajaStore';
 import { AperturaCaja } from './components/AperturaCaja';
 import { ModalProcesarPago } from './components/ModalProcesarPago';
+import { Sidebar } from '../../shared/components/Sidebar';
 import { mockMesasFacturacion, mockDetallesMesa5, mockMovimientosDia } from '../../shared/mocks/cajaMocks';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { PagoConfirmacion, MesaCajero } from './types';
 
-interface CajeroHomeProps { user: AuthUser; onLogout: () => void; }
+interface CajeroHomeProps { user: AuthUser; onLogout: () => void; onOpenSidebar: () => void; defaultView?: ViewState; }
 type ViewState = 'facturacion' | 'cierre';
 
-export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout }) => {
+export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOpenSidebar, defaultView }) => {
   const { estaAbierta, jornada, cerrarCaja } = useCajaStore();
-  const [activeView, setView] = useState<ViewState>('facturacion');
+  const [activeView, setView] = useState<ViewState>(defaultView || 'facturacion');
   const [mesaSeleccionada, setMesaSeleccionada] = useState<MesaCajero | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  React.useEffect(() => {
+    if (defaultView) {
+      setView(defaultView);
+    }
+  }, [defaultView]);
 
   const [movimientos, setMovimientos] = useState(mockMovimientosDia);
   const [montoContado, setMontoContado] = useState<number>(0);
@@ -52,7 +58,7 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout }) =>
     <div className="min-h-screen bg-[var(--color-background)] flex flex-col font-sans">
       <header className="bg-white p-4 md:p-6 shadow-sm border-b flex justify-between items-center z-20">
         <div className="flex items-center gap-4">
-          <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-[var(--color-primary)] text-2xl">☰</button>
+          <button onClick={onOpenSidebar} className="p-2 text-[var(--color-primary)] text-2xl">☰</button>
           <div>
             <h1 className="text-[var(--text-subtitle)] font-bold text-[var(--color-primary)] leading-tight">
               {activeView === 'facturacion' ? 'Facturación' : 'Cierre de Caja'}
@@ -65,28 +71,6 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout }) =>
           <span className="text-lg">⏻</span>
         </button>
       </header>
-
-      {isSidebarOpen && (
-        <div className="fixed inset-0 z-30 flex">
-          <div className="bg-[var(--color-primary)] w-72 h-full p-6 text-white shadow-2xl flex flex-col">
-            <div className="flex justify-between items-center mb-10">
-              <span className="font-bold text-lg uppercase tracking-tight">Sabor & Gestión</span>
-              <button onClick={() => setIsSidebarOpen(false)} className="text-2xl font-bold">&times;</button>
-            </div>
-            <nav className="flex-1 space-y-4">
-              <button onClick={() => { setView('facturacion'); setIsSidebarOpen(false); }} className={`w-full text-left p-4 rounded-2xl font-bold transition-all ${activeView === 'facturacion' ? 'bg-white/20 border-l-4 border-white' : 'hover:bg-white/5'}`}>Facturación</button>
-              <button onClick={() => { setView('cierre'); setIsSidebarOpen(false); }} className={`w-full text-left p-4 rounded-2xl font-bold transition-all ${activeView === 'cierre' ? 'bg-white/20 border-l-4 border-white' : 'hover:bg-white/5'}`}>Cierre de Caja</button>
-            </nav>
-            {/* PERFIL DEL CAJERO EN SIDEBAR - Ajustado para evitar errores de propiedad inexistente */}
-            <div className="mt-auto pt-6 border-t border-white/20 text-xs">
-              <p className="font-bold">{user.nombre} {user.apellido}</p>
-              <p className="opacity-60 italic">Rol: {user.rol}</p>
-              <p className="mt-2 text-[10px] uppercase font-bold tracking-widest opacity-40">Sesión #{jornada?.id_jornada_caja}</p>
-            </div>
-          </div>
-          <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />
-        </div>
-      )}
 
       <main className="flex-1 p-4 md:p-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto">

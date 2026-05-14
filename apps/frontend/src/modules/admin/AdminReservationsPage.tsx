@@ -148,9 +148,9 @@ export default function AdminReservationsPage({
             type="button"
             onClick={onBack}
             className="text-[28px] leading-none text-text"
-            aria-label="Volver"
+            aria-label="Menú"
           >
-            ←
+            ☰
           </button>
         </div>
 

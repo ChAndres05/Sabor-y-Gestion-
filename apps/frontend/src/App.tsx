@@ -24,6 +24,7 @@ import AdminReservationsPage from './modules/admin/AdminReservationsPage';
 import type { ClientNavigationKey } from './shared/types/client-flow.types';
 import { pusherClient } from './shared/utils/pusher';
 import { emitRestaurantStateChanged } from './shared/utils/events';
+import { Sidebar } from './shared/components/Sidebar';
 
 type AppScreen =
   | 'login'
@@ -58,15 +59,15 @@ const AUTH_STORAGE_KEY = 'gestionysabor_auth';
 function getScreenByRole(role: AuthUser['rol']): AppScreen {
   switch (role) {
     case USER_ROLES.ADMIN:
-      return 'admin-menu';
+      return 'menu-management';
     case USER_ROLES.MESERO:
-      return 'mesero-menu';
+      return 'mesero-tables';
     case USER_ROLES.COCINERO:
       return 'cocina-home';
     case USER_ROLES.CAJERO:
       return 'cajero-home';
     case USER_ROLES.CLIENTE:
-      return 'cliente-home';
+      return 'client-menu';
     default:
       return 'login';
   }
@@ -93,6 +94,8 @@ function App() {
   const [selectedClientProductId, setSelectedClientProductId] = useState<number | null>(null);
   const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
   const [selectedReservationId, setSelectedReservationId] = useState<number | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [selectedCajeroView, setSelectedCajeroView] = useState<'facturacion' | 'cierre'>('facturacion');
 
   const setScreen = useCallback((
     newScreen: AppScreen,
@@ -127,6 +130,46 @@ function App() {
     },
     [setScreen]
   );
+
+  const getSidebarOptionsForRole = useCallback((role: string) => {
+    switch (role) {
+      case USER_ROLES.ADMIN:
+        return [
+          { key: 'productos', label: 'Administración de productos', onClick: () => { setScreen('menu-management'); setIsSidebarOpen(false); } },
+          { key: 'mesas', label: 'Gestión de Mesas', onClick: () => { setScreen('table-management'); setIsSidebarOpen(false); } },
+          { key: 'cocina', label: 'Monitor de cocina', onClick: () => { setScreen('admin-kitchen-monitor'); setIsSidebarOpen(false); } },
+          { key: 'reservas', label: 'Gestión de reservas', onClick: () => { setScreen('admin-reservations'); setIsSidebarOpen(false); } },
+          { key: 'pedidos', label: 'Gestión de pedidos', onClick: () => { setScreen('admin-orders'); setIsSidebarOpen(false); } },
+          { key: 'delivery', label: 'Atención Delivery', onClick: () => { alert('Atención Delivery no implementado aún'); setIsSidebarOpen(false); } },
+          { key: 'facturacion', label: 'Facturación', onClick: () => { setScreen('cajero-home'); setSelectedCajeroView('facturacion'); setIsSidebarOpen(false); } },
+          { key: 'cierre', label: 'Cierre de Caja', onClick: () => { setScreen('cajero-home'); setSelectedCajeroView('cierre'); setIsSidebarOpen(false); } },
+          { key: 'usuarios', label: 'Gestión de Usuarios', onClick: () => { setScreen('admin-users'); setIsSidebarOpen(false); } }
+        ];
+      case USER_ROLES.MESERO:
+        return [
+          { key: 'mesas', label: 'Gestionar mesas', onClick: () => { setScreen('mesero-tables'); setIsSidebarOpen(false); } },
+          { key: 'pedidos', label: 'Gestionar pedidos', onClick: () => { setScreen('mesero-orders'); setIsSidebarOpen(false); } }
+        ];
+      case USER_ROLES.CAJERO:
+        return [
+          { key: 'facturacion', label: 'Facturación', onClick: () => { setScreen('cajero-home'); setSelectedCajeroView('facturacion'); setIsSidebarOpen(false); } },
+          { key: 'cierre', label: 'Cierre de Caja', onClick: () => { setScreen('cajero-home'); setSelectedCajeroView('cierre'); setIsSidebarOpen(false); } }
+        ];
+      case USER_ROLES.COCINERO:
+        return [
+          { key: 'cocina', label: 'Monitor de Cocina', onClick: () => { setScreen('cocina-home'); setIsSidebarOpen(false); } }
+        ];
+      case USER_ROLES.CLIENTE:
+        return [
+          { key: 'menu', label: 'Menú', onClick: () => { navigateClient('menu'); setIsSidebarOpen(false); } },
+          { key: 'reserve-table', label: 'Reservar mesa', onClick: () => { navigateClient('reserve-table'); setIsSidebarOpen(false); } },
+          { key: 'reservations', label: 'Mis reservas', onClick: () => { navigateClient('reservations'); setIsSidebarOpen(false); } },
+          { key: 'orders', label: 'Mis pedidos', onClick: () => { navigateClient('orders'); setIsSidebarOpen(false); } }
+        ];
+      default:
+        return [];
+    }
+  }, [setScreen, navigateClient]);
 
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
@@ -227,6 +270,15 @@ function App() {
 
   return (
     <main className="min-h-screen bg-background font-sans text-text antialiased">
+      {sessionUser && screenState !== 'login' && screenState !== 'register' && screenState !== 'forgot-password' && (
+        <Sidebar 
+          isOpen={isSidebarOpen} 
+          onClose={() => setIsSidebarOpen(false)} 
+          user={sessionUser} 
+          options={getSidebarOptionsForRole(sessionUser.rol)}
+          onLogout={handleLogout}
+        />
+      )}
       {screenState === 'login' && (
         <LoginForm onLoginSuccess={handleLoginSuccess} onGoToRegister={() => setScreen('register')} onGoToForgotPassword={() => setScreen('forgot-password')} />
       )}
@@ -243,11 +295,12 @@ function App() {
           onOpenKitchenMonitor={() => setScreen('admin-kitchen-monitor')}
           onOpenReservations={() => setScreen('admin-reservations')}
           onOpenOrders={() => setScreen('admin-orders')}
+          onOpenCaja={() => setScreen('cajero-home')}
         />
       )}
       {screenState === 'admin-reservations' && sessionUser && accessToken && (
         <AdminReservationsPage 
-          onBack={() => setScreen('admin-menu')} 
+          onBack={() => setIsSidebarOpen(true)} 
           onOpenReservationOrder={(resId) => setScreen('client-reservation-order', { reservationId: resId })}
           onViewOrder={(tableId) => setScreen('table-order', { tableId })}
         />
@@ -255,15 +308,15 @@ function App() {
       {screenState === 'admin-orders' && sessionUser && accessToken && (
         <MeseroOrdersPage 
           user={sessionUser} 
-          onBack={() => setScreen('admin-menu')} 
+          onBack={() => setIsSidebarOpen(true)} 
           onOpenOrder={(tableId) => setScreen('table-order', { tableId })} 
         />
       )}
-      {screenState === 'admin-users' && sessionUser && accessToken && <UsersPage onBack={() => setScreen('admin-menu')} />}
-      {screenState === 'menu-management' && sessionUser && accessToken && <MenuManagementPage onBack={() => setScreen('admin-menu')} />}
-      {screenState === 'admin-kitchen-monitor' && sessionUser && accessToken && <MonitorCocinaPage onBack={() => setScreen('admin-menu')} />}
+      {screenState === 'admin-users' && sessionUser && accessToken && <UsersPage onBack={() => setIsSidebarOpen(true)} />}
+      {screenState === 'menu-management' && sessionUser && accessToken && <MenuManagementPage onBack={() => setIsSidebarOpen(true)} />}
+      {screenState === 'admin-kitchen-monitor' && sessionUser && accessToken && <MonitorCocinaPage onBack={() => setIsSidebarOpen(true)} />}
       {screenState === 'table-management' && sessionUser && accessToken && (
-        <TableManagementPage role="ADMIN" onBack={() => setScreen('admin-menu')} onOpenTableOrder={(tableId) => setScreen('table-order', { tableId })} />
+        <TableManagementPage role="ADMIN" onBack={() => setIsSidebarOpen(true)} onOpenTableOrder={(tableId) => setScreen('table-order', { tableId })} />
       )}
       {screenState === 'table-order' && sessionUser && accessToken && selectedTableId !== null && (
         <MeseroOrderFlowPage user={sessionUser} tableId={selectedTableId} onBack={() => setScreen('table-management')} />
@@ -273,17 +326,24 @@ function App() {
         <MeseroHomePage user={sessionUser} onLogout={handleLogout} onOpenTables={() => setScreen('mesero-tables')} onOpenOrders={() => setScreen('mesero-orders')} />
       )}
       {screenState === 'mesero-tables' && sessionUser && accessToken && (
-        <TableManagementPage role="MESERO" onBack={() => setScreen('mesero-menu')} onOpenTableOrder={(tableId) => setScreen('mesero-table-order', { tableId })} />
+        <TableManagementPage role="MESERO" onBack={() => setIsSidebarOpen(true)} onOpenTableOrder={(tableId) => setScreen('mesero-table-order', { tableId })} />
       )}
       {screenState === 'mesero-table-order' && sessionUser && accessToken && selectedTableId !== null && (
         <MeseroOrderFlowPage user={sessionUser} tableId={selectedTableId} onBack={() => setScreen('mesero-tables')} onOpenOrders={() => setScreen('mesero-orders')} />
       )}
       {screenState === 'mesero-orders' && sessionUser && accessToken && (
-        <MeseroOrdersPage user={sessionUser} onBack={() => setScreen('mesero-menu')} onOpenOrder={(tableId) => setScreen('mesero-table-order', { tableId })} />
+        <MeseroOrdersPage user={sessionUser} onBack={() => setIsSidebarOpen(true)} onOpenOrder={(tableId) => setScreen('mesero-table-order', { tableId })} />
       )}
 
-      {screenState === 'cocina-home' && sessionUser && accessToken && <MonitorCocinaPage onBack={handleLogout} />}
-      {screenState === 'cajero-home' && sessionUser && accessToken && <CajeroHomePage user={sessionUser} onLogout={handleLogout} />}
+      {screenState === 'cocina-home' && sessionUser && accessToken && <MonitorCocinaPage onBack={() => setIsSidebarOpen(true)} />}
+      {screenState === 'cajero-home' && sessionUser && accessToken && (
+        <CajeroHomePage 
+          user={sessionUser} 
+          onLogout={handleLogout} 
+          onOpenSidebar={() => setIsSidebarOpen(true)}
+          defaultView={selectedCajeroView}
+        />
+      )}
       {screenState === 'cliente-home' && sessionUser && accessToken && (
         <ClientHomePage
           user={sessionUser}
@@ -297,7 +357,7 @@ function App() {
           onLogout={handleLogout}
           onNavigate={navigateClient}
           onOpenProductDetail={(productId) => setScreen('client-product-detail', { productId })}
-          onBack={() => setScreen('cliente-home')}
+          onBack={() => setIsSidebarOpen(true)}
         />
       )}
       {screenState === 'client-product-detail' && sessionUser && accessToken && selectedClientProductId !== null && (

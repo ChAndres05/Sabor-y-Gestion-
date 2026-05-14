@@ -1,4 +1,6 @@
+import React, { useState } from 'react';
 import type { AuthUser } from '../auth/types/auth.types';
+import { Sidebar } from '../../shared/components/Sidebar';
 
 interface AdminMenuPageProps {
   user: AuthUser;
@@ -9,6 +11,7 @@ interface AdminMenuPageProps {
   onOpenKitchenMonitor: () => void;
   onOpenReservations: () => void;
   onOpenOrders: () => void;
+  onOpenCaja: () => void;
 }
 
 const menuItems = [
@@ -18,7 +21,7 @@ const menuItems = [
   { key: 'reservas', label: 'Gestión de reservas', enabled: true },
   { key: 'pedidos', label: 'Gestión de pedidos', enabled: true },
   { key: 'delivery', label: 'Atención Delivery', enabled: false },
-  { key: 'facturacion', label: 'Facturación', enabled: false },
+  { key: 'facturacion', label: 'Facturación', enabled: true },
   { key: 'cierre', label: 'Cierre de Caja', enabled: false },
   { key: 'inventario', label: 'Gestión de Inventario', enabled: false },
   { key: 'usuarios', label: 'Gestión de Usuarios', enabled: true },
@@ -33,10 +36,34 @@ export default function AdminMenuPage({
   onOpenKitchenMonitor,
   onOpenReservations,
   onOpenOrders,
+  onOpenCaja,
 }: AdminMenuPageProps) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-primary px-4 py-8 text-white font-sans">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col">
+        <div className="flex justify-between items-center mb-6">
+          <button onClick={() => setIsSidebarOpen(true)} className="text-2xl text-white">☰</button>
+          <span className="font-bold uppercase tracking-tight">Sabor & Gestión</span>
+          <div className="w-6"></div> {/* Spacer to center title */}
+        </div>
+
+        <Sidebar 
+          isOpen={isSidebarOpen} 
+          onClose={() => setIsSidebarOpen(false)} 
+          user={user} 
+          options={[
+            { key: 'productos', label: 'Administración de productos', onClick: () => { onOpenMenuManagement(); setIsSidebarOpen(false); } },
+            { key: 'mesas', label: 'Gestión de Mesas', onClick: () => { onOpenTableManagement(); setIsSidebarOpen(false); } },
+            { key: 'cocina', label: 'Monitor de cocina', onClick: () => { onOpenKitchenMonitor(); setIsSidebarOpen(false); } },
+            { key: 'reservas', label: 'Gestión de reservas', onClick: () => { onOpenReservations(); setIsSidebarOpen(false); } },
+            { key: 'pedidos', label: 'Gestión de pedidos', onClick: () => { onOpenOrders(); setIsSidebarOpen(false); } },
+            { key: 'facturacion', label: 'Facturación', onClick: () => { onOpenCaja(); setIsSidebarOpen(false); } },
+            { key: 'usuarios', label: 'Gestión de Usuarios', onClick: () => { onOpenUsers(); setIsSidebarOpen(false); } }
+          ]}
+        />
+
         <div className="space-y-1">
           {menuItems.map((item) => {
             const handleClick = () => {
@@ -64,6 +91,10 @@ export default function AdminMenuPage({
               
               if (item.key === 'pedidos') {
                 onOpenOrders();
+              }
+
+              if (item.key === 'facturacion') {
+                onOpenCaja();
               }
             };
 

@@ -530,8 +530,8 @@ export default function TableManagementPage({
   };
 
   return (
-    <main className="h-screen overflow-hidden bg-background px-4 py-6 text-text">
-      <div className="mx-auto flex h-full w-full max-w-screen-xl flex-col overflow-hidden">
+    <main className="min-h-screen bg-background px-4 py-6 text-text">
+      <div className="mx-auto w-full max-w-screen-xl">
         <div className="shrink-0">
           <button
             type="button"
@@ -658,7 +658,7 @@ export default function TableManagementPage({
           </div>
         </div>
 
-        <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="mt-4">
           {isTablesLoading ? (
             <div className="rounded-2xl bg-white p-5 text-[14px] text-gray-500 shadow-sm">
               Cargando mesas...

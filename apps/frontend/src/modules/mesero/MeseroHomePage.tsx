@@ -1,4 +1,6 @@
+import React, { useState } from 'react';
 import type { AuthUser } from '../auth/types/auth.types';
+import { Sidebar } from '../../shared/components/Sidebar';
 
 interface MeseroHomePageProps {
   user: AuthUser;
@@ -19,9 +21,27 @@ export default function MeseroHomePage({
   onOpenTables,
   onOpenOrders,
 }: MeseroHomePageProps) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-primary px-4 py-8 font-sans text-white">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col">
+        <div className="flex justify-between items-center mb-6">
+          <button onClick={() => setIsSidebarOpen(true)} className="text-2xl text-white">☰</button>
+          <span className="font-bold uppercase tracking-tight">Sabor & Gestión</span>
+          <div className="w-6"></div> {/* Spacer to center title */}
+        </div>
+
+        <Sidebar 
+          isOpen={isSidebarOpen} 
+          onClose={() => setIsSidebarOpen(false)} 
+          user={user} 
+          options={[
+            { key: 'mesas', label: 'Gestionar mesas', onClick: () => { onOpenTables(); setIsSidebarOpen(false); } },
+            { key: 'pedidos', label: 'Gestionar pedidos', onClick: () => { onOpenOrders(); setIsSidebarOpen(false); } }
+          ]}
+        />
+
         <div className="space-y-1">
           {menuItems.map((item) => {
             const handleClick = () => {

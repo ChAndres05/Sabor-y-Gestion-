@@ -435,8 +435,8 @@ export default function MenuManagementPage({
   };
 
   return (
-    <main className="h-screen overflow-hidden bg-background px-4 py-6 text-text">
-      <div className="mx-auto flex h-full w-full max-w-screen-xl flex-col overflow-hidden">
+    <main className="min-h-screen bg-background px-4 py-6 text-text">
+      <div className="mx-auto w-full max-w-screen-xl">
         <div className="shrink-0">
           <button
             type="button"
@@ -487,9 +487,9 @@ export default function MenuManagementPage({
           </div>
         )}
 
-        <div className="mt-4 min-h-0 flex-1 overflow-hidden">
+        <div className="mt-4">
           {activeTab === 'categories' && (
-            <section className="flex h-full flex-col overflow-hidden">
+            <section>
               <div className="shrink-0">
                 <div className="flex flex-col gap-3">
                   <input
@@ -535,7 +535,7 @@ export default function MenuManagementPage({
                 </div>
               </div>
 
-              <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+              <div className="mt-4">
                 {isCategoriesLoading ? (
                   <div className="rounded-2xl bg-white p-5 text-[14px] text-gray-500 shadow-sm">
                     Cargando categorías...
@@ -578,7 +578,7 @@ export default function MenuManagementPage({
           )}
 
           {activeTab === 'products' && (
-            <section className="flex h-full flex-col overflow-hidden">
+            <section>
               <div className="shrink-0">
                 <div className="flex flex-col gap-3">
                   <input
@@ -652,7 +652,7 @@ export default function MenuManagementPage({
                 </div>
               </div>
 
-              <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+              <div className="mt-4">
                 {isProductsLoading ? (
                   <div className="rounded-2xl bg-white p-5 text-[14px] text-gray-500 shadow-sm">
                     Cargando productos...
