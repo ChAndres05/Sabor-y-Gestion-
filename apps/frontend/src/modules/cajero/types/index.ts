@@ -13,3 +13,13 @@ export interface MesaCajero {
   estado: 'LIBRE' | 'OCUPADA' | 'RESERVADA' | 'CUENTA_SOLICITADA' | 'FUERA_DE_SERVICIO'; //
   total_acumulado?: number; // Calculado desde el pedido activo
 }
+
+export interface PagoConfirmacion {
+  monto_pagado: number; //
+  metodo_pago: 'EFECTIVO' | 'TRANSFERENCIA'; // Nombre del método
+  monto_recibido?: number; //
+  monto_cambio?: number; //
+  descuento_aplicado?: number; //
+  codigo_cupon?: string;
+  referencia_pago?: string;
+}

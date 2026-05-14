@@ -8,7 +8,7 @@ import AdminMenuPage from './modules/admin/AdminMenuPage';
 import MeseroHomePage from './modules/mesero/MeseroHomePage';
 import MeseroOrderFlowPage from './modules/mesero/MeseroOrderFlowPage';
 import MeseroOrdersPage from './modules/mesero/MeseroOrdersPage';
-import CajeroHomePage from './modules/cajero/CajeroHomePage';
+import { CajeroHomePage } from "./modules/cajero/CajeroHomePage";
 import ClientHomePage from './modules/cliente/ClienteHomePage';
 import ClientMenuPage from './modules/cliente/ClientMenuPage';
 import ClientProductDetailPage from './modules/cliente/ClientProductDetailPage';
