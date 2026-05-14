@@ -181,7 +181,7 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout }) =>
         </div>
       )}
 
-      {mesaSeleccionada && <ModalProcesarPago numeroMesa={mesaSeleccionada.numero} detalles={mockDetallesMesa5} onClose={() => setMesaSeleccionada(null)} onConfirmarPago={handleFinalizarPago} />}
+      {mesaSeleccionada && <ModalProcesarPago numeroMesa={mesaSeleccionada.numero} detalles={mockDetallesMesa5} ci_cliente={mesaSeleccionada.ci_cliente} nombre_cliente={mesaSeleccionada.nombre_cliente} onClose={() => setMesaSeleccionada(null)} onConfirmarPago={handleFinalizarPago} />}
     </div>
   );
 };

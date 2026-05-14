@@ -8,18 +8,24 @@ interface ModalProcesarPagoProps {
   detalles: DetallePedidoMock[];
   onClose: () => void;
   onConfirmarPago: (datos: PagoConfirmacion) => void;
+  ci_cliente?: string;
+  nombre_cliente?: string;
 }
 
 export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({ 
   numeroMesa, 
   detalles, 
   onClose, 
-  onConfirmarPago 
+  onConfirmarPago,
+  ci_cliente,
+  nombre_cliente
 }) => {
   const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TRANSFERENCIA'>('EFECTIVO');
   const [codigoDescuento, setCodigoDescuento] = useState('');
   const [montoRecibido, setMontoRecibido] = useState<number>(0);
   const [referenciaPago, setReferenciaPago] = useState('');
+  const [ciCliente, setCiCliente] = useState(ci_cliente || '');
+  const [nombreCliente, setNombreCliente] = useState(nombre_cliente || '');
 
   // 1. Bloqueo de números negativos en la lógica
   const handleMontoChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
@@ -44,7 +50,9 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
       monto_cambio: metodoPago === 'EFECTIVO' ? cambio : 0,
       descuento_aplicado: montoDescuento,
       codigo_cupon: cuponEncontrado ? codigoDescuento.toUpperCase() : undefined,
-      referencia_pago: metodoPago === 'TRANSFERENCIA' ? referenciaPago : undefined
+      referencia_pago: metodoPago === 'TRANSFERENCIA' ? referenciaPago : undefined,
+      ci_cliente: ciCliente,
+      nombre_cliente: nombreCliente
     };
 
     onConfirmarPago(datos);
@@ -68,6 +76,30 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
                 <span className="font-bold text-[var(--color-text)]">Bs {item.subtotal.toFixed(2)}</span>
               </div>
             ))}
+          </div>
+
+          {/* Datos del Cliente */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">CI / NIT</label>
+              <input 
+                type="text" 
+                value={ciCliente}
+                onChange={(e) => setCiCliente(e.target.value)}
+                placeholder="1234567"
+                className="w-full bg-gray-50 p-3 rounded-xl text-sm font-bold focus:ring-4 ring-[var(--color-primary)]/10 outline-none transition-all border-2 border-transparent focus:border-[var(--color-primary)]"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Nombre Cliente</label>
+              <input 
+                type="text" 
+                value={nombreCliente}
+                onChange={(e) => setNombreCliente(e.target.value)}
+                placeholder="Juan Perez"
+                className="w-full bg-gray-50 p-3 rounded-xl text-sm font-bold focus:ring-4 ring-[var(--color-primary)]/10 outline-none transition-all border-2 border-transparent focus:border-[var(--color-primary)]"
+              />
+            </div>
           </div>
 
           {/* Panel de Totales */}

@@ -12,6 +12,8 @@ export interface MesaCajero {
   numero: number; //
   estado: 'LIBRE' | 'OCUPADA' | 'RESERVADA' | 'CUENTA_SOLICITADA' | 'FUERA_DE_SERVICIO'; //
   total_acumulado?: number; // Calculado desde el pedido activo
+  ci_cliente?: string;
+  nombre_cliente?: string;
 }
 
 export interface PagoConfirmacion {
@@ -22,4 +24,6 @@ export interface PagoConfirmacion {
   descuento_aplicado?: number; //
   codigo_cupon?: string;
   referencia_pago?: string;
+  ci_cliente?: string;
+  nombre_cliente?: string;
 }

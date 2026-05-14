@@ -6,25 +6,33 @@ export const mockMesasFacturacion: MesaCajero[] = [
     id_mesa: 5, 
     numero: 5, 
     estado: 'CUENTA_SOLICITADA', 
-    total_acumulado: 410.00 
+    total_acumulado: 410.00,
+    ci_cliente: '1234567',
+    nombre_cliente: 'Juan Perez'
   },
   { 
     id_mesa: 7, 
     numero: 7, 
     estado: 'CUENTA_SOLICITADA', 
-    total_acumulado: 440.00 
+    total_acumulado: 440.00,
+    ci_cliente: '7654321',
+    nombre_cliente: 'Maria Lopez'
   },
   { 
     id_mesa: 13, 
     numero: 13, 
     estado: 'CUENTA_SOLICITADA', 
-    total_acumulado: 60.00 
+    total_acumulado: 60.00,
+    ci_cliente: '4567890',
+    nombre_cliente: 'Carlos Gomez'
   },
   { 
     id_mesa: 20, 
     numero: 20, 
     estado: 'CUENTA_SOLICITADA', 
-    total_acumulado: 70.00 
+    total_acumulado: 70.00,
+    ci_cliente: '0987654',
+    nombre_cliente: 'Ana Rodriguez'
   }
 ];
 
