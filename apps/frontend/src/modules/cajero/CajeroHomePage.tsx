@@ -14,7 +14,7 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout }) =>
   const [activeView, setView] = useState<ViewState>('facturacion');
   const [mesaSeleccionada, setMesaSeleccionada] = useState<MesaCajero | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
+
   const [movimientos, setMovimientos] = useState(mockMovimientosDia);
   const [montoContado, setMontoContado] = useState<number>(0);
   const [showConfirmCierre, setShowConfirmCierre] = useState(false);
@@ -26,20 +26,22 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout }) =>
     const ventasTransf = movimientos.filter(m => m.tipo === 'transferencia').reduce((acc, curr) => acc + curr.monto, 0);
     const gastosTotal = Math.abs(movimientos.filter(m => m.monto < 0).reduce((acc, curr) => acc + curr.monto, 0));
     const efectivoEnCaja = (jornada?.monto_inicial || 0) + ventasEfectivo - gastosTotal;
-    return { totalVentas: ventasEfectivo + ventasTransf, ventasEfectivo, ventasTransf, efectivoEnCaja, gastos: gastosTotal };
+    const totalVentas = ventasEfectivo + ventasTransf;
+    const ventasTotales = totalVentas + (jornada?.monto_inicial || 0);
+    return { totalVentas, ventasEfectivo, ventasTransf, efectivoEnCaja, gastos: gastosTotal, ventasTotales };
   }, [jornada, movimientos]);
 
   if (!estaAbierta) return <AperturaCaja />;
 
   const handleFinalizarPago = (datos: PagoConfirmacion): void => {
-    const trx = { id: `TRX-${Date.now()}`, referencia: `Mesa ${mesaSeleccionada?.numero}`, tipo: datos.metodo_pago.toLowerCase() as 'efectivo'|'transferencia', monto: datos.monto_pagado, hora: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) };
+    const trx = { id: `TRX-${Date.now()}`, referencia: `Mesa ${mesaSeleccionada?.numero}`, tipo: datos.metodo_pago.toLowerCase() as 'efectivo' | 'transferencia', monto: datos.monto_pagado, hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
     setMovimientos([trx, ...movimientos]);
     setMesaSeleccionada(null);
   };
 
   const registrarGasto = () => {
     if (nuevoGasto.motivo && nuevoGasto.monto > 0) {
-      const gasto = { id: `GAS-${Date.now()}`, referencia: nuevoGasto.motivo, tipo: 'efectivo' as const, monto: -Math.abs(nuevoGasto.monto), hora: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) };
+      const gasto = { id: `GAS-${Date.now()}`, referencia: nuevoGasto.motivo, tipo: 'efectivo' as const, monto: -Math.abs(nuevoGasto.monto), hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
       setMovimientos([gasto, ...movimientos]);
       setShowGastoModal(false);
       setNuevoGasto({ motivo: '', monto: 0 });
@@ -113,6 +115,17 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout }) =>
                   <p className="text-[10px] font-bold text-gray-400 uppercase">Transferencias</p>
                   <p className="text-2xl font-black text-[var(--color-info)]">Bs {stats.ventasTransf.toFixed(2)}</p>
                 </div>
+                {/*Ventas Totales*/}
+
+                <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[var(--color-primary)] text-center">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">Ventas Turno</p>
+                  <p className="text-2xl font-black text-[var(--color-primary)]">Bs {stats.totalVentas.toFixed(2)}</p>
+                </div>
+                <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[var(--color-success)] text-center">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">Ventas Totales</p>
+                  <p className="text-2xl font-black text-[var(--color-success)]">Bs {stats.ventasTotales.toFixed(2)}</p>
+                </div>
+
               </div>
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
                 <div className="flex justify-between mb-4">
@@ -140,8 +153,8 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout }) =>
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm p-8 rounded-[2.5rem] shadow-2xl animate-in zoom-in-95 border border-white/20">
             <h2 className="text-xl font-bold text-[var(--color-primary)] mb-6 text-center uppercase tracking-tight">Registrar Gasto</h2>
-            <input type="text" placeholder="Motivo" className="w-full p-4 bg-gray-50 rounded-2xl mb-4 outline-none border-2 border-transparent focus:border-[var(--color-primary)] font-medium" onChange={(e) => setNuevoGasto({...nuevoGasto, motivo: e.target.value})} />
-            <input type="number" min="0" onKeyDown={(e) => ["-", "+", "e", "E"].includes(e.key) && e.preventDefault()} placeholder="Monto (Bs)" className="w-full p-4 bg-gray-50 rounded-2xl mb-6 text-center text-2xl font-black border-2 border-transparent focus:border-[var(--color-primary)] outline-none" onChange={(e) => setNuevoGasto({...nuevoGasto, monto: Number(e.target.value)})} />
+            <input type="text" placeholder="Motivo" className="w-full p-4 bg-gray-50 rounded-2xl mb-4 outline-none border-2 border-transparent focus:border-[var(--color-primary)] font-medium" onChange={(e) => setNuevoGasto({ ...nuevoGasto, motivo: e.target.value })} />
+            <input type="number" min="0" onKeyDown={(e) => ["-", "+", "e", "E"].includes(e.key) && e.preventDefault()} placeholder="Monto (Bs)" className="w-full p-4 bg-gray-50 rounded-2xl mb-6 text-center text-2xl font-black border-2 border-transparent focus:border-[var(--color-primary)] outline-none" onChange={(e) => setNuevoGasto({ ...nuevoGasto, monto: Number(e.target.value) })} />
             <div className="flex gap-3">
               <button onClick={() => setShowGastoModal(false)} className="flex-1 py-4 bg-gray-100 rounded-2xl font-bold text-gray-500 uppercase text-xs">Cancelar</button>
               <button onClick={registrarGasto} className="flex-1 py-4 bg-[var(--color-primary)] text-white rounded-2xl font-bold shadow-lg uppercase text-xs">Guardar</button>
