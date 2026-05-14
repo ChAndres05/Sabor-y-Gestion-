@@ -13,9 +13,7 @@ import { ordersApi } from '../../shared/api/orders.api';
 import { clientFlowApi } from '../../shared/api/client-flow.api';
 import { getEffectiveTableStatus } from '../../shared/mocks/tables.mock';
 import { pusherClient } from '../../shared/utils/pusher';
-import { 
-  RESTAURANT_STATE_CHANGED_EVENT, 
-} from '../../shared/utils/events';
+import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
 
 import type { AuthUser } from '../auth/types/auth.types';
 import type { ClientNavigationKey } from '../../shared/types/client-flow.types';
@@ -67,18 +65,15 @@ export default function TableManagementPage({
 }: TableManagementPageProps) {
   const isAdmin = role === 'ADMIN';
   
-  // Estados de Filtros
   const [filterPeople, setFilterPeople] = useState<number | ''>('');
   const [filterOnlyAvailable, setFilterOnlyAvailable] = useState<boolean>(false);
   const [selectedZoneId, setSelectedZoneId] = useState<ZoneFilter>('ALL');
 
-  // Estados de Datos
   const [zones, setZones] = useState<Zone[]>([]);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [isZonesLoading, setIsZonesLoading] = useState(true);
   const [isTablesLoading, setIsTablesLoading] = useState(true);
-
-  // Estados de UI y Modales
+  
   const [isCreateZoneOpen, setIsCreateZoneOpen] = useState(false);
   const [isCreateTableOpen, setIsCreateTableOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<RestaurantTable | null>(null);
@@ -140,7 +135,6 @@ export default function TableManagementPage({
     };
   }, [loadTables]);
 
-  // Filtrado Dinámico para todos los roles
   const filteredTables = useMemo(() => {
     return tables.filter((t) => {
       const matchZone = selectedZoneId === 'ALL' || t.zoneId === selectedZoneId;
@@ -153,9 +147,9 @@ export default function TableManagementPage({
   const handleCreateZone = async (values: ZoneFormValues) => {
     setIsSubmittingForm(true);
     try {
-      await tablesApi.createZone(values);
+      const nuevaZona = await tablesApi.createZone(values);
       setIsCreateZoneOpen(false);
-      await loadZones();
+      setZones((prev) => [...prev, nuevaZona]);
       setFeedback({ type: 'success', title: 'Éxito', message: 'Zona creada correctamente.' });
     } catch (error) {
       setFeedback({ type: 'error', title: 'Error', message: (error as Error).message });
@@ -167,9 +161,9 @@ export default function TableManagementPage({
   const handleCreateTable = async (values: TableFormValues) => {
     setIsSubmittingForm(true);
     try {
-      await tablesApi.createTable(values);
+      const nuevaMesa = await tablesApi.createTable(values);
       setIsCreateTableOpen(false);
-      await loadTables();
+      setTables((prev) => [...prev, { ...nuevaMesa, estado: 'LIBRE' }]);
       setFeedback({ type: 'success', title: 'Éxito', message: 'Mesa creada correctamente.' });
     } catch (error) {
       setFeedback({ type: 'error', title: 'Error', message: (error as Error).message });
@@ -182,9 +176,11 @@ export default function TableManagementPage({
     if (!editingTable) return;
     setIsSubmittingForm(true);
     try {
-      await tablesApi.updateTable(editingTable.id, values);
+      const mesaActualizada = await tablesApi.updateTable(editingTable.id, values);
       setEditingTable(null);
-      await loadTables();
+      setTables((prev) =>
+        prev.map((t) => (t.id === mesaActualizada.id ? { ...mesaActualizada, estado: t.estado } : t))
+      );
       setFeedback({ type: 'success', title: 'Éxito', message: 'Mesa actualizada correctamente.' });
     } catch (error) {
       setFeedback({ type: 'error', title: 'Error', message: (error as Error).message });
@@ -199,14 +195,19 @@ export default function TableManagementPage({
     try {
       if (confirmState.type === 'delete') {
         await tablesApi.deleteTable(confirmState.table.id);
+        setTables((prev) => prev.filter((t) => t.id !== confirmState.table.id));
       } else if (confirmState.type === 'deleteZone') {
         await tablesApi.deleteZone(confirmState.zone.id);
         if (selectedZoneId === confirmState.zone.id) setSelectedZoneId('ALL');
+        setZones((prev) => prev.filter((z) => z.id !== confirmState.zone.id));
+        setTables((prev) => prev.filter((t) => t.zoneId !== confirmState.zone.id));
       } else if (confirmState.type === 'status') {
         await tablesApi.updateStatus(confirmState.table.id, confirmState.nextStatus);
+        setTables((prev) =>
+          prev.map((t) => (t.id === confirmState.table.id ? { ...t, estado: confirmState.nextStatus } : t))
+        );
       }
       setConfirmState(null);
-      await loadTables(true);
     } catch (error) {
       setFeedback({ type: 'error', title: 'Error', message: (error as Error).message });
     } finally {
@@ -224,7 +225,6 @@ export default function TableManagementPage({
           
           <div className="mt-4"><TableSummaryCards tables={tables} /></div>
 
-          {/* Filtros Globales (Admin, Mesero y Cliente) */}
           <div className="mt-6 grid gap-3 md:grid-cols-[auto_1fr_auto] items-end bg-white p-4 rounded-[1.5rem] shadow-sm border border-gray-50">
             <label className="block">
               <span className="text-[11px] font-black text-gray-400 uppercase">Capacidad Mín.</span>
@@ -263,7 +263,7 @@ export default function TableManagementPage({
               <span className="text-[14px] font-bold text-text">Solo disponibles</span>
             </label>
           </div>
-          
+         
           {isAdmin && (
             <div className="mt-4 flex gap-3">
               <button onClick={() => setIsCreateZoneOpen(true)} className="rounded-2xl bg-white px-4 py-3 font-semibold shadow-sm border border-gray-100 hover:bg-gray-50 transition-colors">+ Nueva zona</button>
@@ -308,7 +308,6 @@ export default function TableManagementPage({
         </div>
       </div>
 
-      {/* Modales de Gestión */}
       <ZoneFormModal open={isCreateZoneOpen} onClose={() => setIsCreateZoneOpen(false)} onSubmit={handleCreateZone} isSubmitting={isSubmittingForm} />
       <TableFormModal open={isCreateTableOpen} mode="create" zones={zones} onClose={() => setIsCreateTableOpen(false)} onSubmit={handleCreateTable} isSubmitting={isSubmittingForm} />
       <TableFormModal open={Boolean(editingTable)} mode="edit" zones={zones} initialTable={editingTable || undefined} onClose={() => setEditingTable(null)} onSubmit={handleEditTable} isSubmitting={isSubmittingForm} />
@@ -323,7 +322,6 @@ export default function TableManagementPage({
         isLoading={isSubmittingForm} 
       />
 
-      {/* MODAL DE RESERVA ÚNICO */}
       {reservingTable && (
         <ReservationModal 
           open={Boolean(reservingTable)} 

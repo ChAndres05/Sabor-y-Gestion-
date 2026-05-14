@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type {
   RestaurantTable,
   TableFormValues,
@@ -15,27 +15,6 @@ interface TableFormModalProps {
   onSubmit: (values: TableFormValues) => Promise<void>;
 }
 
-function getInitialValues(
-  zones: Zone[],
-  initialTable?: RestaurantTable | null
-): TableFormValues {
-  if (initialTable) {
-    return {
-      numero: initialTable.numero,
-      capacidad: initialTable.capacidad,
-      zoneId: initialTable.zoneId,
-      activo: initialTable.activo,
-    };
-  }
-
-  return {
-    numero: 0,
-    capacidad: 0,
-    zoneId: zones[0]?.id ?? 0,
-    activo: true,
-  };
-}
-
 export function TableFormModal({
   open,
   mode,
@@ -45,17 +24,30 @@ export function TableFormModal({
   onClose,
   onSubmit,
 }: TableFormModalProps) {
-  const initialValues = getInitialValues(zones, initialTable);
-
-  const [numero, setNumero] = useState(
-    initialValues.numero ? String(initialValues.numero) : ''
-  );
-  const [capacidad, setCapacidad] = useState(
-    initialValues.capacidad ? String(initialValues.capacidad) : ''
-  );
-  const [zoneId, setZoneId] = useState<number>(initialValues.zoneId);
-  const [activo, setActivo] = useState(initialValues.activo);
+  const [numero, setNumero] = useState('');
+  const [capacidad, setCapacidad] = useState('');
+  const [zoneId, setZoneId] = useState<number | ''>('');
+  const [activo, setActivo] = useState(true);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => {
+        setError('');
+        if (mode === 'edit' && initialTable) {
+          setNumero(String(initialTable.numero));
+          setCapacidad(String(initialTable.capacidad));
+          setZoneId(initialTable.zoneId);
+          setActivo(initialTable.activo);
+        } else {
+          setNumero('');
+          setCapacidad('');
+          setZoneId('');
+          setActivo(true);
+        }
+      }, 0);
+    }
+  }, [open, mode, initialTable]);
 
   if (!open) return null;
 
@@ -82,7 +74,7 @@ export function TableFormModal({
     await onSubmit({
       numero: Number(numero),
       capacidad: Number(capacidad),
-      zoneId,
+      zoneId: Number(zoneId),
       activo,
     });
   };
@@ -148,9 +140,12 @@ export function TableFormModal({
             <label className="text-[14px] font-semibold text-text">Zona</label>
             <select
               value={zoneId}
-              onChange={(event) => setZoneId(Number(event.target.value))}
+              onChange={(event) => setZoneId(Number(event.target.value) || '')}
               className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] outline-none transition-colors focus:border-primary"
             >
+              <option value="" disabled>
+                Selecciona una zona...
+              </option>
               {zones.map((zone) => (
                 <option key={zone.id} value={zone.id}>
                   {zone.nombre}
