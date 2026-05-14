@@ -142,8 +142,8 @@ export default function UsersPage({ onBack }: UsersPageProps) {
   };
 
   return (
-    <div className="h-screen bg-background">
-      <div className="mx-auto flex h-full max-w-md flex-col px-4 py-6">
+    <div className="bg-background">
+      <div className="mx-auto flex max-w-md flex-col px-4 py-6">
         <div className="shrink-0">
           <button
             type="button"
@@ -213,7 +213,7 @@ export default function UsersPage({ onBack }: UsersPageProps) {
           <div className="mb-4 border-t border-primary" />
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+        <div className="pb-2">
           {isLoading ? (
             <p className="text-sm text-gray-500">Cargando usuarios...</p>
           ) : users.length === 0 ? (

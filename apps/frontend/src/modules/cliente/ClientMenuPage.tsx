@@ -87,7 +87,7 @@ export default function ClientMenuPage({
       onLogout={onLogout}
       onBack={onBack}
     >
-      <div className="flex h-full flex-col overflow-hidden">
+      <div className="flex flex-col">
         <div className="shrink-0">
           <div>
             <input
@@ -134,7 +134,7 @@ export default function ClientMenuPage({
           </div>
         </div>
 
-        <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="mt-4">
           {isLoading ? (
             <div className="rounded-2xl bg-white p-5 text-[14px] text-gray-500 shadow-sm">
               Cargando menú...

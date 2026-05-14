@@ -44,13 +44,12 @@ function getStatusLabel(status: TableStatus) {
 
 const ADMIN_STATUSES: TableStatus[] = [
   'LIBRE',
-  'OCUPADA',
   'RESERVADA',
   'CUENTA_SOLICITADA',
   'FUERA_DE_SERVICIO',
 ];
 
-const WAITER_STATUSES: TableStatus[] = ['LIBRE', 'OCUPADA', 'RESERVADA', 'CUENTA_SOLICITADA', 'FUERA_DE_SERVICIO'];
+const WAITER_STATUSES: TableStatus[] = ['LIBRE', 'RESERVADA', 'CUENTA_SOLICITADA', 'FUERA_DE_SERVICIO'];
 
 export function TableCard({
   role,
