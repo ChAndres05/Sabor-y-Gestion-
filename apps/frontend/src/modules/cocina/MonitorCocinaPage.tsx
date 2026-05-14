@@ -349,7 +349,6 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
   const pendingCount = orders.filter((order) => order.status === 'pending').length;
   const preparingCount = orders.filter((order) => order.status === 'preparing').length;
   const readyCount = orders.filter((order) => order.status === 'ready').length;
-  const reservationCount = orders.filter((order) => order.source === 'reserva').length;
 
   if (isLoading) {
     return (
@@ -409,10 +408,6 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
             <div className="w-[6px] h-[6px] rounded-full bg-[#22c55e]" />
             <span>{readyCount} LISTOS</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-[6px] h-[6px] rounded-full bg-[#4A7DA8]" />
-            <span>{reservationCount} DE RESERVA</span>
-          </div>
         </div>
 
         <div className="flex items-center justify-between w-full sm:w-auto gap-4 text-[#9ca3af] text-sm font-medium">
@@ -428,9 +423,16 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
           >
             <div>
               <div className="flex justify-between items-center mb-4">
-                <span className="text-[10px] font-black w-14 leading-[1.1] tracking-wide text-[#1c1c1c]">
-                  NÚMERO DE ORDEN
-                </span>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black w-14 leading-[1.1] tracking-wide text-[#1c1c1c]">
+                    NÚMERO DE ORDEN
+                  </span>
+                  {order.tableNumber && (
+                    <span className="mt-1 bg-[#c25134] text-white text-[10px] font-black px-1.5 py-0.5 rounded-[4px] w-fit tracking-wider">
+                      MESA {order.tableNumber}
+                    </span>
+                  )}
+                </div>
 
                 <div className="flex items-center gap-2">
                   <span
@@ -453,18 +455,6 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
                   </span>
                 </div>
               </div>
-
-              {order.source === 'reserva' && (
-                <div className="mb-4 rounded-[12px] border-2 border-[#4A7DA8] bg-white p-3 text-[11px] font-bold leading-4 text-[#1c1c1c]">
-                  <p>PEDIDO DE RESERVA</p>
-                  <p>
-                    Mesa: {order.tableNumber} · Cliente: {order.customerName}
-                  </p>
-                  <p>
-                    Hora reserva: {order.reservationTime} · Preparar desde: {order.prepareFrom}
-                  </p>
-                </div>
-              )}
 
               <ul className="space-y-3 mb-6">
                 {order.items.map((item, index) => (
