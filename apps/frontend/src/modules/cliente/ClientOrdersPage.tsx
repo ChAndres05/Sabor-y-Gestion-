@@ -99,8 +99,8 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
   const [selectedOrder, setSelectedOrder] = useState<ClientOrder | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
-  const loadOrders = useCallback(async () => {
-    setIsLoading(true);
+  const loadOrders = useCallback(async (isBackground = false) => {
+    if (!isBackground) setIsLoading(true);
     try {
       const data = await ordersApi.listOrdersByClient(user.id);
       setOrders(data);
@@ -111,7 +111,7 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
         message: error instanceof Error ? error.message : 'Ocurrió un error inesperado',
       });
     } finally {
-      setIsLoading(false);
+      if (!isBackground) setIsLoading(false);
     }
   }, [user.id]);
 
@@ -119,20 +119,26 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
     void loadOrders();
 
     const ordersChannel = pusherClient.subscribe('orders-channel');
-    const tablesChannel = pusherClient.subscribe('tables-channel'); // Añadido para asegurar recepción
+    const tablesChannel = pusherClient.subscribe('tables-channel');
+    const cocinaChannel = pusherClient.subscribe('cocina-channel');
 
     const handleUpdate = () => {
-      void loadOrders();
+      void loadOrders(true);
     };
 
     ordersChannel.bind('order-updated', handleUpdate);
-    tablesChannel.bind('table-order-updated', handleUpdate); // Añadido
+    tablesChannel.bind('table-order-updated', handleUpdate);
+    cocinaChannel.bind('pedido-actualizado', handleUpdate);
+    cocinaChannel.bind('detalle-actualizado', handleUpdate);
+    cocinaChannel.bind('pedido-armado', handleUpdate);
 
     return () => {
       ordersChannel.unbind_all();
       tablesChannel.unbind_all();
+      cocinaChannel.unbind_all();
       pusherClient.unsubscribe('orders-channel');
       pusherClient.unsubscribe('tables-channel');
+      pusherClient.unsubscribe('cocina-channel');
     };
   }, [loadOrders]);
 
