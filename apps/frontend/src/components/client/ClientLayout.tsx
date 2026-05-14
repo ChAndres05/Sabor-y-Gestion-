@@ -56,8 +56,8 @@ export default function ClientLayout({
   };
 
   return (
-    <main className="h-screen overflow-hidden bg-background px-4 py-6 text-text">
-      <div className={`mx-auto flex h-full w-full ${maxWidthClassName} flex-col overflow-hidden`}>
+    <main className="bg-background px-4 py-6 text-text">
+      <div className={`mx-auto flex w-full ${maxWidthClassName} flex-col`}>
         <header className="shrink-0">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -89,7 +89,7 @@ export default function ClientLayout({
           )}
         </header>
 
-        <section className="mt-4 min-h-0 flex-1 overflow-hidden">{children}</section>
+        <section className="mt-4">{children}</section>
       </div>
 
       {isDrawerOpen && (

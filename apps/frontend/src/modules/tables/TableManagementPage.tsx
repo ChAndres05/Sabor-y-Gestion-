@@ -215,8 +215,8 @@ export default function TableManagementPage({
   };
 
   return (
-    <main className="h-screen w-screen overflow-hidden bg-background px-4 py-6 text-text flex flex-col font-sans">
-      <div className="mx-auto flex h-full w-full max-w-screen-xl flex-col overflow-hidden">
+    <main className="bg-background px-4 py-6 text-text flex flex-col font-sans">
+      <div className="mx-auto flex w-full max-w-screen-xl flex-col">
         <div className="shrink-0">
           <button type="button" onClick={onBack} className="mb-4 text-[28px]">☰</button>
           <h1 className="text-title font-bold text-text">Gestión de mesas</h1>
@@ -277,7 +277,7 @@ export default function TableManagementPage({
           </div>
         </div>
 
-        <div className="mt-4 flex-1 overflow-y-auto pr-1">
+        <div className="mt-4">
           {isTablesLoading ? (
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               {[1, 2, 3, 4].map(i => <div key={i} className="h-32 animate-pulse bg-white rounded-3xl" />)}
