@@ -47,11 +47,11 @@ const ROLE_PERMISSIONS: Record<string, AppScreen[]> = {
 
 function getScreenByRole(role: AuthUser['rol']): AppScreen {
   switch (role) {
-    case USER_ROLES.ADMIN: return 'admin-menu';
-    case USER_ROLES.MESERO: return 'mesero-menu';
+    case USER_ROLES.ADMIN: return 'menu-management';
+    case USER_ROLES.MESERO: return 'mesero-tables';
     case USER_ROLES.COCINERO: return 'cocina-home';
     case USER_ROLES.CAJERO: return 'cajero-home';
-    case USER_ROLES.CLIENTE: return 'cliente-home';
+    case USER_ROLES.CLIENTE: return 'client-menu';
     default: return 'login';
   }
 }

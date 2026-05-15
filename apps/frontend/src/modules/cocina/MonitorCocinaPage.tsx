@@ -214,7 +214,14 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
     <div className="min-h-screen font-sans p-4 sm:p-6 md:p-8 text-[#1c1c1c] bg-[#F2E9DC]">
       <div className="mb-6 max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3 mb-1"><button onClick={onBack} className="p-2 -ml-2 rounded-xl hover:bg-black/5">←</button><h1 className="text-2xl font-bold">Monitor de Cocina</h1></div>
+          <div className="flex items-center gap-3 mb-1">
+            <button onClick={onBack} className="p-2 -ml-2 rounded-xl hover:bg-black/5">
+              <svg className="w-6 h-6 text-[#1c1c1c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <h1 className="text-2xl font-bold">Monitor de Cocina</h1>
+          </div>
           <p className="text-[#8c8c8c] text-sm font-medium sm:ml-12">Pedidos pendientes</p>
         </div>
       </div>
