@@ -1,4 +1,3 @@
-
 import type { AuthUser } from '../auth/types/auth.types';
 
 interface MeseroHomePageProps {
@@ -43,9 +42,8 @@ export default function MeseroHomePage({
                 type="button"
                 onClick={handleClick}
                 disabled={!item.enabled}
-                className={`flex w-full items-center justify-between border-b border-white/40 py-5 text-left transition-colors ${
-                  item.enabled ? 'cursor-pointer hover:bg-white/10' : 'cursor-default opacity-50'
-                }`}
+                className={`flex w-full items-center justify-between border-b border-white/40 py-5 text-left transition-colors ${item.enabled ? 'cursor-pointer hover:bg-white/10' : 'cursor-default opacity-50'
+                  }`}
               >
                 <span>
                   <span className="block text-[18px] font-semibold">{item.label}</span>
@@ -82,7 +80,7 @@ export default function MeseroHomePage({
             className="rounded-xl bg-white/20 p-3 text-[18px] font-bold transition-colors shadow-lg hover:bg-white/30"
             aria-label="Cerrar sesión"
           >
-            {'\u21AA'} 
+            {'\u21AA'}
           </button>
         </div>
       </div>
