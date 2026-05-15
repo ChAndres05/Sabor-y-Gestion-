@@ -1,5 +1,3 @@
-import type { MenuProduct } from '../../modules/menu/types/menu.types';
-
 type NumericValue = number | string | null | undefined;
 
 export interface BackendProduct {
@@ -36,38 +34,34 @@ export interface BackendProduct {
     disponible?: boolean | null;
     activo?: boolean | null;
     es_predeterminada?: boolean | null;
+    // Agregamos la lectura de recetas aquí
     recetas_presentaciones?: Array<{
       insumo?: {
         id_insumo: number;
         nombre: string;
-      } | null;
-    }>;
-  }>;
+      };
+    }> | null;
+  }> | null;
 }
 
-export interface MenuProductWithPresentation extends MenuProduct {
-  presentacionId?: number;
-}
-
-function numberValue(value: NumericValue, fallback = 0): number {
-  const parsed = Number(value);
-
-  return Number.isFinite(parsed) ? parsed : fallback;
+function numberValue(val: NumericValue, fallback = 0): number {
+  if (typeof val === 'number') return val;
+  if (typeof val === 'string') {
+    const parsed = parseFloat(val);
+    return isNaN(parsed) ? fallback : parsed;
+  }
+  return fallback;
 }
 
 function getDefaultPresentation(product: BackendProduct) {
-  const presentations = product.presentaciones ?? [];
-
-  if (presentations.length === 0) return null;
-
-  return (
-    presentations.find((presentation) => presentation.es_predeterminada) ??
-    presentations.find((presentation) => presentation.activo !== false && presentation.disponible !== false) ??
-    presentations[0]
-  );
+  if (!product.presentaciones || product.presentaciones.length === 0) {
+    return null;
+  }
+  const defaultPres = product.presentaciones.find((p) => p.es_predeterminada);
+  return defaultPres || product.presentaciones[0];
 }
 
-export function mapProductFromBackend(product: BackendProduct): MenuProductWithPresentation {
+export function mapProductFromBackend(product: BackendProduct) {
   const presentation = getDefaultPresentation(product);
 
   const ingredientes =
@@ -75,7 +69,7 @@ export function mapProductFromBackend(product: BackendProduct): MenuProductWithP
       ?.filter((receta) => receta.insumo)
       .map((receta) => ({
         id: numberValue(receta.insumo?.id_insumo),
-        nombre: receta.insumo?.nombre ?? '',
+        nombre: receta.insumo?.nombre ?? 'Insumo',
         incluidoPorDefecto: true,
       })) ?? [];
 
@@ -107,8 +101,8 @@ export function mapProductFromBackend(product: BackendProduct): MenuProductWithP
       product.url_imagen ||
       product.foto ||
       null,
-    activo: product.activo ?? true,
-    disponible: product.disponible ?? product.activo ?? true,
-    ingredientes,
+    disponible: product.disponible ?? presentation?.disponible ?? true,
+    activo: product.activo ?? presentation?.activo ?? true,
+    ingredientes, 
   };
 }

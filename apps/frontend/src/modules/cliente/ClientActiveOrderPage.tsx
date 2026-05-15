@@ -6,7 +6,6 @@ import { tablesApi } from '../../shared/api/tables.api';
 import { mapProductFromBackend } from '../../shared/mappers/menu.mapper';
 import type { BackendProduct } from '../../shared/mappers/menu.mapper';
 import { pusherClient } from '../../shared/utils/pusher';
-import { getMockIngredientsForProduct } from '../../shared/mocks/menu-ingredients.mock';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { RestaurantTable } from '../tables/types/table.types';
 import type { AddOrderItemPayload, OrderCatalogCategory, OrderCatalogProduct, TableOrder, TableOrderItem, TableOrderStatus } from '../tables/types/table-order.types';
@@ -45,8 +44,12 @@ function getItemIcon(categoryId: number) { switch (categoryId) { case 1: return 
 function buildDefaultIngredients(product: OrderCatalogProduct | null): IngredientSelection[] {
   if (!product) return [];
   const backendIngredients = product.ingredientes ?? [];
-  if (backendIngredients.length > 0) return backendIngredients.map((ingredient) => ({ id: ingredient.id, nombre: ingredient.nombre, incluido: ingredient.incluidoPorDefecto, incluidoPorDefecto: ingredient.incluidoPorDefecto }));
-  return getMockIngredientsForProduct(product.nombre).map((ingredient) => ({ id: ingredient.id, nombre: ingredient.nombre, incluido: ingredient.incluidoPorDefecto, incluidoPorDefecto: ingredient.incluidoPorDefecto }));
+  return backendIngredients.map((ingredient) => ({ 
+    id: ingredient.id, 
+    nombre: ingredient.nombre, 
+    incluido: ingredient.incluidoPorDefecto, 
+    incluidoPorDefecto: ingredient.incluidoPorDefecto 
+  }));
 }
 
 function getRemovedIngredients(item: TableOrderItem) { return (item.ingredientes ?? []).filter((ingredient) => !ingredient.incluido); }
@@ -170,7 +173,7 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
           setProducts(mappedAllProducts.filter(p => p.categoryId === firstCatId));
         }
       } catch (error) {
-        console.error('Error al cargar la mesa:', error);
+        console.error(error);
         setFeedback({ type: 'error', title: 'Error', message: 'No se pudo cargar la mesa.' });
       } finally {
         setIsLoading(false);
@@ -212,16 +215,20 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
         categoriaId: selectedCategoryId, ...(selectedCategory?.nombre ? { categoriaNombre: selectedCategory.nombre } : {}), productoId: selectedProductId, ...(selectedProduct?.presentacionId ? { presentacionId: selectedProduct.presentacionId } : {}), ...(selectedProduct?.nombre ? { productoNombre: selectedProduct.nombre } : {}), cantidad: Number(quantity), observacion: observation, ingredientes: ingredientSelections.map((ingredient) => ({ nombre: ingredient.nombre, incluido: ingredient.incluido })), ...(selectedProduct ? { precioUnitario: selectedProduct.precio, tiempoPreparacion: selectedProduct.tiempoPreparacion, imagen: selectedProduct.imagen ?? null } : {}),
       };
       
-      await (editingItemId ? ordersApi.updateOrderItem(tableId, editingItemId, payload, targetOrderId) : ordersApi.addOrderItem(tableId, payload, targetOrderId));
-      await tablesApi.updateStatus(tableId, 'OCUPADA');
+      if (editingItemId) {
+        await ordersApi.updateOrderItem(tableId, editingItemId, payload, targetOrderId);
+      } else {
+        await ordersApi.addOrderItem(tableId, payload, targetOrderId);
+      }
       
+      await tablesApi.updateStatus(tableId, 'OCUPADA');
       refreshPageState();
       resetItemForm();
       setIsItemModalOpen(false);
       setActiveStep('pedido');
       setFeedback({ type: 'success', title: editingItemId ? 'Plato actualizado' : 'Plato agregado', message: editingItemId ? 'Tu plato se actualizó correctamente.' : 'El plato se agregó a tu pedido.' });
     } catch (error) {
-      console.error('Error al guardar item:', error);
+      console.error(error);
       setFeedback({ type: 'error', title: 'No se pudo guardar', message: error instanceof Error ? error.message : 'Ocurrió un error inesperado' });
     } finally {
       setIsSavingItem(false);
@@ -245,7 +252,7 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
       refreshPageState();
       setFeedback({ type: 'success', title: 'Plato quitado', message: 'El plato se quitó de tu pedido.' });
     } catch (error) {
-      console.error('Error al remover item:', error);
+      console.error(error);
       setFeedback({ type: 'error', title: 'Error', message: error instanceof Error ? error.message : 'Error inesperado' });
     }
   };
@@ -258,7 +265,7 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
       setActiveStep('pedido');
       setFeedback({ type: 'success', title: 'Pedido enviado', message: 'Tu pedido ha sido enviado a cocina exitosamente.' });
     } catch (error) {
-      console.error('Error al cambiar estado:', error);
+      console.error(error);
       setFeedback({ type: 'error', title: 'No se pudo enviar', message: error instanceof Error ? error.message : 'Error inesperado' });
     } finally {
       setIsChangingStatus(false);
@@ -272,7 +279,7 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
       refreshPageState();
       setFeedback({ type: 'success', title: 'Cuenta solicitada', message: 'Un mesero se acercará pronto para cobrarte.' });
     } catch (error) {
-      console.error('Error al solicitar cuenta:', error);
+      console.error(error);
       setFeedback({ type: 'error', title: 'Error', message: error instanceof Error ? error.message : 'No se pudo solicitar cuenta' });
     } finally {
       setIsRequestingBill(false);
