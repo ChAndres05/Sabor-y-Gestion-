@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { useCajaStore } from '../../store/cajaStore';
 import { AperturaCaja } from './components/AperturaCaja';
 import { ModalProcesarPago } from './components/ModalProcesarPago';
-import { Sidebar } from '../../shared/components/Sidebar';
 import { mockMesasFacturacion, mockDetallesMesa5, mockMovimientosDia } from '../../shared/mocks/cajaMocks';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { PagoConfirmacion, MesaCajero } from './types';

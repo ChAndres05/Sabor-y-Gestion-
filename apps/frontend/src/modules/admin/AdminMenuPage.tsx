@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { AuthUser } from '../auth/types/auth.types';
 import { Sidebar } from '../../shared/components/Sidebar';
 
@@ -53,6 +53,7 @@ export default function AdminMenuPage({
           isOpen={isSidebarOpen} 
           onClose={() => setIsSidebarOpen(false)} 
           user={user} 
+          onLogout={onLogout}
           options={[
             { key: 'productos', label: 'Administración de productos', onClick: () => { onOpenMenuManagement(); setIsSidebarOpen(false); } },
             { key: 'mesas', label: 'Gestión de Mesas', onClick: () => { onOpenTableManagement(); setIsSidebarOpen(false); } },

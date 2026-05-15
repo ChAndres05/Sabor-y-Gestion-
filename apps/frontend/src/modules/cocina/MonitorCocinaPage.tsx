@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { pusherClient } from '../../shared/utils/pusher';
-import { Sidebar } from '../../shared/components/Sidebar';
 import {
   RESTAURANT_STATE_CHANGED_EVENT,
   RESTAURANT_STATE_CHANGED_STORAGE_KEY,
@@ -109,7 +108,6 @@ function saveCheckedItemInStorage(orderId: number, itemId: number, itemName: str
 
 export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPageProps) {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);

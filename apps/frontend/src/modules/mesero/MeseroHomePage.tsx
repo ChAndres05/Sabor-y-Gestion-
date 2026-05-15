@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { AuthUser } from '../auth/types/auth.types';
 import { Sidebar } from '../../shared/components/Sidebar';
 
@@ -36,6 +36,7 @@ export default function MeseroHomePage({
           isOpen={isSidebarOpen} 
           onClose={() => setIsSidebarOpen(false)} 
           user={user} 
+          onLogout={onLogout}
           options={[
             { key: 'mesas', label: 'Gestionar mesas', onClick: () => { onOpenTables(); setIsSidebarOpen(false); } },
             { key: 'pedidos', label: 'Gestionar pedidos', onClick: () => { onOpenOrders(); setIsSidebarOpen(false); } }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { ClientNavigationKey } from '../../shared/types/client-flow.types';
 import { Sidebar } from '../../shared/components/Sidebar';
@@ -36,6 +36,7 @@ export default function ClienteHomePage({
           isOpen={isSidebarOpen} 
           onClose={() => setIsSidebarOpen(false)} 
           user={user} 
+          onLogout={onLogout}
           options={[
             { key: 'menu', label: 'Menú', onClick: () => { onNavigate('menu'); setIsSidebarOpen(false); } },
             { key: 'reserve-table', label: 'Reservar mesa', onClick: () => { onNavigate('reserve-table'); setIsSidebarOpen(false); } },
