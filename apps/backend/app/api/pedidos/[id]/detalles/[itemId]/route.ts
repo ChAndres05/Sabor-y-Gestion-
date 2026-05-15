@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { pusherServer } from '@/lib/pusher';
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string, itemId: string }> }) {
   try {
@@ -37,6 +38,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
       return { deletedItem, updatedPedido };
     });
+
+    // Notify clients via Pusher
+    await pusherServer.trigger('tables-channel', 'table-order-updated', { id_pedido });
 
     return NextResponse.json(resultado);
   } catch (error) {

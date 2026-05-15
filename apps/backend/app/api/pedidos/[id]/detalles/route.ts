@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { pusherServer } from '@/lib/pusher';
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -58,6 +59,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       return [detalle, actualizado];
     });
+
+    // Notify clients via Pusher
+    await pusherServer.trigger('tables-channel', 'table-order-updated', { id_pedido });
 
     return NextResponse.json({ detalle: nuevoDetalle, pedido: pedidoActualizado }, { status: 201 });
   } catch (error) {

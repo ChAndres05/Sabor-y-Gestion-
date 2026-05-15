@@ -2,6 +2,7 @@ import type { RestaurantTable } from '../types/table.types';
 
 interface TableSummaryCardsProps {
   tables: RestaurantTable[];
+  role?: 'ADMIN' | 'MESERO' | 'CLIENTE';
 }
 
 function countByStatus(
@@ -11,7 +12,7 @@ function countByStatus(
   return tables.filter((table) => table.estado === status).length;
 }
 
-export function TableSummaryCards({ tables }: TableSummaryCardsProps) {
+export function TableSummaryCards({ tables, role }: TableSummaryCardsProps) {
   const items = [
     {
       label: 'Libres',
@@ -40,9 +41,13 @@ export function TableSummaryCards({ tables }: TableSummaryCardsProps) {
     },
   ];
 
+  const filteredItems = role === 'MESERO'
+    ? items.filter((item) => item.label !== 'Fuera de servicio')
+    : items;
+
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-      {items.map((item) => (
+    <div className={`grid grid-cols-2 gap-3 lg:grid-cols-${filteredItems.length}`}>
+      {filteredItems.map((item) => (
         <div
           key={item.label}
           className="rounded-[1.25rem] bg-white p-4 shadow-sm"

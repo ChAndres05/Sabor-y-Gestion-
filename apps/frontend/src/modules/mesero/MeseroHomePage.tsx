@@ -19,21 +19,21 @@ export default function MeseroHomePage({
   onOpenTables,
   onOpenOrders,
 }: MeseroHomePageProps) {
+
   return (
     <div className="min-h-screen bg-primary px-4 py-8 font-sans text-white">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col">
+        <header className="mb-8">
+          <h1 className="text-[28px] font-bold">Panel de Mesero</h1>
+          <p className="text-white/70 text-[14px]">Selecciona una acción para comenzar.</p>
+        </header>
+
         <div className="space-y-1">
           {menuItems.map((item) => {
             const handleClick = () => {
               if (!item.enabled) return;
-
-              if (item.key === 'mesas') {
-                onOpenTables();
-              }
-
-              if (item.key === 'pedidos') {
-                onOpenOrders();
-              }
+              if (item.key === 'mesas') onOpenTables();
+              if (item.key === 'pedidos') onOpenOrders();
             };
 
             return (
@@ -42,19 +42,16 @@ export default function MeseroHomePage({
                 type="button"
                 onClick={handleClick}
                 disabled={!item.enabled}
-                className={`flex w-full items-center justify-between border-b border-white/40 py-5 text-left text-content font-semibold transition-colors ${
-                  item.enabled
-                    ? 'cursor-pointer hover:bg-white/10'
-                    : 'cursor-default opacity-50'
-                }`}
+                className={`flex w-full items-center justify-between border-b border-white/40 py-5 text-left transition-colors ${item.enabled ? 'cursor-pointer hover:bg-white/10' : 'cursor-default opacity-50'
+                  }`}
               >
                 <span>
-                  <span className="block">{item.label}</span>
+                  <span className="block text-[18px] font-semibold">{item.label}</span>
                   <span className="mt-1 block text-[12px] font-medium opacity-75">
                     {item.description}
                   </span>
                 </span>
-                <span className="text-subtitle font-bold">{'>'}</span>
+                <span className="text-[20px] font-bold">{'>'}</span>
               </button>
             );
           })}
@@ -67,11 +64,11 @@ export default function MeseroHomePage({
             </div>
 
             <div>
-              <p className="text-subtitle font-bold leading-tight">
+              <p className="text-[18px] font-bold leading-tight">
                 {user.nombre} {user.apellido}
               </p>
-              <p className="text-content opacity-90">{user.correo}</p>
-              <p className="text-content font-bold uppercase tracking-wider text-white/90">
+              <p className="text-[14px] opacity-90">{user.correo}</p>
+              <p className="text-[12px] font-bold uppercase tracking-wider text-white/90">
                 {user.rol}
               </p>
             </div>
@@ -80,9 +77,10 @@ export default function MeseroHomePage({
           <button
             type="button"
             onClick={onLogout}
-            className="rounded-xl bg-white/20 p-3 text-subtitle font-bold transition-colors shadow-lg hover:bg-primary-hover"
+            className="rounded-xl bg-white/20 p-3 text-[18px] font-bold transition-colors shadow-lg hover:bg-white/30"
+            aria-label="Cerrar sesión"
           >
-            {'>'}
+            {'\u21AA'}
           </button>
         </div>
       </div>

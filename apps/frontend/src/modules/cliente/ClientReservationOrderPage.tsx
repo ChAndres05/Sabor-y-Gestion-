@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import type { AuthUser } from '../auth/types/auth.types';
 import { menuApi } from '../menu/menu.api';
-import type { MenuCategory, MenuProduct } from '../menu/types/menu.types';
+import type { MenuCategory } from '../menu/types/menu.types';
 import { mapProductFromBackend, type BackendProduct } from '../../shared/mappers/menu.mapper';
 import { clientFlowApi } from '../../shared/api/client-flow.api';
 import type { ClientOrderItem, ClientReservation } from '../../shared/types/client-flow.types';
-import { getMockIngredientsForProduct } from '../../shared/mocks/menu-ingredients.mock';
+import type { OrderCatalogProduct } from '../tables/types/table-order.types';
 
 type FlowStep = 'cliente' | 'menu' | 'pedido';
 
@@ -15,8 +15,6 @@ type FeedbackState = {
   title: string;
   message: string;
 } | null;
-
-
 
 interface ClientReservationOrderPageProps {
   user: AuthUser;
@@ -31,17 +29,27 @@ function formatCurrency(value: number) {
 
 function getItemIcon(categoryId: number) {
   switch (categoryId) {
-    case 1:
-      return '🥗';
-    case 2:
-      return '🍽️';
-    case 3:
-      return '🥤';
-    case 4:
-      return '🍰';
-    default:
-      return '🍴';
+    case 1: return '🥗';
+    case 2: return '🍽️';
+    case 3: return '🥤';
+    case 4: return '🍰';
+    default: return '🍴';
   }
+}
+
+/**
+ * 🛡️ LIMPIEZA: Leemos los ingredientes limpios desde el mapper de base de datos
+ */
+function buildDefaultIngredients(product: OrderCatalogProduct | null) {
+  if (!product) return [];
+  const backendIngredients = product.ingredientes ?? [];
+  
+  return backendIngredients.map((i) => ({
+    id: i.id,
+    nombre: i.nombre,
+    incluido: i.incluidoPorDefecto,
+    incluidoPorDefecto: i.incluidoPorDefecto,
+  }));
 }
 
 export default function ClientReservationOrderPage({
@@ -50,117 +58,86 @@ export default function ClientReservationOrderPage({
   onBack,
   onNavigateToOrders,
 }: ClientReservationOrderPageProps) {
-  const [activeStep, setActiveStep] = useState<FlowStep>('cliente');
+  const [activeStep, setActiveStep] = useState<FlowStep>('menu');
   const [reservation, setReservation] = useState<ClientReservation | null>(null);
-  
   const [categories, setCategories] = useState<MenuCategory[]>([]);
-  const [products, setProducts] = useState<MenuProduct[]>([]);
-  
+  const [products, setProducts] = useState<OrderCatalogProduct[]>([]);
+  const [allProducts, setAllProducts] = useState<OrderCatalogProduct[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number>(0);
   const [selectedProductId, setSelectedProductId] = useState<number>(0);
-  const [allProducts, setAllProducts] = useState<MenuProduct[]>([]);
-  
-  // Modal states
-  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [quantity, setQuantity] = useState('1');
   const [observation, setObservation] = useState('');
-  // Client Order Ingredient matches the API needs: { name: string, included: boolean }
-  const [ingredientSelections, setIngredientSelections] = useState<{ name: string; included: boolean }[]>([]);
-
-  // Cart state
-  const [cartItems, setCartItems] = useState<ClientOrderItem[]>([]);
   
+  // 🛡️ SOLUCIÓN LINTER: Eliminado el "any"
+  const [ingredientSelections, setIngredientSelections] = useState<{ id?: number; nombre: string; incluido: boolean; incluidoPorDefecto: boolean }[]>([]);
+  
+  const [cart, setCart] = useState<ClientOrderItem[]>([]);
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
+  const selectedProduct = useMemo(
+    () => allProducts.find((p) => p.id === selectedProductId) || null,
+    [allProducts, selectedProductId]
+  );
+
   useEffect(() => {
-    const loadPage = async () => {
+    const loadInitialData = async () => {
       setIsLoading(true);
       try {
-        const [categoriesData, reservationsData] = await Promise.all([
-          menuApi.getCategories('', 'activas'),
+        // 🛡️ SOLUCIÓN TS: listReservations en lugar de getReservationById
+        const [reservations, catsData, prodsDataRaw] = await Promise.all([
           clientFlowApi.listReservations(user.id),
+          menuApi.getCategories('', 'activas'),
+          menuApi.getProductos(),
         ]);
 
-        setCategories(categoriesData);
-        if (categoriesData.length > 0 && !selectedCategoryId) {
-          setSelectedCategoryId(categoriesData[0].id);
-        }
+        const resData = reservations.find(r => r.id === reservationId) || null;
+        setReservation(resData);
+        setCategories(catsData);
+        
+        const mappedProducts = (prodsDataRaw as BackendProduct[])
+          .map(mapProductFromBackend)
+          .filter(p => p.disponible);
+        
+        setAllProducts(mappedProducts);
 
-        const currentReservation = reservationsData.find((r: ClientReservation) => r.id === reservationId);
-        if (currentReservation) {
-          setReservation(currentReservation);
-        } else {
-          throw new Error('No se encontró la reserva indicada.');
+        if (catsData.length > 0) {
+          const firstCatId = catsData[0].id;
+          setSelectedCategoryId(firstCatId);
+          setProducts(mappedProducts.filter((p) => p.categoryId === firstCatId));
         }
-
       } catch (error) {
+        console.error(error);
         setFeedback({
           type: 'error',
-          title: 'Error de carga',
-          message: error instanceof Error ? error.message : 'No se pudo inicializar la página.',
+          title: 'Error',
+          message: 'No se pudieron cargar los datos de la reserva.',
         });
       } finally {
         setIsLoading(false);
       }
     };
-    void loadPage();
-  }, [user.id, reservationId, selectedCategoryId]);
+    void loadInitialData();
+  }, [reservationId, user.id]);
 
   useEffect(() => {
-    const loadProducts = async () => {
-      if (!selectedCategoryId) return;
-      try {
-        const rawProducts: BackendProduct[] = await menuApi.getProductos();
-        const mappedProducts = rawProducts.map(mapProductFromBackend);
-        setAllProducts(mappedProducts);
-        const filtered = mappedProducts.filter((p: MenuProduct) => p.categoryId === selectedCategoryId && p.activo && p.disponible);
-        setProducts(filtered);
-        
-        // Auto-select first product of category if modal is open
-        if (isItemModalOpen && filtered.length > 0) {
-          setSelectedProductId(filtered[0].id);
-        }
-      } catch (error) {
-        setFeedback({
-          type: 'error',
-          title: 'Error al cargar menú',
-          message: error instanceof Error ? error.message : 'No se pudieron cargar los platos.',
-        });
+    if (selectedCategoryId) {
+      const filtered = allProducts.filter((p) => p.categoryId === selectedCategoryId);
+      setProducts(filtered);
+      // 🛡️ SOLUCIÓN LINTER: Agregamos selectedProductId al array de dependencias
+      if (filtered.length > 0 && !filtered.some(p => p.id === selectedProductId)) {
+        setSelectedProductId(filtered[0].id);
       }
-    };
-    void loadProducts();
-  }, [selectedCategoryId, isItemModalOpen]);
-
-  const selectedProduct = useMemo(() => {
-    return allProducts.find(p => p.id === selectedProductId) || null;
-  }, [allProducts, selectedProductId]);
+    }
+  }, [selectedCategoryId, allProducts, selectedProductId]);
 
   useEffect(() => {
-    if (isItemModalOpen && selectedProduct) {
-      setIngredientSelections(buildDefaultIngredients(selectedProduct));
-    }
-  }, [selectedProductId, isItemModalOpen, selectedProduct]);
+    setIngredientSelections(buildDefaultIngredients(selectedProduct));
+  }, [selectedProduct]);
 
-  const cartSubtotal = useMemo(() => cartItems.reduce((acc, item) => acc + item.subtotal, 0), [cartItems]);
-
-  const buildDefaultIngredients = (product: MenuProduct | null) => {
-    if (!product) return [];
-    
-    // Obtenemos los ingredientes del mock compartido para asegurar consistencia
-    const mockIngredients = getMockIngredientsForProduct(product.nombre);
-    
-    return mockIngredients.map(i => ({
-      name: i.nombre,
-      included: i.incluidoPorDefecto
-    }));
-  };
-
-
-
-  const openProductModal = (product: MenuProduct) => {
-    setSelectedCategoryId(product.categoryId);
+  const openProductModal = (product: OrderCatalogProduct) => {
     setSelectedProductId(product.id);
     setQuantity('1');
     setObservation('');
@@ -168,373 +145,254 @@ export default function ClientReservationOrderPage({
     setIsItemModalOpen(true);
   };
 
-  const handleToggleIngredient = (name: string) => {
-    setIngredientSelections(prev => prev.map(i => i.name === name ? { ...i, included: !i.included } : i));
+  const handleToggleIngredient = (nombre: string) => {
+    setIngredientSelections((prev) =>
+      prev.map((i) => (i.nombre === nombre ? { ...i, incluido: !i.incluido } : i))
+    );
   };
-
-  const hasCustomIngredients = ingredientSelections.some(i => i.included === false); // In this mock, default is usually true
-  const removedFromSelection = ingredientSelections.filter(i => !i.included);
 
   const handleAddToCart = () => {
     if (!selectedProduct) return;
-    
-    const qty = Number(quantity);
-    if (qty <= 0) return;
 
+    // 🛡️ SOLUCIÓN TS: Construimos exactamente lo que exige `ClientOrderItem`
     const newItem: ClientOrderItem = {
-      id: Date.now(), // ID temporal para el carrito local
+      id: selectedProduct.id, 
       name: selectedProduct.nombre,
-      quantity: qty,
+      quantity: Number(quantity),
       unitPrice: selectedProduct.precio,
-      subtotal: selectedProduct.precio * qty,
+      subtotal: selectedProduct.precio * Number(quantity),
       notes: observation,
-      ingredients: ingredientSelections,
+      ingredients: ingredientSelections.map((i) => ({
+        name: i.nombre,
+        included: i.incluido,
+      })),
     };
 
-    setCartItems(current => [...current, newItem]);
+    setCart((prev) => [...prev, newItem]);
     setIsItemModalOpen(false);
-    
+    setActiveStep('pedido');
     setFeedback({
       type: 'success',
-      title: 'Plato agregado',
-      message: `${qty} x ${selectedProduct.nombre} agregado al pedido.`,
+      title: 'Agregado',
+      message: `${selectedProduct.nombre} se añadió a tu pedido anticipado.`,
     });
   };
 
-  const handleRemoveFromCart = (itemId: number) => {
-    setCartItems(current => current.filter(i => i.id !== itemId));
+  const handleRemoveFromCart = (id: number) => {
+    setCart((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const handleSubmitOrder = async () => {
-    if (cartItems.length === 0) return;
-    
-    setIsSubmitting(true);
+  const handleSaveOrder = async () => {
+    if (cart.length === 0) return;
+    setIsSaving(true);
     try {
+      // 🛡️ SOLUCIÓN TS: Llamamos al endpoint y estructura correctos según tu API
       await clientFlowApi.createPreparedReservationOrder({
         userId: user.id,
         reservationId: reservationId,
-        items: cartItems,
-        notes: 'Pedido gestionado desde el flujo avanzado de cliente.',
+        items: cart,
+        notes: 'Pedido preparado desde la web',
       });
-      
+
       setFeedback({
         type: 'success',
-        title: 'Pedido enviado',
-        message: 'El pedido ha sido enlazado a tu reserva y se preparará para esa hora.',
+        title: '¡Pedido guardado!',
+        message: 'Tu pedido anticipado ha sido registrado correctamente.',
       });
-      
-      // Wait a moment and navigate to orders
-      setTimeout(() => {
-        onNavigateToOrders();
-      }, 2000);
-      
+      setTimeout(() => onNavigateToOrders(), 2000);
     } catch (error) {
+      console.error(error);
       setFeedback({
         type: 'error',
-        title: 'Error al enviar',
-        message: error instanceof Error ? error.message : 'Ocurrió un error inesperado.',
+        title: 'Error al guardar',
+        message: 'No se pudo registrar el pedido. Intenta de nuevo.',
       });
-      setIsSubmitting(false);
+    } finally {
+      setIsSaving(false);
     }
   };
 
+  const total = cart.reduce((acc, item) => acc + item.subtotal, 0);
+
   if (isLoading) {
-    return (
-      <main className="min-h-screen bg-background px-3 py-5 text-text md:px-6 md:py-8">
-        <div className="mx-auto w-full max-w-[430px] md:max-w-5xl">
-          <p className="text-gray-500">Cargando flujo de pedido...</p>
-        </div>
-      </main>
-    );
+    return <div className="p-10 text-center">Cargando menú de reserva...</div>;
   }
 
   return (
-    <main className="min-h-screen bg-background px-3 py-5 text-text md:px-6 md:py-8">
-      <div className="mx-auto w-full max-w-[430px] md:max-w-5xl">
-        <div className="mb-4 flex items-center justify-between">
+    <main className="min-h-screen bg-background pb-24 text-text">
+      <header className="bg-white px-6 py-6 shadow-sm">
+        <div className="mx-auto max-w-5xl">
+          <button onClick={onBack} className="mb-4 flex items-center gap-2 text-gray-500 hover:text-primary">
+            <span>←</span> Volver
+          </button>
+          <h1 className="text-2xl font-bold">Pedido Anticipado</h1>
+          <p className="text-sm text-gray-500">Reserva #{reservationId} • {reservation?.date}</p>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-5xl px-6 py-8">
+        <div className="mb-8 flex gap-4 border-b border-gray-200">
           <button
-            type="button"
-            onClick={onBack}
-            className="text-[28px] leading-none text-text"
+            onClick={() => setActiveStep('menu')}
+            className={`pb-4 text-sm font-bold transition-all ${activeStep === 'menu' ? 'border-b-2 border-primary text-primary' : 'text-gray-400'}`}
           >
-            ←
+            Explorar Menú
           </button>
           <button
-            type="button"
-            onClick={onBack}
-            className="rounded-full bg-white px-4 py-2 text-[12px] font-bold text-primary shadow-sm"
+            onClick={() => setActiveStep('pedido')}
+            className={`pb-4 text-sm font-bold transition-all ${activeStep === 'pedido' ? 'border-b-2 border-primary text-primary' : 'text-gray-400'}`}
           >
-            Mis reservas
+            Mi Selección ({cart.length})
           </button>
         </div>
 
-        <header className="mb-4">
-          <h1 className="text-title font-bold text-text">Gestionar reserva</h1>
-          <p className="mt-1 text-[13px] leading-5 text-gray-500">
-            {reservation ? `Mesa ${reservation.tableNumber} · ${reservation.date} ${reservation.time} · ${user.nombre}` : ''}
-          </p>
-        </header>
-
-        <div className="mb-4 rounded-2xl bg-white/60 p-1 shadow-sm md:w-max">
-          <div className="grid grid-cols-3 gap-1 md:flex md:gap-2">
-            {(['cliente', 'menu', 'pedido'] as const).map((step) => (
-              <button
-                key={step}
-                type="button"
-                onClick={() => setActiveStep(step)}
-                className={`rounded-xl px-3 py-2 text-[12px] font-bold capitalize transition-colors md:px-6 ${
-                  activeStep === step
-                    ? 'bg-white text-text shadow-sm'
-                    : 'text-gray-500 hover:bg-white/60'
-                }`}
-              >
-                {step === 'menu' ? 'Menú' : step === 'pedido' ? `Mi Pedido (${cartItems.length})` : step}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {activeStep === 'cliente' && (
-          <section className="rounded-[1.5rem] bg-white p-5 shadow-sm md:max-w-xl">
-            <h2 className="text-[20px] font-bold text-text">Mis Datos</h2>
-            <p className="mt-1 text-[13px] leading-5 text-gray-500">
-              Datos verificados automáticamente para esta reserva.
-            </p>
-
-            <div className="mt-5 space-y-4">
-              <div className="rounded-2xl bg-background p-4">
-                <p className="text-[14px] font-bold text-text">{user.nombre} {user.apellido}</p>
-                <p className="text-[13px] text-gray-500">{user.correo}</p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setActiveStep('menu')}
-                className="w-full rounded-xl bg-primary px-5 py-3 text-[14px] font-bold text-white transition-colors hover:bg-primary-hover"
-              >
-                Comenzar pedido
-              </button>
-            </div>
-          </section>
-        )}
-
-        {activeStep === 'menu' && (
-          <section className="space-y-4">
-            <div className="rounded-[1.5rem] bg-white p-4 shadow-sm">
-              <h2 className="text-[20px] font-bold text-text">Categorías</h2>
-              <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-                {categories.map((category) => (
-                  <button
-                    key={category.id}
-                    type="button"
-                    onClick={() => setSelectedCategoryId(category.id)}
-                    className={`shrink-0 rounded-xl px-4 py-3 text-[12px] font-bold ${
-                      selectedCategoryId === category.id
-                        ? 'bg-primary text-white'
-                        : 'bg-background text-text hover:bg-black/5'
-                    }`}
-                  >
-                    {category.nombre}
-                  </button>
-                ))}
-              </div>
+        {activeStep === 'menu' ? (
+          <section>
+            <div className="mb-6 flex gap-2 overflow-x-auto pb-2">
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategoryId(cat.id)}
+                  className={`shrink-0 rounded-full px-6 py-2 text-xs font-bold transition-colors ${selectedCategoryId === cat.id ? 'bg-primary text-white' : 'bg-white text-gray-500 hover:bg-gray-100'}`}
+                >
+                  {cat.nombre}
+                </button>
+              ))}
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {products.length === 0 && (
-                <p className="text-[14px] text-gray-500 p-4">No hay productos en esta categoría.</p>
-              )}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {products.map((product) => (
-                <article key={product.id} className="flex flex-col justify-between rounded-2xl bg-white p-4 shadow-sm">
-                  <div className="grid grid-cols-[48px_1fr_auto] gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-background text-[22px] overflow-hidden">
-                      {product.imagen && (product.imagen.startsWith('http') || product.imagen.startsWith('/') || product.imagen.includes('.')) ? (
-                        <img src={product.imagen} alt={product.nombre} className="h-full w-full object-cover" />
-                      ) : (
-                        getItemIcon(product.categoryId)
-                      )}
+                <div key={product.id} className="flex flex-col justify-between rounded-3xl bg-white p-5 shadow-sm transition-transform hover:scale-[1.02]">
+                  <div className="mb-4 flex items-start gap-4">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-background text-2xl">
+                      {product.imagen ? <img src={product.imagen} alt={product.nombre} className="h-full w-full rounded-2xl object-cover" /> : getItemIcon(product.categoryId)}
                     </div>
                     <div>
-                      <h3 className="text-[15px] font-bold text-text">{product.nombre}</h3>
-                      <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-gray-500">{product.descripcion}</p>
-                      <p className="mt-1 text-[12px] font-bold text-primary">
-                        {formatCurrency(product.precio)} · {product.tiempoPreparacion} min
-                      </p>
+                      <h3 className="font-bold">{product.nombre}</h3>
+                      <p className="mt-1 line-clamp-2 text-xs text-gray-400">{product.descripcion}</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => openProductModal(product)}
-                      className="self-start rounded-xl bg-primary px-3 py-2 text-[12px] font-bold text-white hover:bg-primary-hover"
-                    >
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-primary">{formatCurrency(product.precio)}</span>
+                    <button onClick={() => openProductModal(product)} className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-primary-hover">
                       + Agregar
                     </button>
                   </div>
-                </article>
+                </div>
               ))}
             </div>
           </section>
-        )}
-
-        {activeStep === 'pedido' && (
-          <section className="space-y-4">
-            <div className="rounded-[1.5rem] bg-white p-5 shadow-sm">
-              <h2 className="text-[20px] font-bold text-text">Mi Pedido</h2>
-              
-              {cartItems.length === 0 ? (
-                <div className="mt-4 rounded-2xl bg-background p-6 text-center">
-                  <p className="text-[14px] text-gray-500">Aún no has agregado platos a tu reserva.</p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveStep('menu')}
-                    className="mt-4 rounded-xl border border-primary px-5 py-2 text-[13px] font-bold text-primary hover:bg-primary/5"
-                  >
-                    Ir al Menú
-                  </button>
-                </div>
-              ) : (
-                <div className="mt-5 space-y-3">
-                  {cartItems.map(item => (
-                    <div key={item.id} className="flex flex-col gap-2 rounded-2xl bg-background p-4">
-                      <div className="flex items-start justify-between gap-3">
+        ) : (
+          <section className="mx-auto max-w-2xl">
+            {cart.length === 0 ? (
+              <div className="py-20 text-center">
+                <p className="text-gray-400">No has seleccionado nada aún.</p>
+                <button onClick={() => setActiveStep('menu')} className="mt-4 text-sm font-bold text-primary underline">
+                  Ir al menú
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {cart.map((item, idx) => {
+                  const removed = (item.ingredients || []).filter(i => !i.included);
+                  return (
+                    <div key={`${item.id}-${idx}`} className="flex items-center justify-between rounded-3xl bg-white p-5 shadow-sm">
+                      <div className="flex gap-4">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-background text-xl">
+                          🍽️
+                        </div>
                         <div>
-                          <p className="text-[14px] font-bold text-text">{item.quantity} x {item.name}</p>
-                          {(item.ingredients ?? []).some(i => !i.included) && (
-                            <p className="text-[12px] text-alert">
-                              Sin: {(item.ingredients ?? []).filter(i => !i.included).map(i => i.name).join(', ')}
+                          <h4 className="font-bold">{item.name} <span className="text-gray-400">x{item.quantity}</span></h4>
+                          {removed.length > 0 && (
+                            <p className="text-[11px] font-bold text-alert">
+                              Sin {removed.map(i => i.name.toLowerCase()).join(', ')}
                             </p>
                           )}
-                          {item.notes && <p className="text-[12px] italic text-gray-500">"{item.notes}"</p>}
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[14px] font-bold text-primary">{formatCurrency(item.subtotal)}</p>
-                          <button
-                            onClick={() => handleRemoveFromCart(item.id)}
-                            className="mt-1 text-[12px] font-bold text-alert hover:underline"
-                          >
-                            Quitar
-                          </button>
+                          {item.notes && <p className="text-[11px] text-primary italic">Nota: {item.notes}</p>}
                         </div>
                       </div>
+                      <div className="flex items-center gap-4">
+                        <span className="font-bold">{formatCurrency(item.subtotal)}</span>
+                        <button onClick={() => handleRemoveFromCart(item.id)} className="text-alert hover:opacity-70">✕</button>
+                      </div>
                     </div>
-                  ))}
+                  );
+                })}
 
-                  <div className="mt-6 flex items-center justify-between border-t border-gray-100 pt-4">
-                    <span className="text-[16px] font-bold text-text">Total</span>
-                    <span className="text-[20px] font-bold text-primary">{formatCurrency(cartSubtotal)}</span>
+                <div className="mt-8 rounded-3xl bg-white p-6 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+                    <span className="font-bold text-gray-500">Total anticipado</span>
+                    <span className="text-2xl font-bold text-primary">{formatCurrency(total)}</span>
                   </div>
-
+                  <p className="mt-4 text-xs text-gray-400">
+                    * El pago se realizará en el establecimiento el día de tu reserva.
+                  </p>
                   <button
-                    type="button"
-                    onClick={() => void handleSubmitOrder()}
-                    disabled={isSubmitting}
-                    className="mt-6 w-full rounded-2xl bg-primary px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
+                    disabled={isSaving}
+                    onClick={handleSaveOrder}
+                    className="mt-6 w-full rounded-2xl bg-primary py-4 font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50"
                   >
-                    {isSubmitting ? 'Enviando...' : 'Confirmar Pedido a Cocina'}
+                    {isSaving ? 'Guardando...' : 'Confirmar Selección'}
                   </button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </section>
         )}
       </div>
 
       {isItemModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <section className="w-full max-w-[390px] bg-white rounded-[1.5rem] p-5 shadow-2xl overflow-y-auto max-h-[90vh]">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h2 className="text-[20px] font-bold">Nuevo pedido</h2>
-                <p className="text-[13px] text-gray-500">Agrega producto, cantidad, observaciones e ingredientes.</p>
-              </div>
-              <button onClick={() => setIsItemModalOpen(false)} className="h-8 w-8 bg-text text-white rounded-full flex items-center justify-center font-bold">×</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6 backdrop-blur-sm">
+          <section className="w-full max-w-md rounded-[2.5rem] bg-white p-8 shadow-2xl">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Personalizar</h2>
+              <button onClick={() => setIsItemModalOpen(false)} className="h-8 w-8 rounded-full bg-background text-gray-500 transition-colors hover:bg-gray-200">✕</button>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex flex-col gap-1">
-                <label className="text-[13px] font-bold">Categoría</label>
-                <select 
-                  value={selectedCategoryId} 
-                  onChange={e => setSelectedCategoryId(Number(e.target.value))} 
-                  className="rounded-xl border border-gray-300 p-3 text-[14px]"
-                >
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-[13px] font-bold">Producto</label>
-                <select 
-                  value={selectedProductId} 
-                  onChange={e => setSelectedProductId(Number(e.target.value))} 
-                  className="rounded-xl border border-gray-300 p-3 text-[14px]"
-                >
-                  {allProducts.filter(p => p.categoryId === selectedCategoryId).map(p => (
-                    <option key={p.id} value={p.id}>{p.nombre}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-[1fr_90px] gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[13px] font-bold">Observación</label>
-                  <input 
-                    type="text" 
-                    value={observation} 
-                    onChange={e => setObservation(e.target.value)} 
-                    placeholder="Ej. Sin locoto" 
-                    className="rounded-xl border border-gray-300 p-3 text-[14px]" 
+            <div className="space-y-6">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs font-bold text-gray-400 uppercase">Cantidad</label>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setQuantity(q => Math.max(1, Number(q) - 1).toString())} className="h-10 w-10 rounded-xl bg-background font-bold">-</button>
+                    <span className="w-8 text-center font-bold">{quantity}</span>
+                    <button onClick={() => setQuantity(q => (Number(q) + 1).toString())} className="h-10 w-10 rounded-xl bg-background font-bold">+</button>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs font-bold text-gray-400 uppercase">Observación</label>
+                  <input
+                    type="text"
+                    value={observation}
+                    onChange={(e) => setObservation(e.target.value)}
+                    placeholder="Ej. Sin cebolla"
+                    className="w-full rounded-xl bg-background px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
                   />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[13px] font-bold">Cantidad</label>
-                  <input 
-                    type="number" 
-                    min="1" 
-                    value={quantity} 
-                    onChange={e => setQuantity(e.target.value)} 
-                    className="rounded-xl border border-gray-300 p-3 text-center text-[14px]" 
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-background rounded-xl p-3">
-                  <p className="text-[11px] font-bold text-gray-500 uppercase">Precio</p>
-                  <p className="font-bold text-text">{selectedProduct ? formatCurrency(selectedProduct.precio) : 'Bs 0.00'}</p>
-                </div>
-                <div className="bg-background rounded-xl p-3">
-                  <p className="text-[11px] font-bold text-gray-500 uppercase">Tiempo</p>
-                  <p className="font-bold text-text">{selectedProduct ? `${selectedProduct.tiempoPreparacion} min` : '0 min'}</p>
                 </div>
               </div>
 
               <div>
-                <div className="flex justify-between items-center mb-2">
-                  <div>
-                    <p className="text-[13px] font-bold">Ingredientes</p>
-                    <p className="text-[12px] text-gray-500">Switch activo = lleva.</p>
-                  </div>
-                  <span className={`relative h-6 w-11 rounded-full ${hasCustomIngredients ? 'bg-success' : 'bg-gray-300'}`}>
-                    <span className={`absolute top-1 h-4 w-4 bg-white rounded-full shadow transition-all ${hasCustomIngredients ? 'left-6' : 'left-1'}`} />
-                  </span>
+                <label className="mb-3 block text-xs font-bold text-gray-400 uppercase">Ingredientes incluidos</label>
+                <div className="max-h-48 space-y-2 overflow-y-auto pr-2">
+                  {ingredientSelections.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic">No hay ingredientes ajustables.</p>
+                  ) : (
+                    ingredientSelections.map((i) => (
+                      <div key={i.nombre} className="flex items-center justify-between rounded-2xl border border-gray-100 px-4 py-3">
+                        <span className={`text-sm font-medium ${i.incluido ? 'text-text' : 'text-gray-300 line-through'}`}>{i.nombre}</span>
+                        <button
+                          onClick={() => handleToggleIngredient(i.nombre)}
+                          className={`relative h-6 w-11 rounded-full transition-colors ${i.incluido ? 'bg-success' : 'bg-gray-300'}`}
+                        >
+                          <span className={`absolute top-1 h-4 w-4 bg-white rounded-full shadow transition-all ${i.incluido ? 'left-6' : 'left-1'}`} />
+                        </button>
+                      </div>
+                    ))
+                  )}
                 </div>
-                <div className="border border-gray-200 rounded-xl overflow-hidden">
-                  {ingredientSelections.map(i => (
-                    <div key={i.name} className="flex justify-between items-center p-3 border-b last:border-b-0 border-gray-200">
-                      <span className={`text-[13px] font-bold ${i.included ? 'text-text' : 'text-gray-400 line-through'}`}>{i.name}</span>
-                      <button 
-                        type="button" 
-                        onClick={() => handleToggleIngredient(i.name)} 
-                        className={`relative h-6 w-11 rounded-full transition-colors ${i.included ? 'bg-success' : 'bg-gray-300'}`}
-                      >
-                        <span className={`absolute top-1 h-4 w-4 bg-white rounded-full shadow transition-all ${i.included ? 'left-6' : 'left-1'}`} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                {removedFromSelection.length > 0 && (
+                {ingredientSelections.filter(i => !i.incluido).length > 0 && (
                   <p className="mt-2 text-[11px] text-alert font-bold">
-                    Cocina verá: {removedFromSelection.map(i => `sin ${i.name.toLowerCase()}`).join(', ')}
+                    Cocina verá: {ingredientSelections.filter(i => !i.incluido).map(i => `sin ${i.nombre.toLowerCase()}`).join(', ')}
                   </p>
                 )}
               </div>

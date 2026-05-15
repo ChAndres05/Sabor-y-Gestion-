@@ -25,8 +25,6 @@ type FeedbackState = {
 
 type ReservationTab = 'active' | 'history';
 
-
-
 function getStatusLabel(status: ClientReservationStatus) {
   switch (status) {
     case 'CONFIRMADA':
@@ -54,8 +52,6 @@ function formatDate(value: string) {
   const [year, month, day] = value.split('-');
   return `${day}/${month}/${year}`;
 }
-
-
 
 export default function ClientReservationsPage({
   user,
@@ -128,7 +124,7 @@ export default function ClientReservationsPage({
   const handleCancelReservation = async (reservation: ClientReservation) => {
     setIsSubmitting(true);
     try {
-      await clientFlowApi.cancelReservation(user.id, reservation.id, reservation.tableId);
+      await clientFlowApi.cancelReservation(user.id, reservation.id);
 
       await loadReservations();
       setFeedback({
@@ -156,7 +152,7 @@ export default function ClientReservationsPage({
       onLogout={onLogout}
       onBack={onBack}
     >
-      <div className="flex h-full flex-col overflow-hidden">
+      <div className="flex flex-col">
         <div className="shrink-0 rounded-[1.5rem] bg-white p-2 shadow-sm">
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -178,7 +174,7 @@ export default function ClientReservationsPage({
           </div>
         </div>
 
-        <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="mt-4">
           {isLoading ? (
             <div className="rounded-2xl bg-white p-5 text-[14px] text-gray-500 shadow-sm">
               Cargando reservas...
@@ -298,8 +294,6 @@ export default function ClientReservationsPage({
           </div>
         </div>
       )}
-
-
 
       <FeedbackModal
         open={Boolean(feedback)}

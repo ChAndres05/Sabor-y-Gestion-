@@ -1,17 +1,11 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import { ordersApi } from '../../shared/api/orders.api';
-import {
-  requestBillForTableMock,
-} from '../../shared/mocks/table-orders.mock';
+import { tablesApi } from '../../shared/api/tables.api';
 import { pusherClient } from '../../shared/utils/pusher';
-import { listTablesMock } from '../../shared/mocks/tables.mock';
-import {
-  RESTAURANT_STATE_CHANGED_EVENT,
-  RESTAURANT_STATE_CHANGED_STORAGE_KEY,
-} from '../../shared/utils/events';
+import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
 import type { AuthUser } from '../auth/types/auth.types';
-import type { RestaurantTable } from '../tables/types/table.types';
+import type { Zone, RestaurantTable } from '../tables/types/table.types';
 import type { TableOrder, TableOrderStatus } from '../tables/types/table-order.types';
 
 type OrdersTab = 'activos' | 'completados';
@@ -32,46 +26,44 @@ function formatCurrency(value: number) {
   return `Bs ${value.toFixed(2)}`;
 }
 
+/**
+ * Formatea la hora en formato de 24 horas (HH:mm) según requerimiento.
+ */
 function formatTime(value: string) {
-  return new Intl.DateTimeFormat('es-BO', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
+  try {
+    return new Intl.DateTimeFormat('es-BO', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false, // Forzar formato 24 horas
+    }).format(new Date(value));
+  } catch {
+    return '--:--';
+  }
 }
 
 function getOrderStatusLabel(status: TableOrderStatus) {
-  switch (status) {
-    case 'REGISTRADO':
-      return 'Registrado';
-    case 'EN_PREPARACION':
-      return 'En preparación';
-    case 'LISTO':
-      return 'Listo para entregar';
-    case 'EN_CAMINO':
-      return 'En camino';
-    case 'ENTREGADO':
-      return 'Pedido completado';
-    case 'PAGADO':
-      return 'Pagado';
-    case 'CANCELADO':
-      return 'Cancelado';
-  }
+  const labels: Record<string, string> = {
+    'REGISTRADO': 'Registrado',
+    'EN_PREPARACION': 'En preparación',
+    'LISTO': 'Listo para entregar',
+    'EN_CAMINO': 'En camino',
+    'ENTREGADO': 'Pedido completado',
+    'PAGADO': 'Pagado',
+    'CANCELADO': 'Cancelado',
+  };
+  return labels[status] || status;
 }
 
 function getStatusBadgeClass(status: TableOrderStatus) {
   switch (status) {
-    case 'REGISTRADO':
-      return 'bg-process/10 text-process';
-    case 'EN_PREPARACION':
-      return 'bg-alert/10 text-alert';
+    case 'REGISTRADO': return 'bg-process/10 text-process';
+    case 'EN_PREPARACION': return 'bg-alert/10 text-alert';
     case 'LISTO':
-    case 'EN_CAMINO':
-      return 'bg-info/10 text-info';
+    case 'EN_CAMINO': return 'bg-info/10 text-info';
     case 'ENTREGADO':
-    case 'PAGADO':
-      return 'bg-success/10 text-success';
-    case 'CANCELADO':
-      return 'bg-gray-200 text-gray-600';
+    case 'PAGADO': return 'bg-success/10 text-success';
+    case 'CANCELADO': return 'bg-gray-200 text-gray-600';
+    default: return 'bg-gray-100 text-gray-500';
   }
 }
 
@@ -79,13 +71,10 @@ function isCompletedOrder(order: TableOrder) {
   return order.estado === 'ENTREGADO' || order.estado === 'PAGADO';
 }
 
-export default function MeseroOrdersPage({
-  user,
-  onBack,
-  onOpenOrder,
-}: MeseroOrdersPageProps) {
+export default function MeseroOrdersPage({ user, onBack, onOpenOrder }: MeseroOrdersPageProps) {
   const [orders, setOrders] = useState<TableOrder[]>([]);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
+  const [zones, setZones] = useState<Zone[]>([]);
   const [activeTab, setActiveTab] = useState<OrdersTab>('activos');
   const [isLoading, setIsLoading] = useState(true);
   const [busyTableId, setBusyTableId] = useState<number | null>(null);
@@ -98,105 +87,71 @@ export default function MeseroOrdersPage({
     }, {});
   }, [tables]);
 
-  const visibleOrders = useMemo(() => {
-    return orders.filter((order) =>
-      activeTab === 'activos' ? !isCompletedOrder(order) : isCompletedOrder(order)
-    );
-  }, [activeTab, orders]);
-
-  const readyCount = orders.filter((order) => order.estado === 'LISTO').length;
-  const completedCount = orders.filter(isCompletedOrder).length;
-
-  const loadOrders = useCallback(async (isBackgroundRefresh = false) => {
-    if (!isBackgroundRefresh) {
-      setIsLoading(true);
-    }
-
+  const loadData = useCallback(async (isBackgroundRefresh = false) => {
+    if (!isBackgroundRefresh) setIsLoading(true);
     try {
-      const [ordersData, tablesData] = await Promise.all([
+      const [ordersData, tablesData, zonesData] = await Promise.all([
         ordersApi.listActiveOrders(),
-        listTablesMock(),
+        tablesApi.listTables(),
+        tablesApi.listZones(),
       ]);
       setOrders(ordersData);
       setTables(tablesData);
+      setZones(zonesData);
     } catch (error) {
       setFeedback({
         type: 'error',
-        title: 'No se pudieron cargar pedidos',
-        message: error instanceof Error ? error.message : 'Ocurrió un error inesperado',
+        title: 'Error de sincronización',
+        message: error instanceof Error ? error.message : 'No se pudo conectar con el servidor',
       });
     } finally {
-      if (!isBackgroundRefresh) {
-        setIsLoading(false);
-      }
+      if (!isBackgroundRefresh) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadOrders();
-
-    const handleStateChange = () => {
-      void loadOrders(true);
-    };
-
+    loadData();
     const ordersChannel = pusherClient.subscribe('orders-channel');
-    ordersChannel.bind('order-updated', handleStateChange);
-
-    // --- INICIO DE LA SOLUCIÓN: Canal de cocina a mesero ---
     const tablesChannel = pusherClient.subscribe('tables-channel');
-    tablesChannel.bind('table-order-updated', () => {
-      // Como esta es la vista general de pedidos, recargamos la lista 
-      // completa cada vez que cualquier plato sale de cocina.
-      void loadOrders();
-    });
-    // --- FIN DE LA SOLUCIÓN ---
+    const handleRefresh = () => loadData(true);
 
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === RESTAURANT_STATE_CHANGED_STORAGE_KEY) {
-        handleStateChange();
-      }
-    };
-
-    window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
-    window.addEventListener('storage', handleStorageChange);
+    ordersChannel.bind('order-updated', handleRefresh);
+    tablesChannel.bind('table-order-updated', handleRefresh);
+    window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleRefresh);
 
     return () => {
-      ordersChannel.unbind('order-updated');
+      ordersChannel.unbind_all();
+      tablesChannel.unbind_all();
       pusherClient.unsubscribe('orders-channel');
-      tablesChannel.unbind('table-order-updated');
       pusherClient.unsubscribe('tables-channel');
-      window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
-      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleRefresh);
     };
-  }, [loadOrders]);
+  }, [loadData]);
+
+  const visibleOrders = useMemo(() => {
+    return orders.filter((order) => 
+      activeTab === 'activos' ? !isCompletedOrder(order) : isCompletedOrder(order)
+    );
+  }, [activeTab, orders]);
+
+  const stats = useMemo(() => ({
+    total: orders.length,
+    ready: orders.filter(o => o.estado === 'LISTO').length,
+    delivered: orders.filter(o => o.estado === 'ENTREGADO').length
+  }), [orders]);
 
   const handleChangeOrderStatus = async (tableId: number, status: TableOrderStatus) => {
     setBusyTableId(tableId);
-
     try {
       const orderToUpdate = orders.find(o => o.tableId === tableId && !isCompletedOrder(o));
       if (orderToUpdate) {
         await ordersApi.updateOrderStatus(orderToUpdate.id, status, tableId);
-      } else {
-        await ordersApi.updateOrderStatus(0, status, tableId);
       }
-      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/mesas/${tableId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: 'OCUPADA' })
-      });
-      await loadOrders();
-      setFeedback({
-        type: 'success',
-        title: 'Estado actualizado',
-        message: `El pedido quedó ${getOrderStatusLabel(status).toLowerCase()}.`,
-      });
-    } catch (error) {
-      setFeedback({
-        type: 'error',
-        title: 'No se pudo actualizar',
-        message: error instanceof Error ? error.message : 'Ocurrió un error inesperado',
-      });
+      await tablesApi.updateStatus(tableId, 'OCUPADA');
+      await loadData(true);
+      setFeedback({ type: 'success', title: 'Estado actualizado', message: `Pedido en estado: ${getOrderStatusLabel(status)}` });
+    } catch {
+      setFeedback({ type: 'error', title: 'Error', message: 'No se pudo actualizar el estado.' });
     } finally {
       setBusyTableId(null);
     }
@@ -204,171 +159,142 @@ export default function MeseroOrdersPage({
 
   const handleRequestBill = async (tableId: number) => {
     setBusyTableId(tableId);
-
     try {
-      await requestBillForTableMock(tableId);
-      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/mesas/${tableId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: 'CUENTA_SOLICITADA' })
-      });
-      await loadOrders();
-      setFeedback({
-        type: 'success',
-        title: 'Cuenta solicitada',
-        message: 'La mesa quedó lista para caja.',
-      });
-    } catch (error) {
-      setFeedback({
-        type: 'error',
-        title: 'No se pudo solicitar cuenta',
-        message: error instanceof Error ? error.message : 'Ocurrió un error inesperado',
-      });
+      await tablesApi.updateStatus(tableId, 'CUENTA_SOLICITADA');
+      await loadData(true);
+      setFeedback({ type: 'success', title: 'Cuenta enviada', message: 'Mesa lista para facturación en caja.' });
+    } catch {
+      setFeedback({ type: 'error', title: 'Error', message: 'No se pudo solicitar la cuenta.' });
     } finally {
       setBusyTableId(null);
     }
   };
 
   return (
-    <main className="min-h-screen bg-background px-3 py-5 text-text md:px-6 md:py-8">
-      <div className="mx-auto w-full max-w-[430px] md:max-w-5xl">
-        <button
-          type="button"
-          onClick={onBack}
-          className="mb-4 text-[28px] leading-none text-text"
-          aria-label="Volver al menú del mesero"
-        >
-          ☰
-        </button>
+    <main className="min-h-screen bg-background px-3 py-5 text-text md:px-6 md:py-8 font-sans">
+      <div className="mx-auto w-full max-w-5xl">
+        <button onClick={onBack} className="mb-4 text-[28px] text-text hover:opacity-70 transition-opacity">☰</button>
 
         <header className="mb-4">
           <h1 className="text-title font-bold text-text">Mis pedidos</h1>
           <p className="mt-1 text-[13px] leading-5 text-gray-500">
-            {user.nombre}, aquí ves los pedidos tomados, listos para entregar y completados.
+            mesero {user.nombre}, aquí ves los pedidos tomados, listos para entregar y completados.
           </p>
         </header>
 
+        {/* Resumen de estadísticas idéntico al deploy */}
         <div className="mb-4 grid grid-cols-3 gap-2">
           <div className="rounded-2xl bg-white p-3 text-center shadow-sm">
-            <p className="text-[20px] font-bold text-primary">{orders.length}</p>
-            <p className="text-[11px] font-bold text-gray-500">Pedidos</p>
+            <p className="text-[20px] font-bold text-primary">{stats.total}</p>
+            <p className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">Pedidos</p>
           </div>
           <div className="rounded-2xl bg-white p-3 text-center shadow-sm">
-            <p className="text-[20px] font-bold text-info">{readyCount}</p>
-            <p className="text-[11px] font-bold text-gray-500">Listos</p>
+            <p className="text-[20px] font-bold text-info">{stats.ready}</p>
+            <p className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">Listos</p>
           </div>
           <div className="rounded-2xl bg-white p-3 text-center shadow-sm">
-            <p className="text-[20px] font-bold text-success">{completedCount}</p>
-            <p className="text-[11px] font-bold text-gray-500">Entregados</p>
+            <p className="text-[20px] font-bold text-success">{stats.delivered}</p>
+            <p className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">Entregados</p>
           </div>
         </div>
 
-        <div className="mb-4 rounded-2xl bg-white/60 p-1 shadow-sm md:w-max">
-          <div className="grid grid-cols-2 gap-1 md:flex md:gap-2">
-            {(['activos', 'completados'] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setActiveTab(tab)}
-                className={`rounded-xl px-3 py-2 md:px-6 text-[12px] font-bold capitalize transition-colors ${activeTab === tab ? 'bg-white text-text shadow-sm' : 'text-gray-500 hover:bg-white/40'
-                  }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
+        {/* Pestañas de Navegación */}
+        <div className="mb-6 flex gap-2 rounded-2xl bg-white/60 p-1 shadow-sm w-fit">
+          {(['activos', 'completados'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`rounded-xl px-6 py-2 text-[12px] font-bold capitalize transition-all ${activeTab === tab ? 'bg-white text-text shadow-sm' : 'text-gray-500'}`}
+            >
+              {tab}
+            </button>
+          ))}
         </div>
 
         {isLoading ? (
-          <div className="rounded-[1.5rem] bg-white p-5 text-[14px] text-gray-500 shadow-sm">
-            Cargando pedidos...
-          </div>
+          <div className="p-10 text-center text-gray-400 animate-pulse">Sincronizando con el servidor...</div>
         ) : visibleOrders.length === 0 ? (
-          <div className="rounded-[1.5rem] bg-white p-6 text-center shadow-sm">
-            <p className="text-[15px] font-bold text-text">No hay pedidos en esta lista</p>
-            <p className="mt-2 text-[13px] leading-5 text-gray-500">
-              Cuando tomes pedidos desde mesas aparecerán aquí para darles seguimiento.
-            </p>
+          <div className="rounded-3xl bg-white p-10 text-center shadow-sm">
+            <p className="font-bold text-gray-400">No hay pedidos registrados en esta sección.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {visibleOrders.map((order) => {
               const table = tableById[order.tableId];
-              const billRequested = table?.estado === 'CUENTA_SOLICITADA';
+              const zoneName = zones.find(z => z.id === table?.zoneId)?.nombre || 'Sin zona';
+              const isBillRequested = table?.estado === 'CUENTA_SOLICITADA';
               const isBusy = busyTableId === order.tableId;
 
               return (
-                <article key={order.id} className="rounded-[1.5rem] bg-white p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h2 className="text-[18px] font-bold text-text">Mesa {table?.numero ?? order.tableId}</h2>
-                      <p className="mt-1 text-[12px] font-medium text-gray-500">
+                <article key={order.id} className="rounded-[1.5rem] bg-white p-5 shadow-sm border border-gray-50 flex flex-col">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex-1">
+                      <h2 className="text-[18px] font-bold">Mesa {table?.numero ?? order.tableId}</h2>
+                      <p className="mt-1 text-[12px] font-medium text-gray-500 line-clamp-1">
                         #{order.id} · {order.customer.nombre} · {formatTime(order.fechaCreacion)}
                       </p>
+                      {/* Distinción de origen: Si no hay mesero asignado o el ID coincide con el cliente, es un pedido de cliente */}
+                      <p className="text-[10px] font-bold text-primary uppercase mt-0.5">
+                        {order.waiterName ? `MESERO: ${order.waiterName}` : 'PEDIDO DE CLIENTE'}
+                      </p>
                     </div>
-                    <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${billRequested ? 'bg-info/10 text-info' : getStatusBadgeClass(order.estado)}`}>
-                      {billRequested ? 'Cuenta solicitada' : getOrderStatusLabel(order.estado)}
+                    <span className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-bold ${isBillRequested ? 'bg-info/10 text-info' : getStatusBadgeClass(order.estado)}`}>
+                      {isBillRequested ? 'CUENTA SOLICITADA' : getOrderStatusLabel(order.estado)}
                     </span>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                    <div className="rounded-xl bg-background p-2">
-                      <p className="text-[13px] font-bold text-text">{order.items.length}</p>
-                      <p className="text-[10px] font-bold text-gray-500">Items</p>
+                  <div className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-3">
+                    {zoneName}
+                  </div>
+
+                  <div className="flex gap-2 mb-5">
+                    <div className="flex-1 rounded-xl bg-background p-2 text-center">
+                      <p className="text-[14px] font-bold">{order.items.length}</p>
+                      <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Elementos</p>
                     </div>
-                    <div className="rounded-xl bg-background p-2">
-                      <p className="text-[13px] font-bold text-text">{order.tiempoEstimadoMinutos} min</p>
-                      <p className="text-[10px] font-bold text-gray-500">Tiempo</p>
+                    <div className="flex-1 rounded-xl bg-background p-2 text-center">
+                      <p className="text-[14px] font-bold">{order.tiempoEstimadoMinutos} min</p>
+                      <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Tiempo</p>
                     </div>
-                    <div className="rounded-xl bg-background p-2">
-                      <p className="text-[13px] font-bold text-primary">{formatCurrency(order.total)}</p>
-                      <p className="text-[10px] font-bold text-gray-500">Total</p>
+                    <div className="flex-1 rounded-xl bg-background p-2 text-center">
+                      <p className="text-[14px] font-bold text-primary">{formatCurrency(order.total)}</p>
+                      <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Total</p>
                     </div>
                   </div>
 
-                  <div className="mt-4 space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => onOpenOrder(order.tableId)}
-                      className="w-full rounded-xl border border-primary px-4 py-3 text-[13px] font-bold text-primary"
+                  <div className="space-y-2 mt-auto">
+                    <button 
+                      onClick={() => onOpenOrder(order.tableId)} 
+                      className="w-full rounded-xl border border-primary py-3 text-[13px] font-bold text-primary hover:bg-primary/5 transition-colors"
                     >
                       Gestionar pedido
                     </button>
 
                     {order.estado === 'REGISTRADO' && (
-                      <button
-                        type="button"
+                      <button 
                         onClick={() => void handleChangeOrderStatus(order.tableId, 'EN_PREPARACION')}
                         disabled={isBusy}
-                        className="w-full rounded-xl bg-primary px-4 py-3 text-[13px] font-bold text-white disabled:opacity-60"
+                        className="w-full rounded-xl bg-primary py-3 text-[13px] font-bold text-white shadow-md disabled:opacity-50"
                       >
                         Enviar a cocina
                       </button>
                     )}
 
-                    {order.estado === 'EN_PREPARACION' && (
-                      <div className="w-full rounded-xl bg-gray-100 px-4 py-3 text-[13px] font-bold text-gray-500 text-center">
-                        En preparación...
-                      </div>
-                    )}
-
                     {(order.estado === 'LISTO' || order.estado === 'EN_CAMINO') && (
-                      <button
-                        type="button"
+                      <button 
                         onClick={() => void handleChangeOrderStatus(order.tableId, 'ENTREGADO')}
                         disabled={isBusy}
-                        className="w-full rounded-xl bg-success px-4 py-3 text-[13px] font-bold text-white disabled:opacity-60"
+                        className="w-full rounded-xl bg-success py-3 text-[13px] font-bold text-white shadow-md disabled:opacity-50"
                       >
-                        Marcar entregado en mesa
+                        Confirmar entrega
                       </button>
                     )}
 
-                    {order.estado === 'ENTREGADO' && !billRequested && (
-                      <button
-                        type="button"
+                    {order.estado === 'ENTREGADO' && !isBillRequested && (
+                      <button 
                         onClick={() => void handleRequestBill(order.tableId)}
                         disabled={isBusy}
-                        className="w-full rounded-xl bg-primary px-4 py-3 text-[13px] font-bold text-white disabled:opacity-60"
+                        className="w-full rounded-xl bg-process py-3 text-[13px] font-bold text-white shadow-md"
                       >
                         Solicitar cuenta
                       </button>
@@ -381,12 +307,12 @@ export default function MeseroOrdersPage({
         )}
       </div>
 
-      <FeedbackModal
-        open={Boolean(feedback)}
-        title={feedback?.title ?? ''}
-        message={feedback?.message ?? ''}
-        type={feedback?.type ?? 'info'}
-        onClose={() => setFeedback(null)}
+      <FeedbackModal 
+        open={Boolean(feedback)} 
+        title={feedback?.title ?? ''} 
+        message={feedback?.message ?? ''} 
+        type={feedback?.type ?? 'info'} 
+        onClose={() => setFeedback(null)} 
       />
     </main>
   );

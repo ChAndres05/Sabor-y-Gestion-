@@ -1,3 +1,6 @@
+// frontend/src/modules/cliente/ClientOrdersPage.tsx
+// Refactorización: Se añade escucha de tables-channel para no perder eventos de estado de cocina o mesero.
+
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import type { AuthUser } from '../auth/types/auth.types';
@@ -96,8 +99,8 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
   const [selectedOrder, setSelectedOrder] = useState<ClientOrder | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
-  const loadOrders = useCallback(async () => {
-    setIsLoading(true);
+  const loadOrders = useCallback(async (isBackground = false) => {
+    if (!isBackground) setIsLoading(true);
     try {
       const data = await ordersApi.listOrdersByClient(user.id);
       setOrders(data);
@@ -108,21 +111,34 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
         message: error instanceof Error ? error.message : 'Ocurrió un error inesperado',
       });
     } finally {
-      setIsLoading(false);
+      if (!isBackground) setIsLoading(false);
     }
   }, [user.id]);
 
   useEffect(() => {
     void loadOrders();
 
-    const channel = pusherClient.subscribe('orders-channel');
-    channel.bind('order-updated', () => {
-      void loadOrders();
-    });
+    const ordersChannel = pusherClient.subscribe('orders-channel');
+    const tablesChannel = pusherClient.subscribe('tables-channel');
+    const cocinaChannel = pusherClient.subscribe('cocina-channel');
+
+    const handleUpdate = () => {
+      void loadOrders(true);
+    };
+
+    ordersChannel.bind('order-updated', handleUpdate);
+    tablesChannel.bind('table-order-updated', handleUpdate);
+    cocinaChannel.bind('pedido-actualizado', handleUpdate);
+    cocinaChannel.bind('detalle-actualizado', handleUpdate);
+    cocinaChannel.bind('pedido-armado', handleUpdate);
 
     return () => {
-      channel.unbind('order-updated');
+      ordersChannel.unbind_all();
+      tablesChannel.unbind_all();
+      cocinaChannel.unbind_all();
       pusherClient.unsubscribe('orders-channel');
+      pusherClient.unsubscribe('tables-channel');
+      pusherClient.unsubscribe('cocina-channel');
     };
   }, [loadOrders]);
 
@@ -148,7 +164,7 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
       onLogout={onLogout}
       onBack={onBack}
     >
-      <div className="flex h-full flex-col overflow-hidden">
+      <div className="flex flex-col">
         <div className="shrink-0 rounded-[1.5rem] bg-white p-2 shadow-sm">
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -172,7 +188,7 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
           </div>
         </div>
 
-        <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="mt-4">
           {isLoading ? (
             <div className="rounded-2xl bg-white p-5 text-[14px] text-gray-500 shadow-sm">
               Cargando pedidos...
