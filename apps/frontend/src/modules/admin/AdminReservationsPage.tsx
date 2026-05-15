@@ -80,7 +80,16 @@ export default function AdminReservationsPage({ onBack, onOpenReservationOrder, 
   return (
     <main className="min-h-screen bg-background px-3 py-5 text-text md:px-6 md:py-8">
       <div className="mx-auto w-full max-w-5xl">
-        <button onClick={onBack} className="mb-4 text-[28px]">←</button>
+        <div className="mb-4 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-[28px] leading-none text-text"
+            aria-label="Menú"
+          >
+            ☰
+          </button>
+        </div>
         <header className="mb-4">
           <h1 className="text-title font-bold">Gestión de reservas</h1>
           <p className="text-gray-500">Vista administrativa de reservas reales del backend.</p>

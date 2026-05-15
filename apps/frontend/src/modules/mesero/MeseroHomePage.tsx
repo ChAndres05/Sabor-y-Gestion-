@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { AuthUser } from '../auth/types/auth.types';
 
 interface MeseroHomePageProps {
@@ -19,6 +20,7 @@ export default function MeseroHomePage({
   onOpenTables,
   onOpenOrders,
 }: MeseroHomePageProps) {
+
   return (
     <div className="min-h-screen bg-primary px-4 py-8 font-sans text-white">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col">

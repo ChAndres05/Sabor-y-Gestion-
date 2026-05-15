@@ -198,7 +198,17 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
     catch (error) { console.error(error); }
   };
 
-  if (isLoading) return <div className="min-h-screen p-8 text-[#1c1c1c] bg-[#F2E9DC] flex items-center justify-center"><p className="text-xl font-bold">Cargando monitor de cocina...</p></div>;
+  const pendingCount = orders.filter((order) => order.status === 'pending').length;
+  const preparingCount = orders.filter((order) => order.status === 'preparing').length;
+  const readyCount = orders.filter((order) => order.status === 'ready').length;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen font-sans p-4 sm:p-6 md:p-8 text-[#1c1c1c] bg-[#F2E9DC] flex items-center justify-center">
+        <p className="text-xl font-bold">Cargando monitor de cocina...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen font-sans p-4 sm:p-6 md:p-8 text-[#1c1c1c] bg-[#F2E9DC]">
@@ -208,19 +218,34 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
           <p className="text-[#8c8c8c] text-sm font-medium sm:ml-12">Pedidos pendientes</p>
         </div>
       </div>
-      <div className="bg-white rounded-[24px] p-5 shadow-sm mb-8 max-w-7xl mx-auto flex justify-between items-center">
-        <div className="flex gap-5 text-[11px] font-black">
-          <div className="flex items-center gap-2"><div className="w-[6px] h-[6px] rounded-full bg-[#ef4444]" /><span>{orders.filter(o => o.status === 'pending').length} PENDIENTES</span></div>
-          <div className="flex items-center gap-2"><div className="w-[6px] h-[6px] rounded-full bg-[#eab308]" /><span>{orders.filter(o => o.status === 'preparing').length} PREPARANDO</span></div>
-          <div className="flex items-center gap-2"><div className="w-[6px] h-[6px] rounded-full bg-[#22c55e]" /><span>{orders.filter(o => o.status === 'ready').length} LISTOS</span></div>
+      <div className="bg-white rounded-[24px] p-4 sm:p-5 shadow-sm mb-8 max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-wrap gap-4 sm:gap-5 text-[11px] font-black tracking-wider">
+          <div className="flex items-center gap-2">
+            <div className="w-[6px] h-[6px] rounded-full bg-[#ef4444]" />
+            <span>{pendingCount} PENDIENTES</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-[6px] h-[6px] rounded-full bg-[#eab308]" />
+            <span>{preparingCount} EN PREPARACIÓN</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-[6px] h-[6px] rounded-full bg-[#22c55e]" />
+            <span>{readyCount} LISTOS</span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between w-full sm:w-auto gap-4 text-[#9ca3af] text-sm font-medium">
+          <span className="hidden sm:inline">{currentTime}</span>
         </div>
         <span className="text-[#9ca3af] text-sm font-medium">{currentTime}</span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
         {orders.map((order) => (
-          <div key={order.id} className="border-2 border-black bg-[#F2E9DC] rounded-[20px] p-5 flex flex-col min-h-[240px] shadow-sm relative overflow-hidden">
-            
+          <div
+            key={order.id}
+            className="border-2 border-black bg-[#F2E9DC] rounded-[20px] p-5 flex flex-col justify-between min-h-[240px] shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
+          >
             {order.status !== 'ready' && order.prepareFrom && (
               <div className={`absolute top-0 right-0 px-3 py-1 text-[10px] font-black border-l-2 border-b-2 border-black 
                 ${(() => {
@@ -232,32 +257,103 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
                 {Math.floor((new Date().getTime() - new Date(order.prepareFrom!).getTime()) / 60000)} MIN EN ESPERA
               </div>
             )}
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black w-14 leading-[1.1] tracking-wide text-[#1c1c1c]">
+                    NÚMERO DE ORDEN
+                  </span>
+                  {order.tableNumber && (
+                    <span className="mt-1 bg-[#c25134] text-white text-[10px] font-black px-1.5 py-0.5 rounded-[4px] w-fit tracking-wider">
+                      MESA {order.tableNumber}
+                    </span>
+                  )}
+                </div>
 
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black w-14 leading-[1.1]">NÚMERO DE ORDEN</span>
-                {order.tableNumber && (
-                  <span className="text-[16px] font-black text-[#c25134] mt-0.5">MESA {order.tableNumber}</span>
-                )}
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-[9px] font-black px-2 py-1 rounded-[6px] text-white uppercase tracking-widest ${
+                      order.status === 'ready'
+                        ? 'bg-[#22c55e]'
+                        : order.status === 'preparing'
+                          ? 'bg-[#eab308]'
+                          : 'bg-[#ef4444]'
+                    }`}
+                  >
+                    {order.status === 'ready'
+                      ? 'Listo'
+                      : order.status === 'preparing'
+                        ? 'Preparando'
+                        : 'Pendiente'}
+                  </span>
+                  <span className="text-[22px] font-bold border-2 border-black rounded-[12px] w-12 h-10 flex items-center justify-center text-[#1c1c1c] bg-[#F2E9DC]">
+                    {order.orderNumber}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-[9px] font-black px-2 py-1 rounded-[6px] text-white uppercase ${order.status === 'ready' ? 'bg-[#22c55e]' : order.status === 'preparing' ? 'bg-[#eab308]' : 'bg-[#ef4444]'}`}>{order.status === 'ready' ? 'Listo' : order.status === 'preparing' ? 'Preparando' : 'Pendiente'}</span>
-                <span className="text-[22px] font-bold border-2 border-black rounded-[12px] w-12 h-10 flex items-center justify-center">{order.orderNumber}</span>
-              </div>
+              <ul className="space-y-3 mb-6">
+                {order.items.map((item, index) => (
+                  <li
+                    key={item.id}
+                    className={`flex justify-between items-start group ${
+                      order.status === 'ready' || item.checked ? 'cursor-default' : 'cursor-pointer'
+                    }`}
+                    onClick={() =>
+                      order.status !== 'ready' && !item.checked && void toggleItemChecked(order.id, index)
+                    }
+                  >
+                    <div className="flex flex-col pr-2">
+                      <span
+                        className={`text-[15px] font-bold transition-colors ${
+                          item.checked
+                            ? 'text-[#8c8c8c] line-through'
+                            : 'text-[#1c1c1c]'
+                        }`}
+                      >
+                        {item.quantity} {item.name}
+                      </span>
+
+                      {item.notes && (
+                        <span
+                          className={`text-[12px] italic mt-0.5 ${
+                            item.checked
+                              ? 'text-[#8c8c8c] line-through'
+                              : 'text-[#ef4444]'
+                          }`}
+                        >
+                          * {item.notes}
+                        </span>
+                      )}
+                    </div>
+
+                    <div
+                      className={`w-[18px] h-[18px] mt-1 rounded-full border-2 border-black flex shrink-0 items-center justify-center transition-colors ${
+                        item.checked
+                          ? 'bg-transparent text-[#1c1c1c]'
+                          : 'bg-transparent text-transparent'
+                      }`}
+                    >
+                      {item.checked && (
+                        <svg
+                          className="w-3 h-3 text-[#1c1c1c]"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={3}
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul className="space-y-3 mb-6">
-              {order.items.map((item, index) => (
-                <li key={item.id} className={`flex justify-between items-start ${order.status === 'ready' || item.checked ? 'cursor-default' : 'cursor-pointer'}`} onClick={() => order.status !== 'ready' && !item.checked && void toggleItemChecked(order.id, index)}>
-                  <div className="flex flex-col pr-2">
-                    <span className={`text-[15px] font-bold ${item.checked ? 'text-[#8c8c8c] line-through' : 'text-[#1c1c1c]'}`}>{item.quantity} {item.name}</span>
-                    {item.notes && <span className={`text-[12px] italic mt-0.5 ${item.checked ? 'text-[#8c8c8c] line-through' : 'text-[#ef4444]'}`}>* {item.notes}</span>}
-                  </div>
-                  <div className={`w-[18px] h-[18px] mt-1 rounded-full border-2 border-black flex items-center justify-center ${item.checked ? 'bg-transparent' : 'text-transparent'}`}>
-                    {item.checked && <svg className="w-3 h-3 text-[#1c1c1c]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                  </div>
-                </li>
-              ))}
-            </ul>
+
             <div className="flex justify-between items-center mt-auto pt-2">
               <button onClick={() => void toggleOrder(order.id)} disabled={order.status === 'ready' || !order.items.every((i) => i.checked)} className={`w-[46px] h-[24px] rounded-full flex items-center p-1 ${order.isToggled ? 'bg-[#182033]' : 'bg-[#a3aab8]'} ${order.status === 'ready' || !order.items.every((i) => i.checked) ? 'opacity-50 cursor-not-allowed' : ''}`}><div className={`w-[18px] h-[18px] rounded-full bg-[#f2e9dc] shadow-sm transition-transform ${order.isToggled ? 'translate-x-[20px]' : 'translate-x-0'}`} /></button>
               <button onClick={() => void setReady(order.id)} disabled={order.status === 'ready' || !order.items.every((i) => i.checked) || !order.isToggled} className={`text-[11px] font-bold px-4 py-1.5 rounded-[8px] border-2 ${order.isToggled ? 'bg-[#c25134] border-[#c25134] text-white' : 'bg-white border-white text-[#c25134]'} ${order.status === 'ready' || !order.items.every((i) => i.checked) || !order.isToggled ? 'opacity-50 cursor-not-allowed' : ''}`}>LISTO</button>

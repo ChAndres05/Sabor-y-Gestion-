@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { ClientNavigationKey } from '../../shared/types/client-flow.types';
+import { Sidebar } from '../../shared/components/Sidebar';
 
 interface ClienteHomePageProps {
   user: AuthUser;
@@ -19,9 +21,30 @@ export default function ClienteHomePage({
   onLogout,
   onNavigate,
 }: ClienteHomePageProps) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-primary px-4 py-8 font-sans text-white">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col">
+        <div className="flex justify-between items-center mb-6">
+          <button onClick={() => setIsSidebarOpen(true)} className="text-2xl text-white">☰</button>
+          <span className="font-bold uppercase tracking-tight">Sabor & Gestión</span>
+          <div className="w-6"></div> {/* Spacer to center title */}
+        </div>
+
+        <Sidebar 
+          isOpen={isSidebarOpen} 
+          onClose={() => setIsSidebarOpen(false)} 
+          user={user} 
+          onLogout={onLogout}
+          options={[
+            { key: 'menu', label: 'Menú', onClick: () => { onNavigate('menu'); setIsSidebarOpen(false); } },
+            { key: 'reserve-table', label: 'Reservar mesa', onClick: () => { onNavigate('reserve-table'); setIsSidebarOpen(false); } },
+            { key: 'reservations', label: 'Mis reservas', onClick: () => { onNavigate('reservations'); setIsSidebarOpen(false); } },
+            { key: 'orders', label: 'Mis pedidos', onClick: () => { onNavigate('orders'); setIsSidebarOpen(false); } }
+          ]}
+        />
+
         <div className="space-y-1">
           {clientMenuItems.map((item) => {
             const handleClick = () => {

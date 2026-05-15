@@ -435,7 +435,7 @@ export default function MenuManagementPage({
   };
 
   return (
-    <main className="bg-background px-4 py-6 text-text">
+    <main className="min-h-screen bg-background px-4 py-6 text-text flex flex-col font-sans">
       <div className="mx-auto flex w-full max-w-screen-xl flex-col">
         <div className="shrink-0">
           <button
