@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import PageSectionTitle from '../../shared/components/PageSectionTitle';
 import SectionCard from '../../shared/components/SectionCard';
 import { MOCK_CASH_HISTORY } from '../../shared/mocks/historial-caja.mock';
 
