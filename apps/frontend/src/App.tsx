@@ -148,7 +148,6 @@ function App() {
         return [];
     }
   }, [setScreen, navigateClient]);
-  }, [setScreen]);
 
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
