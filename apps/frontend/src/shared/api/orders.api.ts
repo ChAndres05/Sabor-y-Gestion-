@@ -12,11 +12,6 @@ import { emitRestaurantStateChanged } from '../utils/events';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-type BackendTableRecord = {
-  id_mesa?: number | string;
-  id?: number | string;
-};
-
 type BackendOrderRecord = Record<string, unknown>;
 
 type BackendCustomerSearchRecord = {
