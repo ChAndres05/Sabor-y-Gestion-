@@ -22,6 +22,7 @@ import TableManagementPage from './modules/tables/TableManagementPage';
 import MonitorCocinaPage from './modules/cocina/MonitorCocinaPage';
 import AdminReservationsPage from './modules/admin/AdminReservationsPage';
 import ServiceHistoryPage from './modules/history/ServiceHistoryPage';
+import CashHistoryPage from './modules/history/CashHistoryPage';
 import type { ClientNavigationKey } from './shared/types/client-flow.types';
 import { pusherClient } from './shared/utils/pusher';
 import { emitRestaurantStateChanged } from './shared/utils/events';
@@ -34,12 +35,12 @@ type AppScreen =
   | 'cocina-home' | 'cajero-home' | 'cliente-home' | 'client-menu'
   | 'client-product-detail' | 'client-reserve-table' | 'client-reservations'
   | 'client-reservation-order' | 'client-orders' | 'client-manage-order'
-  | 'admin-reservations' | 'admin-orders' | 'admin-kitchen-monitor' | 'service-history';
+  | 'admin-reservations' | 'admin-orders' | 'admin-kitchen-monitor' | 'service-history' | 'cash-history';
 
 const AUTH_STORAGE_KEY = 'gestionysabor_auth';
 
 const ROLE_PERMISSIONS: Record<string, AppScreen[]> = {
-  [USER_ROLES.ADMIN]: ['admin-menu', 'admin-users', 'menu-management', 'table-management', 'table-order', 'admin-kitchen-monitor', 'admin-reservations', 'admin-orders', 'client-reservation-order', 'mesero-orders', 'mesero-table-order', 'service-history'],
+  [USER_ROLES.ADMIN]: ['admin-menu', 'admin-users', 'menu-management', 'table-management', 'table-order', 'admin-kitchen-monitor', 'admin-reservations', 'admin-orders', 'client-reservation-order', 'mesero-orders', 'mesero-table-order', 'service-history', 'cash-history'],
   [USER_ROLES.MESERO]: ['mesero-menu', 'mesero-tables', 'mesero-table-order', 'mesero-orders', 'service-history'],
   [USER_ROLES.COCINERO]: ['cocina-home'],
   [USER_ROLES.CAJERO]: ['cajero-home'],
@@ -123,7 +124,8 @@ function App() {
           { key: 'facturacion', label: 'Facturación', onClick: () => { setScreen('cajero-home'); setSelectedCajeroView('facturacion'); setIsSidebarOpen(false); } },
           { key: 'cierre', label: 'Cierre de Caja', onClick: () => { setScreen('cajero-home'); setSelectedCajeroView('cierre'); setIsSidebarOpen(false); } },
           { key: 'usuarios', label: 'Gestión de Usuarios', onClick: () => { setScreen('admin-users'); setIsSidebarOpen(false); } },
-          { key: 'historial', label: 'Historial de Atención', onClick: () => { setScreen('service-history'); setIsSidebarOpen(false); } }
+          { key: 'historial', label: 'Historial de Atención', onClick: () => { setScreen('service-history'); setIsSidebarOpen(false); } },
+          { key: 'historial-caja', label: 'Historial de Caja', onClick: () => { setScreen('cash-history'); setIsSidebarOpen(false); } }
         ];
       case USER_ROLES.MESERO:
         return [
@@ -298,6 +300,10 @@ function App() {
 
           {screenState === 'service-history' && sessionUser && (
             <ServiceHistoryPage userRole={sessionUser.rol} userId={sessionUser.id} onBack={() => setIsSidebarOpen(true)} />
+          )}
+
+          {screenState === 'cash-history' && sessionUser && (
+            <CashHistoryPage onBack={() => setIsSidebarOpen(true)} />
           )}
 
           {screenState === 'cocina-home' && <MonitorCocinaPage onBack={() => setIsSidebarOpen(true)} />}
