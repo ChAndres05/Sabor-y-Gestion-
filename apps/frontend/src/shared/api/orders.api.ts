@@ -176,15 +176,6 @@ export const ordersApi = {
    * Lista pedidos activos para mesero/admin desde backend.
    */
   async listActiveOrders(): Promise<TableOrder[]> {
-    const tables = await tryJson<BackendTableRecord[]>(
-      `${API_URL}/api/mesas?t=${Date.now()}`,
-      { cache: 'no-store' }
-    );
-    const validIds = new Set(
-      Array.isArray(tables)
-        ? tables.map((table) => Number(table.id_mesa ?? table.id))
-        : []
-    );
     const backendData = await tryJson<BackendOrderRecord[]>(
       `${API_URL}/api/pedidos/activos?t=${Date.now()}`,
       { cache: 'no-store' }
@@ -194,8 +185,7 @@ export const ordersApi = {
     return backendOrders.filter(
       (order) =>
         order.estado !== 'PAGADO' &&
-        order.estado !== 'CANCELADO' &&
-        (validIds.size === 0 || validIds.has(order.tableId))
+        order.estado !== 'CANCELADO'
     );
   },
 
@@ -271,15 +261,6 @@ export const ordersApi = {
    * Obtiene los pedidos abiertos de una mesa desde backend.
    */
   async getOpenOrdersByTable(tableId: number): Promise<TableOrder[]> {
-    const tables = await tryJson<BackendTableRecord[]>(
-      `${API_URL}/api/mesas?t=${Date.now()}`,
-      { cache: 'no-store' }
-    );
-    const tableExists = Array.isArray(tables)
-      ? tables.some((table) => Number(table.id_mesa ?? table.id) === Number(tableId))
-      : true;
-
-    if (!tableExists) return [];
     const backendData = await tryJson<BackendOrderRecord | BackendOrderRecord[]>(
       `${API_URL}/api/pedidos/mesa/${tableId}?t=${Date.now()}`,
       { cache: 'no-store' }
