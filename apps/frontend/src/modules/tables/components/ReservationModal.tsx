@@ -9,7 +9,8 @@ interface ReservationModalProps {
   tableId: number;
   tableNumber: number;
   tableCapacity: number; // Capacidad definida en la base de datos
-  waiterId: number; // ID del mesero que registra
+  waiterId: number; // ID del mesero o cliente que registra
+  isClientRole?: boolean; // Si es true, omite el paso 2
 }
 
 const MONTHS = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
@@ -21,7 +22,8 @@ export function ReservationModal({
   tableId, 
   tableNumber, 
   tableCapacity, 
-  waiterId 
+  waiterId,
+  isClientRole = false
 }: ReservationModalProps) {
   const [step, setStep] = useState<'TIME' | 'CLIENT'>('TIME');
   
@@ -99,15 +101,17 @@ export function ReservationModal({
       const formattedDate = `${currentYear}-${String(monthIdx).padStart(2, '0')}-${dia.padStart(2, '0')}`;
       
       const payload = {
-        userId: customerData.id, // null si es invitado
-        id_usuario_registro: waiterId,
+        userId: isClientRole ? waiterId : customerData.id, // si es cliente, él mismo es el userId
+        registeredById: waiterId,
         table: { id: tableId },
         date: formattedDate,
         time: horaInicio,
         people: tableCapacity, // Siempre usa la capacidad total de la mesa
-        observations: customerData.id 
-          ? 'Reserva de cliente registrado.' 
-          : `INVITADO: ${customerData.nombre} ${customerData.apellido} | CI: ${ci} | Correo: ${customerData.contacto}`
+        observations: isClientRole 
+          ? 'Reserva creada desde el panel de cliente.'
+          : (customerData.id 
+            ? 'Reserva de cliente registrado.' 
+            : `INVITADO: ${customerData.nombre} ${customerData.apellido} | CI: ${ci} | Correo: ${customerData.contacto}`)
       };
 
       // Usamos 'never' para evitar el error de 'any' en el lint
@@ -175,10 +179,11 @@ export function ReservationModal({
               </div>
 
               <button 
-                onClick={() => setStep('CLIENT')}
-                className="w-full bg-[#c25134] text-white py-3.5 rounded-[12px] font-black border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] uppercase text-[13px] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all"
+                onClick={isClientRole ? handleFinalConfirm : () => setStep('CLIENT')}
+                disabled={isSubmitting}
+                className="w-full bg-[#c25134] text-white py-3.5 rounded-[12px] font-black border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] uppercase text-[13px] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all disabled:opacity-50"
               >
-                Siguiente
+                {isSubmitting ? 'Procesando...' : (isClientRole ? 'Confirmar Reserva' : 'Siguiente')}
               </button>
             </div>
           </div>

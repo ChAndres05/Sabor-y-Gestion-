@@ -277,7 +277,7 @@ function App() {
           {screenState === 'admin-users' && <UsersPage onBack={() => setIsSidebarOpen(true)} />}
           {screenState === 'menu-management' && <MenuManagementPage onBack={() => setIsSidebarOpen(true)} />}
           {screenState === 'admin-kitchen-monitor' && <MonitorCocinaPage onBack={() => setIsSidebarOpen(true)} />}
-          {screenState === 'table-management' && <TableManagementPage role="ADMIN" onBack={() => setIsSidebarOpen(true)} onOpenTableOrder={(tableId) => setScreen('table-order', { tableId })} />}
+          {screenState === 'table-management' && sessionUser && <TableManagementPage role="ADMIN" user={sessionUser} onBack={() => setIsSidebarOpen(true)} onOpenTableOrder={(tableId) => setScreen('table-order', { tableId })} />}
           {screenState === 'table-order' && sessionUser && selectedTableId !== null && (
             <MeseroOrderFlowPage user={sessionUser} tableId={selectedTableId} onBack={() => setScreen('table-management')} />
           )}
@@ -285,7 +285,7 @@ function App() {
           {screenState === 'mesero-menu' && sessionUser && accessToken && (
             <MeseroHomePage user={sessionUser} onLogout={handleLogout} onOpenTables={() => setScreen('mesero-tables')} onOpenOrders={() => setScreen('mesero-orders')} />
           )}
-          {screenState === 'mesero-tables' && <TableManagementPage role="MESERO" onBack={() => setIsSidebarOpen(true)} onOpenTableOrder={(tableId) => setScreen('mesero-table-order', { tableId })} />}
+          {screenState === 'mesero-tables' && sessionUser && <TableManagementPage role="MESERO" user={sessionUser} onBack={() => setIsSidebarOpen(true)} onOpenTableOrder={(tableId) => setScreen('mesero-table-order', { tableId })} />}
           {screenState === 'mesero-table-order' && sessionUser && selectedTableId !== null && (
             <MeseroOrderFlowPage user={sessionUser} tableId={selectedTableId} onBack={() => setScreen('mesero-tables')} onOpenOrders={() => setScreen('mesero-orders')} />
           )}
@@ -315,7 +315,20 @@ function App() {
             <ClientReservationsPage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onBack={() => setScreen('cliente-home')} onOpenReservationOrder={(resId) => setScreen('client-reservation-order', { reservationId: resId })} />
           )}
           {screenState === 'client-reservation-order' && sessionUser && selectedReservationId !== null && (
-            <ClientReservationOrderPage user={sessionUser} reservationId={selectedReservationId} onBack={() => setScreen('client-reservations')} onNavigateToOrders={() => navigateClient('orders')} />
+            <ClientReservationOrderPage 
+              user={sessionUser} 
+              reservationId={selectedReservationId} 
+              onBack={() => {
+                if (sessionUser.rol === USER_ROLES.ADMIN) setScreen('admin-reservations');
+                else if (sessionUser.rol === USER_ROLES.MESERO) setScreen('mesero-tables');
+                else setScreen('client-reservations');
+              }} 
+              onNavigateToOrders={() => {
+                if (sessionUser.rol === USER_ROLES.ADMIN) setScreen('admin-orders');
+                else if (sessionUser.rol === USER_ROLES.MESERO) setScreen('mesero-orders');
+                else navigateClient('orders');
+              }} 
+            />
           )}
           {screenState === 'client-orders' && sessionUser && (
             <ClientOrdersPage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onBack={() => setScreen('cliente-home')} onManageOrder={(tableId) => setScreen('client-manage-order', { tableId })} />

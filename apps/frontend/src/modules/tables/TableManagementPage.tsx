@@ -62,6 +62,7 @@ export default function TableManagementPage({
   onBack,
   onOpenTableOrder,
   user,
+  onNavigate,
 }: TableManagementPageProps) {
   const isAdmin = role === 'ADMIN';
   
@@ -326,11 +327,18 @@ export default function TableManagementPage({
         <ReservationModal 
           open={Boolean(reservingTable)} 
           onClose={() => setReservingTable(null)} 
-          onSuccess={() => { void loadTables(true); }} 
+          onSuccess={() => {
+            if (role === 'CLIENTE' && onNavigate) {
+              onNavigate('reservations');
+            } else {
+              void loadTables(true);
+            }
+          }} 
           tableId={reservingTable.id} 
           tableNumber={reservingTable.numero} 
           tableCapacity={reservingTable.capacidad} 
           waiterId={user?.id || 1} 
+          isClientRole={role === 'CLIENTE'}
         />
       )}
 

@@ -66,10 +66,10 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
       const data = (await response.json()) as BackendPedido[];
       const checkedData = getCheckedItemsFromStorage();
       
-      // 🛡️ Filtramos los pedidos que ya no pertenecen a cocina para evitar parpadeos
+      // Filtramos pedidos ya completados/cancelados que no pertenecen al monitor
       const pedidosListosParaCocina = data.filter((o) => {
         const estadoActual = o.estado?.toUpperCase();
-        return estadoActual && !['REGISTRADO', 'ENTREGADO', 'PAGADO', 'CANCELADO'].includes(estadoActual);
+        return estadoActual && !['ENTREGADO', 'PAGADO', 'CANCELADO'].includes(estadoActual);
       });
 
       setOrders((prevOrders) =>

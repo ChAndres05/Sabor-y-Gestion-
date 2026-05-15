@@ -145,7 +145,7 @@ export default function MeseroOrdersPage({ user, onBack, onOpenOrder }: MeseroOr
     try {
       const orderToUpdate = orders.find(o => o.tableId === tableId && !isCompletedOrder(o));
       if (orderToUpdate) {
-        await ordersApi.updateOrderStatus(orderToUpdate.id, status, tableId);
+        await ordersApi.updateOrderStatus(orderToUpdate.id, status, tableId, user.id);
       }
       await tablesApi.updateStatus(tableId, 'OCUPADA');
       await loadData(true);
