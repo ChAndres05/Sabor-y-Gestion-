@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { pusherServer } from '@/lib/pusher';
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -10,7 +11,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const body = await request.json();
-    // Podría recibir el id del usuario que hace el envío (mesero) para el historial
     const { id_usuario } = body; 
 
     // Buscar un cocinero disponible (esto es simplificado, en un caso real se asigna al turno o área)
@@ -34,13 +34,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     // Usar transacción para actualizar estado, crear asignación e historial
     const resultado = await prisma.$transaction(async (tx) => {
-      // 1. Actualizar estado del pedido
+      // 1. Actualizar estado del pedido a EN_PREPARACION
       const pedidoActualizado = await tx.pedidos.update({
         where: { id_pedido },
-        data: { estado: 'COCINA' }
+        data: { estado: 'EN_PREPARACION' },
+        include: {
+          mesa: true,
+          detalles_pedido: {
+            include: {
+              presentacion_producto: {
+                include: { producto: true }
+              }
+            }
+          }
+        }
       });
 
-      // 2. Crear asignación de cocina
+      // 2. Crear asignación de cocina en asignaciones_cocina_pedido
       const asignacion = await tx.asignaciones_cocina_pedido.create({
         data: {
           id_pedido,
@@ -50,13 +60,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         }
       });
 
-      // 3. Crear historial si se proporcionó un usuario (mesero)
+      // 3. Crear historial si se proporcionó un usuario (mesero/admin)
       if (id_usuario) {
         await tx.historial_estados_pedido.create({
           data: {
             id_pedido,
             id_usuario,
-            estado: 'COCINA',
+            estado: 'EN_PREPARACION',
             observaciones: 'Pedido enviado a cocina'
           }
         });
@@ -65,9 +75,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return { pedido: pedidoActualizado, asignacion };
     });
 
+    // Emitir evento Pusher al monitor de cocina (nuevo-pedido) y a mesas/meseros
+    await pusherServer.trigger('cocina-channel', 'nuevo-pedido', resultado.pedido);
+    await pusherServer.trigger('tables-channel', 'table-order-updated', resultado.pedido);
+
     return NextResponse.json(resultado, { status: 200 });
   } catch (error) {
     console.error('Error enviando pedido a cocina:', error);
     return NextResponse.json({ error: 'Error interno del servidor al enviar a cocina' }, { status: 500 });
   }
 }
+

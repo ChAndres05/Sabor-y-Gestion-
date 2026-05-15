@@ -157,6 +157,7 @@ export default function ClientReservationOrderPage({
     // 🛡️ SOLUCIÓN TS: Construimos exactamente lo que exige `ClientOrderItem`
     const newItem: ClientOrderItem = {
       id: selectedProduct.id, 
+      presentacionId: selectedProduct.presentacionId,
       name: selectedProduct.nombre,
       quantity: Number(quantity),
       unitPrice: selectedProduct.precio,

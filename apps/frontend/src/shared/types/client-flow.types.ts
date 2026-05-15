@@ -21,7 +21,8 @@ export interface ClientReservation {
 }
 
 export interface ClientReservationRequest {
-  userId: number;
+  userId: number | null;
+  registeredById?: number;
   table: RestaurantTable;
   zone?: Zone;
   people: number;
@@ -39,6 +40,7 @@ export interface ClientOrderIngredient {
 
 export interface ClientOrderItem {
   id: number;
+  presentacionId?: number;
   name: string;
   quantity: number;
   notes?: string;

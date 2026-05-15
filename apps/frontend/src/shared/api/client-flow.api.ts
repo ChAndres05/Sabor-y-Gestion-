@@ -63,7 +63,7 @@ export const clientFlowApi = {
       body: JSON.stringify({
         id_usuario_cliente: payload.userId,
         id_mesa: payload.table.id,
-        id_usuario_registro: payload.userId,
+        id_usuario_registro: payload.registeredById ?? payload.userId,
         fecha_hora_reserva: `${payload.date}T${payload.time}:00Z`,
         cantidad_personas: payload.people,
         observaciones: payload.observations,
@@ -101,7 +101,7 @@ export const clientFlowApi = {
         id_reserva: payload.reservationId,
         observaciones: payload.notes,
         detalles: payload.items.map((item) => ({
-          id_presentacion_producto: item.id,
+          id_presentacion_producto: item.presentacionId ?? item.id,
           cantidad: item.quantity,
           precio_unitario: item.unitPrice,
           subtotal: item.subtotal,

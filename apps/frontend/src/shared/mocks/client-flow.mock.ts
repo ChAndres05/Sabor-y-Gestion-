@@ -147,7 +147,7 @@ export async function createClientReservationMock(
 
   const newReservation: ClientReservation = {
     id: getNextId(current, 1000),
-    userId: payload.userId,
+    userId: payload.userId ?? 0,
     tableId: payload.table.id,
     tableNumber: payload.table.numero,
     zoneName: payload.zone?.nombre ?? 'Sin zona',

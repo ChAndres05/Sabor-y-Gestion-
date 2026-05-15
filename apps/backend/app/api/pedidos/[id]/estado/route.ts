@@ -83,6 +83,23 @@ export async function PATCH(
         });
       }
 
+      // E. Lógica de RESERVAS: Si se entrega o paga, la reserva cumplió su objetivo
+      if ((estado === 'ENTREGADO' || estado === 'PAGADO') && pedidoActualizado.id_mesa) {
+        const reservasActivas = await tx.reservas.findMany({
+          where: {
+            id_mesa: pedidoActualizado.id_mesa,
+            estado: 'CONFIRMADA'
+          }
+        });
+
+        for (const r of reservasActivas) {
+          await tx.reservas.update({
+            where: { id_reserva: r.id_reserva },
+            data: { estado: 'COMPLETADA' }
+          });
+        }
+      }
+
       return pedidoActualizado;
     },
       // 👇 Solución al error de timeout P2028 en Supabase

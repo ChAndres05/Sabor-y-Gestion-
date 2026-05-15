@@ -9,6 +9,7 @@ import { mapBackendOrderToWaiterFrontend } from '../mappers/order.mapper';
 import type { KitchenOrder } from '../types/kitchen.types';
 import { listClientOrdersMock } from '../mocks/client-flow.mock';
 import { emitRestaurantStateChanged } from '../utils/events';
+import { cocinaApi } from '../../modules/cocina/api/cocina.api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -433,11 +434,13 @@ export const ordersApi = {
 
   /**
    * Actualiza el estado de un pedido en backend.
+   * Si el estado es EN_PREPARACION, también registra la asignación en cocina.
    */
   async updateOrderStatus(
     orderId: number,
     status: TableOrderStatus,
-    tableId: number
+    tableId: number,
+    userId?: number
   ): Promise<void> {
     const openOrders = await this.getOpenOrdersByTable(tableId);
     const targetOrder = getTargetOrder(openOrders, orderId);
@@ -446,16 +449,21 @@ export const ordersApi = {
       throw new Error('No hay un pedido activo para esta mesa.');
     }
 
-    // Llamada directa, exacta y limpia a la ruta de tu backend
-    await requestOk(
-      `${API_URL}/api/pedidos/${targetOrder.id}/estado`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: status }),
-      },
-      'No se pudo actualizar el estado del pedido.'
-    );
+    // Si se envía a cocina, usar el endpoint especializado que guarda en asignaciones_cocina_pedido
+    if (status === 'EN_PREPARACION') {
+      await cocinaApi.sendToKitchen(targetOrder.id, userId);
+    } else {
+      // Para otros estados, usar el endpoint de estado normal
+      await requestOk(
+        `${API_URL}/api/pedidos/${targetOrder.id}/estado`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: status, id_usuario: userId }),
+        },
+        'No se pudo actualizar el estado del pedido.'
+      );
+    }
 
     emitRestaurantStateChanged();
   },

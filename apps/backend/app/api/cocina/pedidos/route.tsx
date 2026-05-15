@@ -3,35 +3,50 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET() {
     try {
-        // Buscamos solo los pedidos que importan a la cocina
-        const pedidosCocina = await prisma.pedidos.findMany({
+        // Cargamos pedidos que tienen una asignación activa de cocina (estado != CANCELADO/COMPLETADO)
+        const asignaciones = await prisma.asignaciones_cocina_pedido.findMany({
             where: {
-                estado: {
-                    in: ['REGISTRADO', 'EN_PREPARACION']
+                estado_asignacion: {
+                    notIn: ['CANCELADO', 'COMPLETADO']
+                },
+                pedido: {
+                    estado: {
+                        notIn: ['CANCELADO', 'PAGADO', 'ENTREGADO']
+                    }
                 }
             },
-            // Hacemos los includes exactos que tu frontend espera leer
             include: {
-                mesa: true,
-                detalles_pedido: {
+                pedido: {
                     include: {
-                        presentacion_producto: {
+                        mesa: true,
+                        detalles_pedido: {
                             include: {
-                                producto: true
+                                presentacion_producto: {
+                                    include: {
+                                        producto: true
+                                    }
+                                }
                             }
                         }
                     }
                 }
             },
-            // Ordenamos por los más antiguos primero
             orderBy: {
-                fecha_hora_pedido: 'asc'
+                fecha_hora_asignacion: 'asc'
             }
         });
+
+        // Mapeamos para devolver solo el pedido con datos de cocina
+        const pedidosCocina = asignaciones.map(a => ({
+            ...a.pedido,
+            id_asignacion: a.id_asignacion_cocina_pedido,
+            estado_asignacion: a.estado_asignacion,
+            fecha_pedido: a.pedido.fecha_hora_pedido,
+        }));
 
         return NextResponse.json(pedidosCocina);
     } catch (error) {
         console.error("Error al obtener pedidos para cocina:", error);
         return NextResponse.json({ error: 'Error interno al cargar los pedidos' }, { status: 500 });
     }
-}
+}
