@@ -178,7 +178,7 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {mesasFacturacion.map(mesa => (
-                  <button key={mesa.id_mesa} onClick={() => setMesaSeleccionada(mesa)} className={`p-6 rounded-3xl shadow-lg text-white text-left relative overflow-hidden transition-all hover:scale-105 ${mesa.estado === 'CUENTA_SOLICITADA' ? 'bg-[var(--color-process)]' : 'bg-[var(--color-primary)]'}`}>
+                  <button key={mesa.id_mesa} onClick={() => setMesaSeleccionada(mesa)} disabled={mesa.estado !== 'CUENTA_SOLICITADA'} className={`p-6 rounded-3xl shadow-lg text-white text-left relative overflow-hidden transition-all hover:scale-105 ${mesa.estado === 'CUENTA_SOLICITADA' ? 'bg-[var(--color-process)]' : 'bg-gray-400 opacity-60 cursor-not-allowed'}`}>
                     <div className="flex justify-between items-start">
                       <h3 className="font-bold text-2xl mb-1">Mesa {mesa.numero}</h3>
                       {mesa.estado === 'CUENTA_SOLICITADA' && (
