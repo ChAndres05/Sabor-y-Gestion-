@@ -5,18 +5,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ tabl
   try {
     const { tableId: idParam } = await params;
     const id_mesa = parseInt(idParam, 10);
-    
+
     if (isNaN(id_mesa)) {
       return NextResponse.json({ error: 'ID de mesa inválido' }, { status: 400 });
     }
 
-    const pedido = await prisma.pedidos.findFirst({
+    // --- CAMBIO CLAVE: Usamos findMany para traer TODOS los pedidos activos de la mesa ---
+    const pedidos = await prisma.pedidos.findMany({
       where: {
         id_mesa,
         estado: {
           notIn: ['PAGADO', 'CANCELADO']
         }
       },
+      // --- MANTENEMOS TUS INCLUDES INTACTOS PARA NO ROMPER EL FRONTEND ---
       include: {
         usuarios_pedidos_id_usuario_clienteTousuarios: true,
         usuario_mesero: true,
@@ -34,18 +36,22 @@ export async function GET(request: Request, { params }: { params: Promise<{ tabl
           }
         }
       },
+      // Ordenamos ascendente para agrupar lógicamente: Pedido 1 primero, Pedido 2 después...
       orderBy: {
-        fecha_hora_pedido: 'desc'
+        fecha_hora_pedido: 'asc'
       }
     });
 
-    if (!pedido) {
-      return NextResponse.json(null);
+    // Si no hay pedidos en la mesa, devolvemos un arreglo vacío
+    if (!pedidos || pedidos.length === 0) {
+      return NextResponse.json([]);
     }
 
-    return NextResponse.json(pedido);
-  } catch (error) {
-    console.error('Error obteniendo pedido por mesa:', error);
+    // Devolvemos el arreglo completo de pedidos (El frontend ya lo sabe leer)
+    return NextResponse.json(pedidos);
+  } catch (error: unknown) { // <-- LINT FIX: Cambiado a unknown
+    const errorMessage = error instanceof Error ? error.message : "Error desconocido";
+    console.error('Error obteniendo pedidos por mesa:', errorMessage);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }

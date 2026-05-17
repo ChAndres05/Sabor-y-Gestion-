@@ -11,6 +11,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'id_mesa y id_usuario_mesero son requeridos' }, { status: 400 });
     }
 
+    // --- NUEVO: REGLA DE NEGOCIO PARA PROTEGER LA CUENTA ---
+    // Verificamos el estado actual de la mesa antes de crear cualquier pedido
+    const mesaActual = await prisma.mesas.findUnique({
+      where: { id_mesa: Number(id_mesa) }
+    });
+
+    if (mesaActual?.estado === 'CUENTA_SOLICITADA') {
+      return NextResponse.json(
+        { error: 'La cuenta ya fue solicitada. No se pueden agregar pedidos adicionales a esta mesa.' },
+        { status: 400 }
+      );
+    }
+    // -------------------------------------------------------
+
     let tipoPedido = await prisma.tipos_pedido.findFirst({
       where: { nombre: { contains: 'LOCAL', mode: 'insensitive' } }
     });
@@ -40,6 +54,7 @@ export async function POST(request: Request) {
     }
 
     // Usar transacción para crear pedido y actualizar estado de la mesa
+    // Nota: Esto funciona perfectamente para pedidos adicionales, si la mesa ya está 'OCUPADA', simplemente se mantiene 'OCUPADA'.
     const [nuevoPedido] = await prisma.$transaction([
       prisma.pedidos.create({
         data: {
@@ -68,8 +83,9 @@ export async function POST(request: Request) {
     await pusherServer.trigger('cocina-channel', 'nuevo-pedido', nuevoPedido);
 
     return NextResponse.json(nuevoPedido, { status: 201 });
-  } catch (error) {
-    console.error('Error creando pedido:', error);
+  } catch (error: unknown) { // <-- NUEVO: typed as unknown para evitar el lint error
+    const errorMessage = error instanceof Error ? error.message : "Error desconocido";
+    console.error('Error creando pedido:', errorMessage);
     return NextResponse.json({ error: 'Error interno del servidor al crear el pedido' }, { status: 500 });
   }
 }
