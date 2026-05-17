@@ -129,7 +129,7 @@ export default function MeseroOrdersPage({ user, onBack, onOpenOrder }: MeseroOr
   }, [loadData]);
 
   const visibleOrders = useMemo(() => {
-    return orders.filter((order) => 
+    return orders.filter((order) =>
       activeTab === 'activos' ? !isCompletedOrder(order) : isCompletedOrder(order)
     );
   }, [activeTab, orders]);
@@ -263,15 +263,15 @@ export default function MeseroOrdersPage({ user, onBack, onOpenOrder }: MeseroOr
                   </div>
 
                   <div className="space-y-2 mt-auto">
-                    <button 
-                      onClick={() => onOpenOrder(order.tableId)} 
+                    <button
+                      onClick={() => onOpenOrder(order.tableId)}
                       className="w-full rounded-xl border border-primary py-3 text-[13px] font-bold text-primary hover:bg-primary/5 transition-colors"
                     >
                       Gestionar pedido
                     </button>
 
                     {order.estado === 'REGISTRADO' && (
-                      <button 
+                      <button
                         onClick={() => void handleChangeOrderStatus(order.tableId, 'EN_PREPARACION')}
                         disabled={isBusy}
                         className="w-full rounded-xl bg-primary py-3 text-[13px] font-bold text-white shadow-md disabled:opacity-50"
@@ -281,7 +281,7 @@ export default function MeseroOrdersPage({ user, onBack, onOpenOrder }: MeseroOr
                     )}
 
                     {(order.estado === 'LISTO' || order.estado === 'EN_CAMINO') && (
-                      <button 
+                      <button
                         onClick={() => void handleChangeOrderStatus(order.tableId, 'ENTREGADO')}
                         disabled={isBusy}
                         className="w-full rounded-xl bg-success py-3 text-[13px] font-bold text-white shadow-md disabled:opacity-50"
@@ -291,7 +291,7 @@ export default function MeseroOrdersPage({ user, onBack, onOpenOrder }: MeseroOr
                     )}
 
                     {order.estado === 'ENTREGADO' && !isBillRequested && (
-                      <button 
+                      <button
                         onClick={() => void handleRequestBill(order.tableId)}
                         disabled={isBusy}
                         className="w-full rounded-xl bg-process py-3 text-[13px] font-bold text-white shadow-md"
@@ -307,12 +307,12 @@ export default function MeseroOrdersPage({ user, onBack, onOpenOrder }: MeseroOr
         )}
       </div>
 
-      <FeedbackModal 
-        open={Boolean(feedback)} 
-        title={feedback?.title ?? ''} 
-        message={feedback?.message ?? ''} 
-        type={feedback?.type ?? 'info'} 
-        onClose={() => setFeedback(null)} 
+      <FeedbackModal
+        open={Boolean(feedback)}
+        title={feedback?.title ?? ''}
+        message={feedback?.message ?? ''}
+        type={feedback?.type ?? 'info'}
+        onClose={() => setFeedback(null)}
       />
     </main>
   );

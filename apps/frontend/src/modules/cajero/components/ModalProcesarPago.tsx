@@ -1,21 +1,21 @@
 import React, { useState } from 'react';
-import type { DetallePedidoMock } from '../../../shared/mocks/cajaMocks';
 import { MOCK_CUPONES } from '../../../shared/mocks/cuponesMocks';
 import type { PagoConfirmacion } from '../types';
+import type { TableOrderItem } from '../../tables/types/table-order.types';
 
 interface ModalProcesarPagoProps {
   numeroMesa: number;
-  detalles: DetallePedidoMock[];
+  detalles: TableOrderItem[]; // <-- AQUÍ QUITAMOS EL MOCK, USAMOS DATOS REALES
   onClose: () => void;
   onConfirmarPago: (datos: PagoConfirmacion) => void;
   ci_cliente?: string;
   nombre_cliente?: string;
 }
 
-export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({ 
-  numeroMesa, 
-  detalles, 
-  onClose, 
+export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
+  numeroMesa,
+  detalles,
+  onClose,
   onConfirmarPago,
   ci_cliente,
   nombre_cliente
@@ -33,11 +33,11 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
     setMontoRecibido(value < 0 ? 0 : value);
   };
 
-  // 2. Lógica de validación de cupones desde Mocks
+  // 2. Lógica de validación de cupones
   const subtotal = detalles.reduce((acc, item) => acc + item.subtotal, 0);
   const cuponEncontrado = MOCK_CUPONES.find(c => c.codigo === codigoDescuento.toUpperCase());
   const montoDescuento = cuponEncontrado ? subtotal * cuponEncontrado.descuento : 0;
-  
+
   const totalFinal = subtotal - montoDescuento;
   const ivaInformativo = totalFinal * 0.13; // 13% IVA informativo
   const cambio = montoRecibido > totalFinal ? montoRecibido - totalFinal : 0;
@@ -68,11 +68,11 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
         </div>
 
         <div className="p-8 space-y-6 max-h-[75vh] overflow-y-auto">
-          {/* Resumen de Items */}
+          {/* Resumen de Items (Usando propiedades del backend real) */}
           <div className="space-y-3">
             {detalles.map((item) => (
-              <div key={item.id_detalle_pedido} className="flex justify-between text-sm border-b border-dashed pb-2">
-                <span className="text-gray-600 font-medium">{item.cantidad}x {item.nombre_producto}</span>
+              <div key={item.id} className="flex justify-between text-sm border-b border-dashed pb-2">
+                <span className="text-gray-600 font-medium">{item.cantidad}x {item.nombreProducto}</span>
                 <span className="font-bold text-[var(--color-text)]">Bs {item.subtotal.toFixed(2)}</span>
               </div>
             ))}
@@ -82,8 +82,8 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">CI / NIT</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={ciCliente}
                 onChange={(e) => setCiCliente(e.target.value)}
                 placeholder="1234567"
@@ -92,8 +92,8 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
             </div>
             <div>
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Nombre Cliente</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={nombreCliente}
                 onChange={(e) => setNombreCliente(e.target.value)}
                 placeholder="Juan Perez"
@@ -126,14 +126,14 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
 
           {/* Selector de Método */}
           <div className="grid grid-cols-2 gap-4">
-            <button 
+            <button
               onClick={() => setMetodoPago('EFECTIVO')}
               className={`p-4 rounded-3xl border-2 transition-all flex flex-col items-center gap-1 ${metodoPago === 'EFECTIVO' ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5 ring-4 ring-[var(--color-primary)]/10' : 'border-gray-100 opacity-60'}`}
             >
               <span className="text-2xl">💵</span>
               <span className="font-black text-[10px] uppercase tracking-widest">Efectivo</span>
             </button>
-            <button 
+            <button
               onClick={() => setMetodoPago('TRANSFERENCIA')}
               className={`p-4 rounded-3xl border-2 transition-all flex flex-col items-center gap-1 ${metodoPago === 'TRANSFERENCIA' ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5 ring-4 ring-[var(--color-primary)]/10' : 'border-gray-100 opacity-60'}`}
             >
@@ -147,8 +147,8 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
             <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
               <div>
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Monto Recibido</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   min="0"
                   onKeyDown={(e) => ["-", "+", "e", "E"].includes(e.key) && e.preventDefault()}
                   onChange={handleMontoChange}
@@ -169,8 +169,8 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
               </div>
               <div>
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Número de Referencia</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={referenciaPago}
                   onChange={(e) => setReferenciaPago(e.target.value)}
                   placeholder="Ej: TRANS-98765"
@@ -183,8 +183,8 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
           {/* Cupón */}
           <div className="relative">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Cupón de Descuento</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Ingresa un código..."
               className={`w-full p-4 bg-gray-50 rounded-2xl text-sm font-bold outline-none transition-all border-2 ${cuponEncontrado ? 'border-[var(--color-success)] bg-[var(--color-success)]/5' : 'border-transparent focus:border-gray-200'}`}
               onChange={(e) => setCodigoDescuento(e.target.value)}
@@ -197,7 +197,7 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
 
         {/* Botón de Acción */}
         <div className="p-8 bg-gray-50/50 border-t border-gray-100">
-          <button 
+          <button
             disabled={metodoPago === 'EFECTIVO' && montoRecibido < totalFinal}
             className="w-full py-5 bg-[var(--color-primary)] text-white font-black rounded-[2rem] shadow-xl hover:bg-[var(--color-primary-hover)] transition-all uppercase tracking-widest disabled:opacity-30 disabled:grayscale"
             onClick={handleConfirmar}

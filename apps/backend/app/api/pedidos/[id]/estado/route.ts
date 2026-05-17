@@ -4,7 +4,6 @@ import { pusherServer } from '@/lib/pusher';
 
 export async function PATCH(
   request: Request,
-  // Usamos el formato moderno de Next.js para params (Promise)
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -16,15 +15,50 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    // Unificamos las variables. 'id_usuario' puede ser el cocinero, cajero o mesero.
     const { estado, id_usuario, observaciones } = body;
 
     if (!estado) {
       return NextResponse.json({ error: 'El estado es requerido' }, { status: 400 });
     }
 
-    // 1. Iniciar una transacción para asegurar consistencia
     const resultado = await prisma.$transaction(async (tx) => {
+
+      const pedidoOriginal = await tx.pedidos.findUnique({ where: { id_pedido } });
+      if (!pedidoOriginal) throw new Error("PEDIDO_NO_ENCONTRADO");
+
+      // 🛑 OPTIMIZACIÓN DE VELOCIDAD: Cálculo Nativo en Base de Datos
+      if (estado === 'CUENTA_SOLICITADA' && pedidoOriginal.id_mesa) {
+
+        // Hacemos que la BD cuente (SQL COUNT) directamente, es 10x más rápido que descargar los datos
+        const cantidadIncompletos = await tx.pedidos.count({
+          where: {
+            id_mesa: pedidoOriginal.id_mesa,
+            estado: {
+              notIn: ['ENTREGADO', 'CUENTA_SOLICITADA', 'PAGADO', 'CANCELADO']
+            }
+          }
+        });
+
+        // Si la BD responde que hay 1 o más platos en cocina, aborta inmediatamente
+        if (cantidadIncompletos > 0) {
+          throw new Error("PEDIDOS_INCOMPLETOS_PARA_CUENTA");
+        }
+
+        // Si llega aquí, todo está entregado. Actualizamos masivamente.
+        await tx.pedidos.updateMany({
+          where: {
+            id_mesa: pedidoOriginal.id_mesa,
+            estado: { notIn: ['PAGADO', 'CANCELADO'] }
+          },
+          data: { estado: 'CUENTA_SOLICITADA' }
+        });
+
+        await tx.mesas.update({
+          where: { id_mesa: pedidoOriginal.id_mesa },
+          data: { estado: 'CUENTA_SOLICITADA' }
+        });
+      }
+      // -------------------------------------------------------------
 
       // A. Actualizar el estado general del pedido
       const pedidoActualizado = await tx.pedidos.update({
@@ -38,7 +72,7 @@ export async function PATCH(
         }
       });
 
-      // B. Si nos envían el id_usuario, guardamos el historial
+      // B. Guardar en el historial
       if (id_usuario) {
         await tx.historial_estados_pedido.create({
           data: {
@@ -50,13 +84,12 @@ export async function PATCH(
         });
       }
 
-      // C. Lógica específica de la COCINA (Asignaciones)
+      // C. Lógica de la COCINA
       if (estado === 'EN_PREPARACION' && id_usuario) {
         await tx.asignaciones_cocina_pedido.create({
           data: {
             id_pedido,
             id_usuario_cocinero: id_usuario,
-            // 👇 ¡AQUÍ ESTÁ EL CAMBIO! Usamos 'ASIGNADO' en lugar de 'PREPARANDO'
             estado_asignacion: 'ASIGNADO',
             fecha_hora_inicio_preparacion: new Date(),
           }
@@ -75,7 +108,7 @@ export async function PATCH(
         });
       }
 
-      // D. Lógica de MESAS (Liberar si se paga o cancela)
+      // D. Lógica de MESAS
       if ((estado === 'PAGADO' || estado === 'CANCELADO') && pedidoActualizado.id_mesa) {
         await tx.mesas.update({
           where: { id_mesa: pedidoActualizado.id_mesa },
@@ -83,7 +116,7 @@ export async function PATCH(
         });
       }
 
-      // E. Lógica de RESERVAS: Si se entrega o paga, la reserva cumplió su objetivo
+      // E. Lógica de RESERVAS
       if ((estado === 'ENTREGADO' || estado === 'PAGADO') && pedidoActualizado.id_mesa) {
         const reservasActivas = await tx.reservas.findMany({
           where: {
@@ -102,25 +135,36 @@ export async function PATCH(
 
       return pedidoActualizado;
     },
-      // 👇 Solución al error de timeout P2028 en Supabase
       {
-        maxWait: 5000, // Espera hasta 5 segundos para conseguir una conexión
-        timeout: 10000 // Permite que la transacción completa dure hasta 10 segundos
+        maxWait: 5000,
+        timeout: 10000
       });
 
-    // 2. Emitir el evento de Pusher tras la actualización exitosa en BD
-    // Enviamos 'resultado' que contiene la data completa (con mesa y productos)
+    // 2. Eventos Pusher
     await pusherServer.trigger('cocina-channel', 'pedido-actualizado', resultado);
 
-    // NUEVO: Avisar a los meseros/cajeros si el estado les incumbe
-    if (estado === 'LISTO' || estado === 'PAGADO' || estado === 'CANCELADO' || estado === 'ENTREGADO') {
+    if (['LISTO', 'PAGADO', 'CANCELADO', 'ENTREGADO', 'CUENTA_SOLICITADA'].includes(estado)) {
       await pusherServer.trigger('tables-channel', 'table-order-updated', resultado);
+
+      if (estado === 'CUENTA_SOLICITADA' && resultado.mesa) {
+        await pusherServer.trigger('tables-channel', 'table-updated', resultado.mesa);
+      }
     }
 
     return NextResponse.json(resultado);
 
-  } catch (error) {
-    console.error("Error al actualizar estado del pedido:", error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Error desconocido";
+    console.error("Error al actualizar estado del pedido:", errorMessage);
+
+    // 🛑 Retorno ultra-rápido del error 400
+    if (errorMessage === "PEDIDOS_INCOMPLETOS_PARA_CUENTA") {
+      return NextResponse.json(
+        { error: "No se puede solicitar la cuenta. Aún hay pedidos sin entregar en esta mesa." },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'No se pudo actualizar el estado del pedido' },
       { status: 500 }
