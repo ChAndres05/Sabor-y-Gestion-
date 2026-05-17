@@ -1,20 +1,42 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useCajaStore } from '../../store/cajaStore';
 import { AperturaCaja } from './components/AperturaCaja';
 import { ModalProcesarPago } from './components/ModalProcesarPago';
-import { mockMesasFacturacion, mockDetallesMesa5, mockMovimientosDia } from '../../shared/mocks/cajaMocks';
+import { mockMovimientosDia } from '../../shared/mocks/cajaMocks';
 import type { AuthUser } from '../auth/types/auth.types';
-import type { PagoConfirmacion, MesaCajero } from './types';
+import type { PagoConfirmacion } from './types';
+import { cajaApi } from '../../shared/api/caja.api';
+// Nuevas importaciones de las APIs reales
+import { tablesApi } from '../../shared/api/tables.api';
+import { ordersApi } from '../../shared/api/orders.api';
+import type { RestaurantTable } from '../tables/types/table.types';
+import type { TableOrder } from '../tables/types/table-order.types';
 
 interface CajeroHomeProps { user: AuthUser; onLogout: () => void; onOpenSidebar: () => void; defaultView?: ViewState; }
 type ViewState = 'facturacion' | 'cierre';
 
+// Interfaz extendida para manejar los datos reales del backend
+interface MesaFacturacion {
+  id_mesa: number;
+  numero: number;
+  estado: string;
+  total_acumulado: number;
+  ci_cliente: string;
+  nombre_cliente: string;
+  pedidosRaw: TableOrder[];
+}
+
 export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOpenSidebar, defaultView }) => {
   const { estaAbierta, jornada, cerrarCaja } = useCajaStore();
   const [activeView, setView] = useState<ViewState>(defaultView || 'facturacion');
-  const [mesaSeleccionada, setMesaSeleccionada] = useState<MesaCajero | null>(null);
 
-  React.useEffect(() => {
+  // Estados para datos reales
+  const [mesasActivas, setMesasActivas] = useState<RestaurantTable[]>([]);
+  const [pedidosActivos, setPedidosActivos] = useState<TableOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [mesaSeleccionada, setMesaSeleccionada] = useState<MesaFacturacion | null>(null);
+
+  useEffect(() => {
     if (defaultView) {
       setView(defaultView);
     }
@@ -25,6 +47,50 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
   const [showConfirmCierre, setShowConfirmCierre] = useState(false);
   const [showGastoModal, setShowGastoModal] = useState(false);
   const [nuevoGasto, setNuevoGasto] = useState({ motivo: '', monto: 0 });
+
+  // Función para cargar los datos del backend
+  const loadData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const [tablesData, ordersData] = await Promise.all([
+        tablesApi.listTables(),
+        ordersApi.listActiveOrders(),
+      ]);
+      setMesasActivas(tablesData);
+      setPedidosActivos(ordersData);
+    } catch (error) {
+      console.error("Error al cargar datos de facturación:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (estaAbierta) {
+      void loadData();
+    }
+  }, [estaAbierta, loadData]);
+
+  // Agrupación de pedidos por mesa (Reemplazo del Mock)
+  const mesasFacturacion = useMemo(() => {
+    const mesasFiltradas = mesasActivas.filter(m => m.estado === 'CUENTA_SOLICITADA' || m.estado === 'OCUPADA');
+
+    return mesasFiltradas.map(mesa => {
+      const pedidosDeEstaMesa = pedidosActivos.filter(p => p.tableId === mesa.id);
+      const totalMesa = pedidosDeEstaMesa.reduce((acc, pedido) => acc + pedido.total, 0);
+      const cliente = pedidosDeEstaMesa[0]?.customer || { nombre: 'Cliente General', ci: '0' };
+
+      return {
+        id_mesa: mesa.id,
+        numero: mesa.numero,
+        estado: mesa.estado,
+        total_acumulado: totalMesa,
+        ci_cliente: cliente.ci || '',
+        nombre_cliente: cliente.nombre || '',
+        pedidosRaw: pedidosDeEstaMesa
+      };
+    }).filter(m => m.total_acumulado > 0);
+  }, [mesasActivas, pedidosActivos]);
 
   const stats = useMemo(() => {
     const ventasEfectivo = movimientos.filter(m => m.tipo === 'efectivo' && m.monto > 0).reduce((acc, curr) => acc + curr.monto, 0);
@@ -38,10 +104,40 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
 
   if (!estaAbierta) return <AperturaCaja />;
 
-  const handleFinalizarPago = (datos: PagoConfirmacion): void => {
-    const trx = { id: `TRX-${Date.now()}`, referencia: `Mesa ${mesaSeleccionada?.numero}`, tipo: datos.metodo_pago.toLowerCase() as 'efectivo' | 'transferencia', monto: datos.monto_pagado, hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-    setMovimientos([trx, ...movimientos]);
-    setMesaSeleccionada(null);
+  const handleFinalizarPago = async (datos: PagoConfirmacion) => {
+    if (!mesaSeleccionada) return;
+
+    try {
+      await cajaApi.registrarPagoReal({
+        id_mesa: mesaSeleccionada.id_mesa,
+        metodo_pago: datos.metodo_pago,
+        monto_pagado: datos.monto_pagado,
+        // 👇 Si monto_recibido es opcional, lo dejamos pasar o le ponemos fallback si da error
+        monto_recibido: datos.monto_recibido,
+        // 🚀 EL CAMBIO AQUÍ: Le agregamos '?? 0' para obligar a que siempre sea un número limpio
+        monto_cambio: datos.monto_cambio ?? 0,
+        referencia_pago: datos.referencia_pago,
+        id_usuario_cajero: user.id
+      });
+
+      // El resto del código de movimientos se mantiene idéntico...
+      const trx = {
+        id: `TRX-${Date.now()}`,
+        referencia: `Mesa ${mesaSeleccionada.numero}`,
+        tipo: datos.metodo_pago.toLowerCase() as 'efectivo' | 'transferencia',
+        monto: datos.monto_pagado,
+        hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      setMovimientos([trx, ...movimientos]);
+      setMesaSeleccionada(null);
+
+      await loadData();
+
+    } catch (error) {
+      console.error("Error al procesar el pago:", error);
+      alert(error instanceof Error ? error.message : "Hubo un error al procesar el pago contable.");
+    }
   };
 
   const registrarGasto = () => {
@@ -62,7 +158,6 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
             <h1 className="text-[var(--text-subtitle)] font-bold text-[var(--color-primary)] leading-tight">
               {activeView === 'facturacion' ? 'Facturación' : 'Cierre de Caja'}
             </h1>
-            {/* AQUÍ USAMOS 'user' PARA QUE EL LINTER ESTÉ FELIZ */}
             <p className="text-[10px] text-gray-400 uppercase font-bold tracking-tight">Cajero: {user.nombre} {user.apellido}</p>
           </div>
         </div>
@@ -74,15 +169,31 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
       <main className="flex-1 p-4 md:p-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto">
           {activeView === 'facturacion' ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {mockMesasFacturacion.map(mesa => (
-                <button key={mesa.id_mesa} onClick={() => setMesaSeleccionada(mesa)} className="bg-[var(--color-primary)] p-6 rounded-3xl shadow-lg text-white text-left relative overflow-hidden transition-all hover:scale-105">
-                  <h3 className="font-bold text-2xl mb-1">Mesa {mesa.numero}</h3>
-                  <p className="text-3xl font-black">Bs {mesa.total_acumulado?.toFixed(2)}</p>
-                  <div className="absolute -right-6 -bottom-6 bg-white/10 w-32 h-32 rounded-full blur-2xl" />
-                </button>
-              ))}
-            </div>
+            isLoading ? (
+              <div className="text-center text-gray-400 font-bold mt-10 animate-pulse">Sincronizando cuentas con el servidor...</div>
+            ) : mesasFacturacion.length === 0 ? (
+              <div className="text-center text-gray-400 font-bold mt-10 bg-white p-10 rounded-3xl shadow-sm">
+                No hay mesas pendientes de cobro.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {mesasFacturacion.map(mesa => (
+                  <button key={mesa.id_mesa} onClick={() => setMesaSeleccionada(mesa)} className={`p-6 rounded-3xl shadow-lg text-white text-left relative overflow-hidden transition-all hover:scale-105 ${mesa.estado === 'CUENTA_SOLICITADA' ? 'bg-[var(--color-process)]' : 'bg-[var(--color-primary)]'}`}>
+                    <div className="flex justify-between items-start">
+                      <h3 className="font-bold text-2xl mb-1">Mesa {mesa.numero}</h3>
+                      {mesa.estado === 'CUENTA_SOLICITADA' && (
+                        <span className="bg-white/20 px-2 py-1 rounded text-[10px] font-bold uppercase animate-pulse">
+                          Cuenta pedida
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-3xl font-black mt-2">Bs {mesa.total_acumulado?.toFixed(2)}</p>
+                    <p className="text-xs font-medium opacity-80 mt-1">{mesa.nombre_cliente}</p>
+                    <div className="absolute -right-6 -bottom-6 bg-white/10 w-32 h-32 rounded-full blur-2xl" />
+                  </button>
+                ))}
+              </div>
+            )
           ) : (
             <div className="space-y-6">
               <div className="bg-[var(--color-primary)] text-white p-6 rounded-3xl flex justify-between items-center shadow-lg">
@@ -98,8 +209,6 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
                   <p className="text-[10px] font-bold text-gray-400 uppercase">Transferencias</p>
                   <p className="text-2xl font-black text-[var(--color-info)]">Bs {stats.ventasTransf.toFixed(2)}</p>
                 </div>
-                {/*Ventas Totales*/}
-
                 <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[var(--color-primary)] text-center">
                   <p className="text-[10px] font-bold text-gray-400 uppercase">Ventas Turno</p>
                   <p className="text-2xl font-black text-[var(--color-primary)]">Bs {stats.totalVentas.toFixed(2)}</p>
@@ -108,7 +217,6 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
                   <p className="text-[10px] font-bold text-gray-400 uppercase">Ventas Totales</p>
                   <p className="text-2xl font-black text-[var(--color-success)]">Bs {stats.ventasTotales.toFixed(2)}</p>
                 </div>
-
               </div>
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
                 <div className="flex justify-between mb-4">
@@ -164,7 +272,16 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
         </div>
       )}
 
-      {mesaSeleccionada && <ModalProcesarPago numeroMesa={mesaSeleccionada.numero} detalles={mockDetallesMesa5} ci_cliente={mesaSeleccionada.ci_cliente} nombre_cliente={mesaSeleccionada.nombre_cliente} onClose={() => setMesaSeleccionada(null)} onConfirmarPago={handleFinalizarPago} />}
+      {mesaSeleccionada && (
+        <ModalProcesarPago
+          numeroMesa={mesaSeleccionada.numero}
+          detalles={Array.isArray(mesaSeleccionada.pedidosRaw) ? mesaSeleccionada.pedidosRaw.flatMap(p => p.items || []) : []}
+          ci_cliente={mesaSeleccionada.ci_cliente}
+          nombre_cliente={mesaSeleccionada.nombre_cliente}
+          onClose={() => setMesaSeleccionada(null)}
+          onConfirmarPago={handleFinalizarPago}
+        />
+      )}
     </div>
   );
 };
