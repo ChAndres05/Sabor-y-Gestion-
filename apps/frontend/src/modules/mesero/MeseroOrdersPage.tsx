@@ -107,7 +107,7 @@ export default function MeseroOrdersPage({ user, onBack, onOpenOrder }: MeseroOr
     } finally {
       if (!isBackgroundRefresh) setIsLoading(false);
     }
-  }, []);
+  }, [user.id]);
 
   useEffect(() => {
     loadData();
