@@ -37,6 +37,7 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
   const [pedidosActivos, setPedidosActivos] = useState<TableOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [mesaSeleccionada, setMesaSeleccionada] = useState<MesaFacturacion | null>(null);
+  const [showAperturaModal, setShowAperturaModal] = useState(false);
 
   useEffect(() => {
     if (defaultView) {
@@ -127,8 +128,8 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
     return { totalVentas, ventasEfectivo, ventasTransf, efectivoEnCaja, gastos: gastosTotal, ventasTotales };
   }, [jornada, movimientos]);
 
-  if (!estaAbierta) return <AperturaCaja />;
-
+  // Removido: if (!estaAbierta) return <AperturaCaja />;
+  
   const handleFinalizarPago = async (datos: PagoConfirmacion) => {
     if (!mesaSeleccionada) return;
 
@@ -194,7 +195,23 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
       <main className="flex-1 p-4 md:p-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto">
           {activeView === 'facturacion' ? (
-            isLoading ? (
+            !estaAbierta ? (
+              <div className="flex flex-col items-center justify-center min-h-[60vh] bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
+                <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+                  <span className="text-4xl">💰</span>
+                </div>
+                <h2 className="text-2xl font-bold text-[var(--color-primary)] mb-2">Caja Cerrada</h2>
+                <p className="text-gray-500 mb-8 text-center max-w-sm">
+                  Debes ingresar un monto inicial para comenzar a facturar y registrar movimientos en este turno.
+                </p>
+                <button
+                  onClick={() => setShowAperturaModal(true)}
+                  className="px-8 py-4 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white font-bold rounded-2xl shadow-lg hover:shadow-xl hover:scale-105 transition-all text-sm uppercase tracking-wider"
+                >
+                  Abrir Caja
+                </button>
+              </div>
+            ) : isLoading ? (
               <div className="text-center text-gray-400 font-bold mt-10 animate-pulse">Sincronizando cuentas con el servidor...</div>
             ) : mesasFacturacion.length === 0 ? (
               <div className="text-center text-gray-400 font-bold mt-10 bg-white p-10 rounded-3xl shadow-sm">
@@ -220,6 +237,23 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
               </div>
             )
           ) : (
+            !estaAbierta ? (
+              <div className="flex flex-col items-center justify-center min-h-[60vh] bg-white rounded-3xl shadow-sm border border-[var(--color-alert)]/20 p-8">
+                <div className="w-24 h-24 bg-[var(--color-alert)]/10 rounded-full flex items-center justify-center mb-6 text-[var(--color-alert)]">
+                  <span className="text-4xl">⚠️</span>
+                </div>
+                <h2 className="text-2xl font-bold text-[var(--color-alert)] mb-2">Error: Caja Cerrada</h2>
+                <p className="text-gray-500 mb-8 text-center max-w-sm">
+                  No puedes acceder al cierre de caja sin haberla abierto previamente.
+                </p>
+                <button
+                  onClick={() => setView('facturacion')}
+                  className="px-6 py-3 border-2 border-[var(--color-primary)] text-[var(--color-primary)] font-bold rounded-xl hover:bg-[var(--color-primary)] hover:text-white transition-colors"
+                >
+                  Ir a Facturación
+                </button>
+              </div>
+            ) : (
             <div className="space-y-6">
               <div className="bg-[var(--color-primary)] text-white p-6 rounded-3xl flex justify-between items-center shadow-lg">
                 <div><h2 className="text-xl font-bold">Jornada Activa ✓</h2><p className="text-[10px] uppercase font-bold opacity-70 tracking-widest">Desde: {new Date(jornada?.fecha_hora_apertura || '').toLocaleTimeString()}</p></div>
@@ -260,6 +294,7 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
                 </div>
               </div>
             </div>
+            )
           )}
         </div>
       </main>
@@ -291,7 +326,7 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
             <input type="number" autoFocus min="0" onKeyDown={(e) => ["-", "+", "e", "E"].includes(e.key) && e.preventDefault()} onChange={(e) => setMontoContado(Math.max(0, Number(e.target.value)))} className="w-full bg-black/20 p-5 rounded-3xl text-3xl font-black text-center border-2 border-white/20 outline-none mb-8 focus:border-white transition-all" placeholder="0.00" />
             <div className="grid grid-cols-2 gap-4">
               <button onClick={() => setShowConfirmCierre(false)} className="py-4 border border-white/30 rounded-2xl font-bold uppercase text-xs">Cancelar</button>
-              <button onClick={() => { const dif = montoContado - stats.efectivoEnCaja; alert(`Cierre exitoso. Diferencia: Bs ${dif.toFixed(2)}`); cerrarCaja(); onLogout(); }} className="py-4 bg-white text-[var(--color-primary)] rounded-2xl font-black uppercase text-xs shadow-xl">Confirmar</button>
+              <button onClick={() => { const dif = montoContado - stats.efectivoEnCaja; alert(`Cierre exitoso. Diferencia: Bs ${dif.toFixed(2)}`); cerrarCaja(); setShowConfirmCierre(false); setView('facturacion'); }} className="py-4 bg-white text-[var(--color-primary)] rounded-2xl font-black uppercase text-xs shadow-xl">Confirmar</button>
             </div>
           </div>
         </div>
@@ -306,6 +341,10 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
           onClose={() => setMesaSeleccionada(null)}
           onConfirmarPago={handleFinalizarPago}
         />
+      )}
+
+      {showAperturaModal && (
+        <AperturaCaja onClose={() => setShowAperturaModal(false)} />
       )}
     </div>
   );
