@@ -11,6 +11,8 @@ import { tablesApi } from '../../shared/api/tables.api';
 import { ordersApi } from '../../shared/api/orders.api';
 import type { RestaurantTable } from '../tables/types/table.types';
 import type { TableOrder } from '../tables/types/table-order.types';
+import { pusherClient } from '../../shared/utils/pusher';
+import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
 
 interface CajeroHomeProps { user: AuthUser; onLogout: () => void; onOpenSidebar: () => void; defaultView?: ViewState; }
 type ViewState = 'facturacion' | 'cierre';
@@ -69,6 +71,29 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
     if (estaAbierta) {
       void loadData();
     }
+  }, [estaAbierta, loadData]);
+
+  // Suscripción a WebSockets para actualizaciones en tiempo real (Pusher)
+  useEffect(() => {
+    if (!estaAbierta) return;
+
+    const ordersChannel = pusherClient.subscribe('orders-channel');
+    const tablesChannel = pusherClient.subscribe('tables-channel');
+    
+    const handleRefresh = () => { void loadData(); };
+
+    ordersChannel.bind('order-updated', handleRefresh);
+    tablesChannel.bind('table-order-updated', handleRefresh);
+    tablesChannel.bind('table-updated', handleRefresh); // Para captar estado CUENTA_SOLICITADA
+    window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleRefresh);
+
+    return () => {
+      ordersChannel.unbind_all();
+      tablesChannel.unbind_all();
+      pusherClient.unsubscribe('orders-channel');
+      pusherClient.unsubscribe('tables-channel');
+      window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleRefresh);
+    };
   }, [estaAbierta, loadData]);
 
   // Agrupación de pedidos por mesa (Reemplazo del Mock)

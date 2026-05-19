@@ -69,7 +69,7 @@ export async function POST(request: Request) {
                 data: {
                     id_jornada_caja: jornadaActiva.id_jornada_caja,
                     id_usuario: id_usuario_cajero,
-                    tipo_movimiento: 'INGRESO',
+                    tipo_movimiento: 'INGRESO_EXTRA',
                     monto: Number(monto_pagado),
                     descripcion: `Cobro Consolidado Mesa ${mesaContexto?.numero || id_mesa} - Método: ${metodo_pago}`
                 }

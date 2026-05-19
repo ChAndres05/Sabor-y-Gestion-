@@ -186,6 +186,17 @@ export const ordersApi = {
   },
 
   /**
+   * Lista los pedidos específicos para un mesero (activos y completados recientes)
+   */
+  async listOrdersByWaiter(waiterId: number): Promise<TableOrder[]> {
+    const backendData = await tryJson<BackendOrderRecord[]>(
+      `${API_URL}/api/pedidos/mesero/${waiterId}?t=${Date.now()}`,
+      { cache: 'no-store' }
+    );
+    return mapBackendOrders(backendData);
+  },
+
+  /**
    * Busca un cliente por CI en backend.
    */
   async searchCustomerByCi(ci: string): Promise<TableOrderCustomer | null> {

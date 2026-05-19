@@ -91,7 +91,7 @@ export default function MeseroOrdersPage({ user, onBack, onOpenOrder }: MeseroOr
     if (!isBackgroundRefresh) setIsLoading(true);
     try {
       const [ordersData, tablesData, zonesData] = await Promise.all([
-        ordersApi.listActiveOrders(),
+        ordersApi.listOrdersByWaiter(user.id),
         tablesApi.listTables(),
         tablesApi.listZones(),
       ]);
@@ -137,7 +137,7 @@ export default function MeseroOrdersPage({ user, onBack, onOpenOrder }: MeseroOr
   const stats = useMemo(() => ({
     total: orders.length,
     ready: orders.filter(o => o.estado === 'LISTO').length,
-    delivered: orders.filter(o => o.estado === 'ENTREGADO').length
+    delivered: orders.filter(o => o.estado === 'ENTREGADO' || o.estado === 'PAGADO').length
   }), [orders]);
 
   const handleChangeOrderStatus = async (tableId: number, status: TableOrderStatus) => {
