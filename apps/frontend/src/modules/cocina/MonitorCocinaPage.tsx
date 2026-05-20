@@ -69,15 +69,18 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
       // Filtramos pedidos ya completados/cancelados que no pertenecen al monitor
       const pedidosListosParaCocina = data.filter((o) => {
         const estadoActual = o.estado?.toUpperCase();
-        return estadoActual && !['ENTREGADO', 'PAGADO', 'CANCELADO'].includes(estadoActual);
+        return estadoActual && !['LISTO', 'ENTREGADO', 'PAGADO', 'CANCELADO'].includes(estadoActual);
       });
 
-      setOrders((prevOrders) =>
-        pedidosListosParaCocina.map((backendOrder) => {
+      setOrders((prevOrders) => {
+        const newOrders: Order[] = [];
+        pedidosListosParaCocina.forEach((backendOrder) => {
           const existingOrder = prevOrders.find((order) => order.id === backendOrder.id_pedido);
+          const isLocked = lockedOrders.current.has(backendOrder.id_pedido);
           
-          if (existingOrder && lockedOrders.current.has(backendOrder.id_pedido)) {
-            return existingOrder; 
+          if (isLocked) {
+            if (existingOrder) newOrders.push(existingOrder);
+            return;
           }
 
           const detalles = backendOrder.detalles_pedido ?? [];
@@ -98,27 +101,29 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
           const hasCheckedItem = mappedItems.some((item) => item.checked);
           let uiStatus: OrderStatus = 'pending';
           const backendState = backendOrder.estado?.toUpperCase();
-          
-          if (backendState === 'LISTO') uiStatus = 'ready';
-          else if (backendState === 'EN_PREPARACION' || backendState === 'PREPARANDO') uiStatus = hasCheckedItem ? 'preparing' : 'pending';
-
-          if (existingOrder?.status === 'ready') {
+          if (backendState === 'EN_PREPARACION') {
+            uiStatus = 'preparing';
+          } else if (backendState === 'LISTO') {
             uiStatus = 'ready';
+          } else if (hasCheckedItem) {
+            uiStatus = 'preparing';
           }
-
-          return {
-            id: backendOrder.id_pedido, orderNumber: backendOrder.id_pedido, status: uiStatus,
-            isToggled: existingOrder?.status === 'ready' ? true : (backendOrder.armado ?? backendOrder.esta_armado ?? existingOrder?.isToggled ?? false),
+          
+          newOrders.push({
+            id: backendOrder.id_pedido,
+            orderNumber: backendOrder.id_pedido,
+            status: uiStatus,
+            items: mappedItems,
+            isToggled: existingOrder?.isToggled ?? backendOrder.armado ?? backendOrder.esta_armado ?? false,
             source: backendOrder.origen ?? backendOrder.source,
             tableNumber: backendOrder.numero_mesa ?? backendOrder.mesa?.numero ?? backendOrder.mesa?.nro_mesa,
             customerName: backendOrder.cliente_nombre ?? backendOrder.cliente?.nombre,
             reservationTime: backendOrder.hora_reserva ?? backendOrder.reservationTime,
-            // ⏱️ Leemos fecha_pedido limpiamente
             prepareFrom: backendOrder.fecha_pedido ?? backendOrder.preparar_desde ?? backendOrder.prepareFrom,
-            items: mappedItems,
-          };
-        })
-      );
+          });
+        });
+        return newOrders;
+      });
     } catch (error) { console.error('Error cargando pedidos:', error); } finally { setIsLoading(false); }
   }, [API_URL]);
 
@@ -192,7 +197,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
     if (!order || order.status === 'ready') return;
     
     lockOrder(id);
-    setOrders((prev) => prev.map((currentOrder) => currentOrder.id === id ? { ...currentOrder, status: 'ready' } : currentOrder));
+    setOrders((prev) => prev.filter((currentOrder) => currentOrder.id !== id));
     
     try { await updateBackendStatus(id, 'LISTO'); } 
     catch (error) { console.error(error); }
@@ -200,7 +205,6 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
 
   const pendingCount = orders.filter((order) => order.status === 'pending').length;
   const preparingCount = orders.filter((order) => order.status === 'preparing').length;
-  const readyCount = orders.filter((order) => order.status === 'ready').length;
 
   if (isLoading) {
     return (
@@ -234,10 +238,6 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
           <div className="flex items-center gap-2">
             <div className="w-[6px] h-[6px] rounded-full bg-[#eab308]" />
             <span>{preparingCount} EN PREPARACIÓN</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-[6px] h-[6px] rounded-full bg-[#22c55e]" />
-            <span>{readyCount} LISTOS</span>
           </div>
         </div>
 

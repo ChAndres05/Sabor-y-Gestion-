@@ -7,11 +7,11 @@ export async function GET() {
         const asignaciones = await prisma.asignaciones_cocina_pedido.findMany({
             where: {
                 estado_asignacion: {
-                    notIn: ['CANCELADO', 'COMPLETADO']
+                    notIn: ['LISTO', 'CANCELADO', 'COMPLETADO']
                 },
                 pedido: {
                     estado: {
-                        notIn: ['CANCELADO', 'PAGADO', 'ENTREGADO']
+                        notIn: ['LISTO', 'CANCELADO', 'PAGADO', 'ENTREGADO']
                     }
                 }
             },
