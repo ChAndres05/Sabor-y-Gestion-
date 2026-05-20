@@ -63,7 +63,10 @@ export async function PATCH(
       // A. Actualizar el estado general del pedido
       const pedidoActualizado = await tx.pedidos.update({
         where: { id_pedido },
-        data: { estado },
+        data: { 
+          estado,
+          ...(estado === 'ENTREGADO' ? { fecha_hora_entrega: new Date() } : {})
+        },
         include: {
           mesa: true,
           detalles_pedido: {
