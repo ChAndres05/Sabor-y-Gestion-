@@ -1,5 +1,12 @@
-# GUÍA DE CONFIGURACIÓN DEL PROYECTO — ARQUITECTURA MONOREPO  
-Turborepo · pnpm Workspaces · PostgreSQL + Prisma
+# 🍽️ Sabor y Gestión — GUÍA DE CONFIGURACIÓN DEL PROYECTO
+
+[![Turborepo](https://img.shields.io/badge/Turborepo-2.9.1-FF007F?style=for-the-badge&logo=turborepo&logoColor=white)](https://turbo.build/)
+[![pnpm Workspaces](https://img.shields.io/badge/pnpm-10.33.0-F69220?style=for-the-badge&logo=pnpm&logoColor=white)](https://pnpm.io/)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16.2.1-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![React 19](https://img.shields.io/badge/React-19.2.4-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![Prisma ORM](https://img.shields.io/badge/Prisma-7.8.0-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Tailwind CSS 4](https://img.shields.io/badge/Tailwind_CSS-4.2.2-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 
 ---
 
@@ -44,8 +51,17 @@ Ejecute el siguiente comando desde la raíz del monorepo para instalar todas las
 ```bash
 pnpm install
 ```
-#### 4.1.1 Poner las dependencias 
-El formato ejemplo esta debajo de estos pasos
+#### 4.1.1 Gestión de Dependencias
+Para agregar una nueva dependencia en algún workspace específico, se recomienda utilizar el filtro `--filter` de pnpm. Por ejemplo:
+
+```bash
+# Agregar una dependencia de producción al frontend
+pnpm --filter frontend add zustand
+
+# Agregar una dependencia de desarrollo al backend
+pnpm --filter backend add -D @types/bcryptjs
+```
+Esto asegura que las dependencias se instalen y registren correctamente en el workspace adecuado, manteniendo la consistencia del monorepo.
 
 ### 4.2 Generación del Cliente de Prisma
 
@@ -143,8 +159,6 @@ pnpm typecheck
 
 ## 8. ESTRUCTURA DE CARPETAS
 
-## 8. ESTRUCTURA DE CARPETAS
-
 ```text
 Sabor-y-Gestion/
 ├── .github/
@@ -167,6 +181,7 @@ Sabor-y-Gestion/
 │   │   │   │   ├── pedidos/     # Activos, estado, historial y detalles por mesa
 │   │   │   │   ├── productos/   # CRUD y servicios de productos
 │   │   │   │   ├── register/    # Registro de usuarios
+│   │   │   │   ├── reservas/    # Gestión de reservaciones y disponibilidad
 │   │   │   │   ├── reset-password/
 │   │   │   │   ├── verify-code/ # Verificación de códigos de seguridad
 │   │   │   │   └── zonas/       # Gestión de zonas del restaurante
@@ -179,15 +194,18 @@ Sabor-y-Gestion/
 │   │   ├── public/              # Archivos estáticos del servidor (SVGs)
 │   │   ├── AGENTS.md            # Reglas y contexto para IAs (ej. Cursor)
 │   │   ├── CLAUDE.md            # Instrucciones de desarrollo
+│   │   ├── eslint.config.mjs    # Configuración de ESLint para Backend
 │   │   ├── fix-presentaciones.ts# Script de corrección de datos
 │   │   ├── next.config.ts       # Configuración del framework
 │   │   ├── package.json         # Dependencias del backend
+│   │   ├── postcss.config.mjs   # Configuración de PostCSS
 │   │   ├── prisma.config.ts     # Configuración de Prisma
 │   │   └── tsconfig.json        # Configuración de TypeScript
 │   │
 │   └── frontend/                # Interfaz de Usuario (React + Vite + Tailwind)
 │       ├── public/              # Recursos públicos (favicon.svg, icons.svg)
 │       ├── src/                 # Código fuente
+│       │   ├── app/             # Directorio contenedor (con .gitkeep)
 │       │   ├── assets/          # Imágenes estáticas (hero.png, react.svg)
 │       │   ├── components/      
 │       │   │   └── client/      # Componentes aislados (ClientLayout, Card)
@@ -197,6 +215,7 @@ Sabor-y-Gestion/
 │       │   │   ├── cajero/      # Vista central de caja
 │       │   │   ├── cliente/     # Vistas públicas: menú, detalle, pedidos activos
 │       │   │   ├── cocina/      # (api, monitor de preparación en tiempo real)
+│       │   │   ├── history/     # Historial y reportes (detalles, cierres)
 │       │   │   ├── menu/        # (components, types, api, gestión de carta)
 │       │   │   ├── mesero/      # Vistas para toma de pedidos y flujo de atención
 │       │   │   ├── tables/      # (components, types, gestión visual de mesas)
@@ -209,14 +228,19 @@ Sabor-y-Gestion/
 │       │   │   ├── mocks/       # Datos simulados para desarrollo sin backend
 │       │   │   ├── types/       # Interfaces y tipos TypeScript globales
 │       │   │   └── utils/       # Helpers globales (eventos, pusher, redirecciones)
+│       │   ├── store/           # Gestión de estado global con Zustand (cajaStore.ts)
 │       │   ├── styles/          # Estilos Tailwind y clases personalizadas (globals.css)
+│       │   ├── App.css          # Estilos específicos del componente App
 │       │   ├── App.tsx          # Router principal de React
 │       │   ├── index.css
 │       │   └── main.tsx         # Entry point de la aplicación React
+│       ├── eslint.config.js     # Configuración de ESLint para Frontend
 │       ├── index.html           # Archivo HTML raíz
 │       ├── package.json         # Dependencias del frontend
 │       ├── tailwind.config.js   # Configuración visual de Tailwind CSS
+│       ├── tsconfig.app.json    # Configuración de TypeScript para la app
 │       ├── tsconfig.json        # Configuración principal de TypeScript
+│       ├── tsconfig.node.json   # Configuración de TypeScript para node/vite
 │       └── vite.config.ts       # Configuración del bundler Vite
 │
 ├── .env.example                 # Plantilla base de variables de entorno
@@ -235,9 +259,6 @@ Sabor-y-Gestion/
 - Nunca commitear archivos `.env`  
 - `SUPABASE_SECRET_KEY` es estrictamente confidencial  
 - Utilizar `.env.example` como plantilla base  
-
----
----
 
 ---
 
@@ -264,3 +285,44 @@ El pipeline de CI/CD se activa automáticamente en:
 
 ### 10.4 Configuración de Secretos
 Es obligatorio configurar los secretos en GitHub (`DATABASE_URL`, `DIRECT_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY`) para que el entorno de CI pueda generar el cliente de Prisma y validar el build correctamente.
+
+---
+
+## 11. COMUNICACIÓN EN TIEMPO REAL (WEBSOCKETS)
+
+El sistema utiliza **Pusher** para enviar notificaciones y actualizaciones instantáneas (por ejemplo, cuando se crea un nuevo pedido o se actualiza el estado de preparación en la cocina).
+
+### Flujo de Trabajo de Eventos:
+1. **Backend (Emisor):** Cuando ocurre un cambio relevante en la base de datos (ej. un pedido cambia a listo), el controlador del backend publica un evento en un canal específico de Pusher usando el SDK `pusher`.
+2. **Frontend (Receptor):** El cliente React se suscribe a los mismos canales de Pusher utilizando `pusher-js` y reacciona actualizando el estado de la UI en tiempo real (ej. refrescando la lista de pedidos en el monitor de cocina).
+
+### Variables Requeridas para Pusher:
+Asegúrese de definir correctamente las variables `PUSHER_*` en el backend y `VITE_PUSHER_*` en el frontend, como se detalla en la sección de **Configuración de Variables de Entorno**.
+
+---
+
+## 12. GESTIÓN DE BASE DE DATOS (PRISMA)
+
+El acceso y manipulación de datos se gestiona mediante **Prisma ORM**. A continuación se listan los comandos esenciales para trabajar con la base de datos desde la raíz del monorepo:
+
+* **Generar el Cliente de Prisma:**
+  ```bash
+  pnpm --filter backend exec prisma generate
+  ```
+  *(Debe ejecutarse cada vez que cambie el archivo `schema.prisma`)*
+
+* **Crear y aplicar una Migración en Desarrollo:**
+  ```bash
+  pnpm --filter backend exec prisma migrate dev --name <nombre_de_la_migracion>
+  ```
+
+* **Aplicar Migraciones Pendientes en Producción:**
+  ```bash
+  pnpm --filter backend exec prisma migrate deploy
+  ```
+
+* **Abrir Prisma Studio (Interfaz Gráfica para ver Datos):**
+  ```bash
+  pnpm --filter backend exec prisma studio
+  ```
+
