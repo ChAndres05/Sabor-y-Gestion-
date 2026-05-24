@@ -188,7 +188,12 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
         return { ...currentOrder, items: updatedItems, status: newStatus };
       })
     );
-    try { await cocinaApi.marcarPlatoPreparado(item.id, newChecked); } 
+    try {
+      await cocinaApi.marcarPlatoPreparado(item.id, newChecked);
+      if (order.status === 'pending') {
+        await updateBackendStatus(orderId, 'EN_PREPARACION');
+      }
+    } 
     catch (error) { console.error('Error BD:', error); }
   };
 

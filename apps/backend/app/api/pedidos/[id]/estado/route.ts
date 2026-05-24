@@ -89,14 +89,27 @@ export async function PATCH(
 
       // C. Lógica de la COCINA
       if (estado === 'EN_PREPARACION' && id_usuario) {
-        await tx.asignaciones_cocina_pedido.create({
-          data: {
-            id_pedido,
-            id_usuario_cocinero: id_usuario,
-            estado_asignacion: 'ASIGNADO',
-            fecha_hora_inicio_preparacion: new Date(),
-          }
+        const existingAsignacion = await tx.asignaciones_cocina_pedido.findFirst({
+          where: { id_pedido, es_asignacion_actual: true }
         });
+        if (existingAsignacion) {
+          await tx.asignaciones_cocina_pedido.update({
+            where: { id_asignacion_cocina_pedido: existingAsignacion.id_asignacion_cocina_pedido },
+            data: {
+              fecha_hora_inicio_preparacion: new Date(),
+              id_usuario_cocinero: id_usuario
+            }
+          });
+        } else {
+          await tx.asignaciones_cocina_pedido.create({
+            data: {
+              id_pedido,
+              id_usuario_cocinero: id_usuario,
+              estado_asignacion: 'ASIGNADO',
+              fecha_hora_inicio_preparacion: new Date(),
+            }
+          });
+        }
       } else if (estado === 'LISTO') {
         await tx.asignaciones_cocina_pedido.updateMany({
           where: {

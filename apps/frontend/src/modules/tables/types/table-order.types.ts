@@ -1,5 +1,6 @@
 export type TableOrderStatus =
   | 'REGISTRADO'
+  | 'PENDIENTE'
   | 'EN_PREPARACION'
   | 'LISTO'
   | 'EN_CAMINO'

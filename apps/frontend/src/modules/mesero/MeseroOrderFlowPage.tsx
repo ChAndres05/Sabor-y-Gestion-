@@ -24,7 +24,7 @@ function formatCurrency(value: number | string | null | undefined) { return `Bs 
 
 function getOrderStatusLabel(status: TableOrderStatus) {
   switch (status) {
-    case 'REGISTRADO': return 'Registrado'; case 'EN_PREPARACION': return 'En preparación';
+    case 'REGISTRADO': return 'Registrado'; case 'PENDIENTE': return 'Pendiente (Cocina)'; case 'EN_PREPARACION': return 'En preparación';
     case 'LISTO': return 'Listo para entregar'; case 'EN_CAMINO': return 'En camino';
     case 'ENTREGADO': return 'Pedido completado'; case 'PAGADO': return 'Pagado'; case 'CANCELADO': return 'Cancelado';
   }
@@ -36,7 +36,7 @@ function getTableStatusLabel(status: RestaurantTable['estado']) {
 
 function getStatusBadgeClass(status: TableOrderStatus) {
   switch (status) {
-    case 'REGISTRADO': return 'bg-process/10 text-process'; case 'EN_PREPARACION': return 'bg-alert/10 text-alert';
+    case 'REGISTRADO': return 'bg-process/10 text-process'; case 'PENDIENTE': return 'bg-[#ef4444]/10 text-[#ef4444]'; case 'EN_PREPARACION': return 'bg-[#eab308]/10 text-[#eab308]';
     case 'LISTO': case 'EN_CAMINO': return 'bg-info/10 text-info';
     case 'ENTREGADO': case 'PAGADO': return 'bg-success/10 text-success'; case 'CANCELADO': return 'bg-gray-200 text-gray-600';
   }
@@ -540,8 +540,9 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
 
                     {!isBillRequested && (
                       <div className="flex flex-col gap-3 md:flex-row md:flex-wrap">
-                        {order.estado === 'REGISTRADO' && <button type="button" onClick={() => void handleChangeOrderStatus('EN_PREPARACION')} disabled={isChangingStatus || !hasItems} className="w-full md:w-auto flex-1 rounded-xl bg-primary px-5 py-3 text-[14px] font-bold text-white disabled:opacity-60">Enviar a cocina</button>}
-                        {order.estado === 'EN_PREPARACION' && <div className="w-full md:w-auto flex-1 rounded-xl bg-gray-100 px-5 py-3 text-[14px] font-bold text-gray-500 text-center">Pedido en preparación...</div>}
+                        {order.estado === 'REGISTRADO' && <button type="button" onClick={() => void handleChangeOrderStatus('PENDIENTE')} disabled={isChangingStatus || !hasItems} className="w-full md:w-auto flex-1 rounded-xl bg-primary px-5 py-3 text-[14px] font-bold text-white disabled:opacity-60">Enviar a cocina</button>}
+                        {order.estado === 'PENDIENTE' && <div className="w-full md:w-auto flex-1 rounded-xl bg-gray-100 px-5 py-3 text-[14px] font-bold text-gray-500 text-center">Pedido enviado a cocina (Pendiente)</div>}
+                        {order.estado === 'EN_PREPARACION' && <div className="w-full md:w-auto flex-1 rounded-xl bg-[#eab308]/10 px-5 py-3 text-[14px] font-bold text-[#eab308] text-center">Pedido en preparación...</div>}
                         {(order.estado === 'LISTO' || order.estado === 'EN_CAMINO') && <button type="button" onClick={() => void handleChangeOrderStatus('ENTREGADO')} disabled={isChangingStatus} className="w-full md:w-auto flex-1 rounded-xl bg-success px-5 py-3 text-[14px] font-bold text-white disabled:opacity-60">Marcar entregado en mesa</button>}
 
                         {/* 🛑 BOTÓN DE CUENTA CON NUEVA VALIDACIÓN Y FEEDBACK VISUAL */}
