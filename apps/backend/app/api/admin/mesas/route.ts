@@ -30,6 +30,10 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "DATOS_INCOMPLETOS" }, { status: 400 });
         }
 
+        if (Number(capacidad) > 10) {
+            return NextResponse.json({ error: "LA_CAPACIDAD_NO_PUEDE_SER_MAYOR_A_10" }, { status: 400 });
+        }
+
         const nuevaMesa = await prisma.mesas.create({
             data: {
                 numero: Number(numero),

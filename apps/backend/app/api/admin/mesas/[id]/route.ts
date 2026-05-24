@@ -7,7 +7,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         const { id } = await params;
         const numeroMesa = parseInt(id);
         const body = await req.json();
-        const { estado } = body; // Recibimos el estado al que se quiere cambiar (ej. CUENTA_SOLICITADA o LIBRE)
+        const { estado, numero, capacidad, id_zona } = body;
+
+        if (capacidad !== undefined && Number(capacidad) > 10) {
+            return NextResponse.json({ error: "LA_CAPACIDAD_NO_PUEDE_SER_MAYOR_A_10" }, { status: 400 });
+        }
 
         const mesaActualizada = await prisma.$transaction(async (tx) => {
             const mesaActual = await tx.mesas.findFirst({
@@ -59,10 +63,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                 }
             }
 
-            // 3. Actualizamos el estado final de la mesa
+            // 3. Actualizamos la mesa con todos los campos enviados
+            const updateData: any = {};
+            if (estado !== undefined) updateData.estado = estado;
+            if (numero !== undefined) updateData.numero = Number(numero);
+            if (capacidad !== undefined) updateData.capacidad = Number(capacidad);
+            if (id_zona !== undefined) updateData.id_zona = id_zona ? Number(id_zona) : null;
+
             return await tx.mesas.update({
                 where: { id_mesa: mesaActual.id_mesa },
-                data: { estado }
+                data: updateData
             });
         });
 
