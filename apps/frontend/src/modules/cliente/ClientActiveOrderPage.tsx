@@ -325,7 +325,7 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
                     <div><h2 className="text-[20px] font-bold text-text">Categorías</h2><p className="mt-1 text-[12px] text-gray-500">¿Qué te gustaría pedir hoy?</p></div>
                     {order && <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${getStatusBadgeClass(order.estado)}`}>{getOrderStatusLabel(order.estado)}</span>}
                   </div>
-                  <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+                  <div className="mt-4 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
                     {categories.map((category) => (
                       <button key={category.id} type="button" onClick={() => setSelectedCategoryId(category.id)} className={`shrink-0 rounded-xl px-4 py-3 text-[12px] font-bold ${selectedCategoryId === category.id ? 'bg-primary text-white' : 'bg-background text-text'}`}>{category.nombre}</button>
                     ))}

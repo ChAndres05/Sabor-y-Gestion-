@@ -238,7 +238,7 @@ export default function TableManagementPage({
               />
             </label>
 
-            <div className="block">
+            <div className="min-w-0 w-full">
               <span className="text-[11px] font-black text-gray-400 uppercase">Filtrar por Zona</span>
               {isZonesLoading ? (
                 <div className="mt-2 h-12 w-full animate-pulse bg-gray-100 rounded-xl" />

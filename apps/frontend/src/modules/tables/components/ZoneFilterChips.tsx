@@ -14,7 +14,7 @@ export function ZoneFilterChips({
   onDeleteZone,
 }: ZoneFilterChipsProps) {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 items-center">
+    <div className="flex gap-2 overflow-x-auto pb-1 items-center no-scrollbar">
       <button
         type="button"
         onClick={() => onSelectZone('ALL')}

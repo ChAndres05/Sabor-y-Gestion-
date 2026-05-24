@@ -71,3 +71,12 @@ body {
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
+
+/* Hide scrollbar utility for horizontal scrolling chips/categories */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
