@@ -350,7 +350,7 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
   const headerDescription = table ? [`Mesa ${table.numero}`, order ? `Orden #${order.id}` : '', getTableStatusLabel(table.estado), order?.customer.nombre?.trim(), `Mesero ${user.nombre}`].filter((item): item is string => Boolean(item && item.trim())).join(' · ') : 'Flujo operativo del mesero';
 
   return (
-    <main className="min-h-screen bg-background px-3 py-5 text-text md:px-6 md:py-8">
+    <main className="min-h-full bg-background px-3 py-5 text-text md:px-6 md:py-8">
       <div className="mx-auto w-full max-w-[430px] md:max-w-5xl">
         <div className="mb-4 flex items-center justify-between">
           <button type="button" onClick={onBack} className="text-[28px] leading-none text-text" aria-label="Volver a mesas">☰</button>

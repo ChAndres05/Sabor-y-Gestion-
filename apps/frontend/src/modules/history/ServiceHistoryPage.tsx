@@ -41,7 +41,7 @@ export default function ServiceHistoryPage({ onBack, userRole, userId }: Service
   }, [filterMeseroId, meseros]);
 
   return (
-    <div className="bg-background min-h-screen">
+    <div className="bg-background min-h-full">
       <div className="mx-auto flex max-w-7xl flex-col px-4 py-6">
         <div className="shrink-0">
           <button

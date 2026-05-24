@@ -220,7 +220,7 @@ export default function ClientReservationOrderPage({
   }
 
   return (
-    <main className="min-h-screen bg-background pb-24 text-text">
+    <main className="min-h-full bg-background pb-24 text-text">
       <header className="bg-white px-6 py-6 shadow-sm">
         <div className="mx-auto max-w-5xl">
           <button onClick={onBack} className="mb-4 flex items-center gap-2 text-gray-500 hover:text-primary">

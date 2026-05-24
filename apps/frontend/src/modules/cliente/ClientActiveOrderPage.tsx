@@ -293,7 +293,7 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
   const headerDescription = table ? `Mesa ${table.numero} · ${getTableStatusLabel(table.estado)}` : 'Tu pedido actual';
 
   return (
-    <main className="min-h-screen bg-background px-3 py-5 text-text md:px-6 md:py-8">
+    <main className="min-h-full bg-background px-3 py-5 text-text md:px-6 md:py-8">
       <div className="mx-auto w-full max-w-[430px] md:max-w-5xl">
         <div className="mb-4 flex items-center justify-between">
           <button type="button" onClick={onBack} className="text-[28px] leading-none text-text" aria-label="Volver al menú principal">{'\u2630'}</button>
