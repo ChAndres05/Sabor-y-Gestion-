@@ -67,7 +67,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     await pusherServer.trigger('tables-channel', 'table-order-updated', { id_pedido });
 
     return NextResponse.json(resultado);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error al actualizar detalle de pedido:', error);
     const msg = error instanceof Error ? error.message : 'Error desconocido';
     if (msg === 'DETALLE_NO_ENCONTRADO') {

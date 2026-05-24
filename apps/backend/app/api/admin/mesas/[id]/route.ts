@@ -64,7 +64,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             }
 
             // 3. Actualizamos la mesa con todos los campos enviados
-            const updateData: any = {};
+            const updateData: {
+                estado?: string;
+                numero?: number;
+                capacidad?: number;
+                id_zona?: number | null;
+            } = {};
             if (estado !== undefined) updateData.estado = estado;
             if (numero !== undefined) updateData.numero = Number(numero);
             if (capacidad !== undefined) updateData.capacidad = Number(capacidad);
