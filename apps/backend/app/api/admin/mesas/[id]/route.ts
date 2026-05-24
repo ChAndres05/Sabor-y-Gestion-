@@ -37,9 +37,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                     throw new Error("PEDIDOS_INCOMPLETOS_PARA_CUENTA");
                 }
             }
-            // -------------------------------------------------------------
 
-            // ✅ 2. REGLA EXISTENTE: Cerrar masivamente al liberar la mesa
             if (estado === 'LIBRE') {
                 const pedidosActivos = await tx.pedidos.findMany({
                     where: {

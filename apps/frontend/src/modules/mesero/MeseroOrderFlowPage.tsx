@@ -320,6 +320,27 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
     } catch (error) { console.error(error); setFeedback({ type: 'error', title: 'No se pudo cambiar', message: error instanceof Error ? error.message : 'Error inesperado' }); } finally { setIsChangingStatus(false); }
   };
 
+  const handleCancelOrder = async () => {
+    if (!order) {
+      setFeedback({ type: 'info', title: 'Sin pedido', message: 'No hay ningún pedido activo para cancelar.' });
+      return;
+    }
+
+    const confirmCancel = window.confirm('¿Está seguro de que desea cancelar este pedido? Esta acción no se puede deshacer.');
+    if (!confirmCancel) return;
+
+    try {
+      await ordersApi.updateOrderStatus(order.id, 'CANCELADO', tableId);
+      await tablesApi.updateStatus(tableId, 'LIBRE');
+      setFeedback({ type: 'success', title: 'Pedido Cancelado', message: 'El pedido ha sido cancelado y la mesa liberada.' });
+      refreshPageState();
+      onBack();
+    } catch (error) {
+      console.error(error);
+      setFeedback({ type: 'error', title: 'Error al cancelar', message: error instanceof Error ? error.message : 'No se pudo cancelar el pedido.' });
+    }
+  };
+
   const handleNewOrder = async () => {
     if (!order) return;
     setIsLoading(true);
@@ -362,7 +383,18 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
       <div className="mx-auto w-full max-w-[430px] md:max-w-5xl">
         <div className="mb-4 flex items-center justify-between">
           <button type="button" onClick={onBack} className="text-[28px] leading-none text-text" aria-label="Volver a mesas">☰</button>
-          {onOpenOrders && <button type="button" onClick={onOpenOrders} className="rounded-full bg-white px-4 py-2 text-[12px] font-bold text-primary shadow-sm">Mis pedidos</button>}
+          <div className="flex items-center gap-2">
+            {order && (
+              <button
+                type="button"
+                onClick={() => void handleCancelOrder()}
+                className="rounded-full bg-alert/10 px-4 py-2 text-[12px] font-bold text-alert shadow-sm hover:bg-alert/20 transition-all active:scale-[0.98]"
+              >
+                Cancelar pedido
+              </button>
+            )}
+            {onOpenOrders && <button type="button" onClick={onOpenOrders} className="rounded-full bg-white px-4 py-2 text-[12px] font-bold text-primary shadow-sm">Mis pedidos</button>}
+          </div>
         </div>
 
         <header className="mb-4">
