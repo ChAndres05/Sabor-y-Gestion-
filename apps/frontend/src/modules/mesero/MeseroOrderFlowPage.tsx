@@ -1,5 +1,6 @@
 import { clientFlowApi } from '../../shared/api/client-flow.api';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { validateObservation } from '../../shared/utils/validation';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import { ordersApi } from '../../shared/api/orders.api';
 import { tablesApi } from '../../shared/api/tables.api';
@@ -253,6 +254,13 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
   const handleSaveItem = async () => {
     setIsSavingItem(true);
     try {
+      const validationError = validateObservation(observation);
+      if (validationError) {
+        setFeedback({ type: 'error', title: 'Observación no válida', message: validationError });
+        setIsSavingItem(false);
+        return;
+      }
+
       const targetOrderId = order?.id;
       const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
       const payload: AddOrderItemPayload = {

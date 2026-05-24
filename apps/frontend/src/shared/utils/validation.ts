@@ -155,3 +155,31 @@ export function validateDescription(description: string | undefined | null): str
 
   return null;
 }
+
+/**
+ * Valida la observación de un ítem de pedido.
+ * Solo permite letras, espacios y puntuación común, pero bloquea números y símbolos extraños.
+ * Reutiliza las comprobaciones de gibberish.
+ */
+export function validateObservation(observation: string | undefined | null): string | null {
+  if (!observation || !observation.trim()) {
+    return null;
+  }
+
+  const trimmed = observation.trim();
+
+  // 1. Bloquear si contiene números
+  if (/\d/.test(trimmed)) {
+    return 'La observación no puede contener números, solo letras.';
+  }
+
+  // 2. Solo letras, espacios y puntuación común
+  const SPANISH_OBSERVATION_ALLOWED = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s.,;:!?()'"“”-]+$/;
+  if (!SPANISH_OBSERVATION_ALLOWED.test(trimmed)) {
+    return 'La observación solo puede contener letras, espacios y signos de puntuación comunes.';
+  }
+
+  // 3. Aplicar control de palabras y mashing
+  return validateDescription(trimmed);
+}
+

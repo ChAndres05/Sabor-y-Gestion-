@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
+import { validateObservation } from '../../shared/utils/validation';
 import { ordersApi } from '../../shared/api/orders.api';
 import { menuApi } from '../menu/menu.api';
 import { tablesApi } from '../../shared/api/tables.api';
@@ -209,6 +210,13 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
   const handleSaveItem = async () => {
     setIsSavingItem(true);
     try {
+      const validationError = validateObservation(observation);
+      if (validationError) {
+        setFeedback({ type: 'error', title: 'Observación no válida', message: validationError });
+        setIsSavingItem(false);
+        return;
+      }
+
       const targetOrderId = order?.id;
       const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
       const payload: AddOrderItemPayload = {
