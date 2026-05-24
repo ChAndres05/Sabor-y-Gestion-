@@ -1,11 +1,12 @@
 import {
   useRef,
   useState,
+  useMemo,
   type ChangeEvent,
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Check, X } from 'lucide-react';
 import { AuthLayout } from '../../shared/components/AuthLayout';
 import { authApi } from './api/auth.api';
 
@@ -34,6 +35,23 @@ export default function ForgotPasswordPage({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  const passwordRequirements = useMemo(() => ({
+    length: newPassword.length >= 8,
+    hasUpper: /[A-Z]/.test(newPassword),
+    hasLower: /[a-z]/.test(newPassword),
+    hasNumber: /[0-9]/.test(newPassword),
+    hasSpecial: /[@$!%*?&]/.test(newPassword),
+  }), [newPassword]);
+
+  const isPasswordValid = Object.values(passwordRequirements).every(Boolean);
+
+  const RequirementItem = ({ met, text }: { met: boolean; text: string }) => (
+    <div className={`flex items-center gap-2 text-[11px] transition-colors ${met ? 'text-success' : 'text-gray-400'}`}>
+      {met ? <Check size={12} /> : <X size={12} />}
+      <span>{text}</span>
+    </div>
+  );
 
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
@@ -105,6 +123,17 @@ export default function ForgotPasswordPage({
 
   const handleResetPassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (!isPasswordValid) {
+      setErrorMessage('La contraseña no cumple con los requisitos de seguridad');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setErrorMessage('Las contraseñas no coinciden');
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage('');
 
@@ -356,7 +385,9 @@ export default function ForgotPasswordPage({
                   value={newPassword}
                   onChange={(event) => setNewPassword(event.target.value)}
                   placeholder="******"
-                  className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 pr-12 text-[14px] text-text outline-none transition-all focus:border-primary"
+                  className={`w-full rounded-2xl border bg-white px-4 py-3 pr-12 text-[14px] text-text outline-none transition-all focus:border-primary ${
+                    newPassword && !isPasswordValid ? 'border-process' : 'border-gray-200'
+                  }`}
                   required
                 />
 
@@ -367,6 +398,13 @@ export default function ForgotPasswordPage({
                 >
                   {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
+              </div>
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-1 bg-gray-50 p-2 rounded-xl border border-gray-100">
+                <RequirementItem met={passwordRequirements.length} text="Mín. 8 caracteres" />
+                <RequirementItem met={passwordRequirements.hasUpper} text="1 Mayúscula" />
+                <RequirementItem met={passwordRequirements.hasLower} text="1 Minúscula" />
+                <RequirementItem met={passwordRequirements.hasNumber} text="1 Número" />
+                <RequirementItem met={passwordRequirements.hasSpecial} text="1 Carácter (@$!%*?&)" />
               </div>
             </div>
 
@@ -381,7 +419,9 @@ export default function ForgotPasswordPage({
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
                   placeholder="******"
-                  className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 pr-12 text-[14px] text-text outline-none transition-all focus:border-primary"
+                  className={`w-full rounded-2xl border bg-white px-4 py-3 pr-12 text-[14px] text-text outline-none transition-all focus:border-primary ${
+                    confirmPassword && newPassword !== confirmPassword ? 'border-alert' : 'border-gray-200'
+                  }`}
                   required
                 />
 

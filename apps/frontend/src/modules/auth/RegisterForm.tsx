@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { AuthLayout } from '../../shared/components/AuthLayout';
 import { authApi } from './api/auth.api';
 import { Check, X } from 'lucide-react';
+import { validateName } from '../../shared/utils/validation';
 
 interface RegisterFormProps {
   onGoToLogin: () => void;
@@ -33,11 +34,33 @@ export default function RegisterForm({ onGoToLogin }: RegisterFormProps) {
   const isPasswordValid = Object.values(passwordRequirements).every(Boolean);
   const isUsernameValid = /^[a-zA-Z0-9]+$/.test(username) && username.length >= 4 && username.length <= 15;
 
+  const nombreValidationError = useMemo(() => {
+    if (!nombre.trim()) return null;
+    return validateName(nombre);
+  }, [nombre]);
+
+  const apellidoValidationError = useMemo(() => {
+    if (!apellido.trim()) return null;
+    return validateName(apellido);
+  }, [apellido]);
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!ci.trim()) {
       setErrorMessage('Ingresa tu CI');
+      return;
+    }
+
+    const nombreError = validateName(nombre);
+    if (nombreError) {
+      setErrorMessage(`Nombres: ${nombreError}`);
+      return;
+    }
+
+    const apellidoError = validateName(apellido);
+    if (apellidoError) {
+      setErrorMessage(`Apellidos: ${apellidoError}`);
       return;
     }
 
@@ -115,22 +138,32 @@ export default function RegisterForm({ onGoToLogin }: RegisterFormProps) {
               <input
                 type="text"
                 value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary"
+                onChange={(e) => setNombre(e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, ''))}
+                className={`w-full rounded-2xl border bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary ${
+                  nombreValidationError ? 'border-alert' : 'border-gray-200'
+                }`}
                 placeholder="Juan"
                 required
               />
+              {nombreValidationError && (
+                <span className="text-[10px] text-alert font-medium italic">{nombreValidationError}</span>
+              )}
             </div>
             <div className="flex flex-col gap-2">
               <label className="text-[12px] font-bold uppercase tracking-wide text-text">Apellidos</label>
               <input
                 type="text"
                 value={apellido}
-                onChange={(e) => setApellido(e.target.value)}
-                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary"
+                onChange={(e) => setApellido(e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, ''))}
+                className={`w-full rounded-2xl border bg-white px-4 py-3 text-[14px] text-text outline-none transition-all focus:border-primary ${
+                  apellidoValidationError ? 'border-alert' : 'border-gray-200'
+                }`}
                 placeholder="Gomez"
                 required
               />
+              {apellidoValidationError && (
+                <span className="text-[10px] text-alert font-medium italic">{apellidoValidationError}</span>
+              )}
             </div>
           </div>
 
