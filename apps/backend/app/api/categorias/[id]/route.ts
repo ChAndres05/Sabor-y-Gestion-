@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateName, validateDescription } from '@/lib/validation';
 
 export async function PATCH(
   request: Request,
@@ -12,13 +13,28 @@ export async function PATCH(
     if (isNaN(id)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
 
     const body = await request.json();
+
+    if (body.nombre !== undefined) {
+      const validationError = validateName(body.nombre);
+      if (validationError) {
+        return NextResponse.json({ error: validationError }, { status: 400 });
+      }
+    }
+
+    if (body.descripcion !== undefined) {
+      const validationError = validateDescription(body.descripcion);
+      if (validationError) {
+        return NextResponse.json({ error: validationError }, { status: 400 });
+      }
+    }
+
     const dataToUpdate: {
       nombre?: string;
       descripcion?: string;
       activo?: boolean;
     } = {};
-    if (body.nombre !== undefined) dataToUpdate.nombre = body.nombre;
-    if (body.descripcion !== undefined) dataToUpdate.descripcion = body.descripcion;
+    if (body.nombre !== undefined) dataToUpdate.nombre = body.nombre.trim();
+    if (body.descripcion !== undefined) dataToUpdate.descripcion = body.descripcion ? body.descripcion.trim() : body.descripcion;
     if (body.activo !== undefined) dataToUpdate.activo = body.activo;
 
     const actualizada = await prisma.categorias.update({

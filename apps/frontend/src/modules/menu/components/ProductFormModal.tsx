@@ -5,6 +5,8 @@ import type {
   MenuProductFormValues,
 } from '../types/menu.types';
 
+import { validateName, validateDescription } from '../../../shared/utils/validation';
+
 interface ProductFormModalProps {
   open: boolean;
   mode: 'create' | 'edit';
@@ -83,8 +85,15 @@ export function ProductFormModal({
       return;
     }
 
-    if (!nombre.trim()) {
-      setError('El nombre del producto es obligatorio');
+    const nameValidationError = validateName(nombre);
+    if (nameValidationError) {
+      setError(nameValidationError);
+      return;
+    }
+
+    const descValidationError = validateDescription(descripcion);
+    if (descValidationError) {
+      setError(descValidationError);
       return;
     }
 

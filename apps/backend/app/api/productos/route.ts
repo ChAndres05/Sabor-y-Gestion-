@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateName, validateDescription } from '@/lib/validation';
 
 // OBTENER TODOS LOS PRODUCTOS (Reemplaza los mockups)
 export async function GET() {
@@ -20,10 +21,20 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { nombre, descripcion, id_categoria, precio, imagen_url, tiempo_preparacion, disponible } = body;
 
+    const nameValidationError = validateName(nombre);
+    if (nameValidationError) {
+      return NextResponse.json({ error: nameValidationError }, { status: 400 });
+    }
+
+    const descValidationError = validateDescription(descripcion);
+    if (descValidationError) {
+      return NextResponse.json({ error: descValidationError }, { status: 400 });
+    }
+
     const nuevoProducto = await prisma.productos.create({
       data: {
-        nombre,
-        descripcion,
+        nombre: nombre.trim(),
+        descripcion: descripcion ? descripcion.trim() : descripcion,
         id_categoria: Number(id_categoria),
         precio: precio ? Number(precio) : null,
         tiempo_preparacion: tiempo_preparacion ? Number(tiempo_preparacion) : null,

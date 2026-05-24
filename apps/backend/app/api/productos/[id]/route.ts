@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateName, validateDescription } from '@/lib/validation';
 
 // EDITAR O DESACTIVAR PRODUCTO
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -11,11 +12,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // Extraemos los datos. Si viene "disponible" o "activo", es que estamos desactivando/activando
     const { nombre, descripcion, id_categoria, precio, imagen_url, disponible, activo, tiempo_preparacion } = body;
 
+    if (nombre !== undefined) {
+      const validationError = validateName(nombre);
+      if (validationError) {
+        return NextResponse.json({ error: validationError }, { status: 400 });
+      }
+    }
+
+    if (descripcion !== undefined) {
+      const validationError = validateDescription(descripcion);
+      if (validationError) {
+        return NextResponse.json({ error: validationError }, { status: 400 });
+      }
+    }
+
     const productoActualizado = await prisma.productos.update({
       where: { id_producto: id },
       data: {
-        ...(nombre && { nombre }),
-        ...(descripcion !== undefined && { descripcion }),
+        ...(nombre && { nombre: nombre.trim() }),
+        ...(descripcion !== undefined && { descripcion: descripcion ? descripcion.trim() : descripcion }),
         ...(id_categoria && { id_categoria: Number(id_categoria) }),
         ...(precio !== undefined && { precio: precio ? Number(precio) : null }),
         ...(tiempo_preparacion !== undefined && { tiempo_preparacion: tiempo_preparacion !== null ? Number(tiempo_preparacion) : null }),
