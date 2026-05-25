@@ -206,7 +206,20 @@ function App() {
         const target = (hash && hash !== 'login' && canAccess(parsed.user.rol, hash)) 
           ? hash 
           : getScreenByRole(parsed.user.rol);
-        setScreen(target, { replace: true });
+        
+        // Restore active navigation IDs from history state on reload
+        const historyState = window.history.state as {
+          selectedTableId?: number | null;
+          selectedClientProductId?: number | null;
+          selectedReservationId?: number | null;
+        } | null;
+
+        setScreen(target, { 
+          replace: true,
+          tableId: historyState?.selectedTableId !== undefined ? historyState.selectedTableId : null,
+          productId: historyState?.selectedClientProductId !== undefined ? historyState.selectedClientProductId : null,
+          reservationId: historyState?.selectedReservationId !== undefined ? historyState.selectedReservationId : null
+        });
       }
     } catch {
       localStorage.removeItem(AUTH_STORAGE_KEY);

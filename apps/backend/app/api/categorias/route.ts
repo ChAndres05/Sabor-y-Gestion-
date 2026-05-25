@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateName, validateDescription } from '@/lib/validation';
 
 export async function GET(request: Request) {
   try {
@@ -26,10 +27,21 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+
+    const nameValidationError = validateName(body.nombre);
+    if (nameValidationError) {
+      return NextResponse.json({ error: nameValidationError }, { status: 400 });
+    }
+
+    const descValidationError = validateDescription(body.descripcion);
+    if (descValidationError) {
+      return NextResponse.json({ error: descValidationError }, { status: 400 });
+    }
+
     const nueva = await prisma.categorias.create({
       data: {
-        nombre: body.nombre,
-        descripcion: body.descripcion,
+        nombre: body.nombre.trim(),
+        descripcion: body.descripcion ? body.descripcion.trim() : body.descripcion,
         activo: body.activo ?? true
       }
     });

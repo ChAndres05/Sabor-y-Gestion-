@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcryptjs from "bcryptjs";
 import { prisma } from "../../../lib/prisma";
 import jwt from "jsonwebtoken";
+import { validateName } from "../../../lib/validation";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,6 +41,23 @@ export async function POST(req: Request) {
     if (!nombre || !apellido || !nombre_usuario || !correo_electronico || !contrasena) {
       return NextResponse.json(
         { error: "MISSING_FIELDS" },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    // Validar nombre y apellido con las utilidades de validación
+    const nombreValidationError = validateName(nombre);
+    if (nombreValidationError) {
+      return NextResponse.json(
+        { error: `Nombres: ${nombreValidationError}` },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    const apellidoValidationError = validateName(apellido);
+    if (apellidoValidationError) {
+      return NextResponse.json(
+        { error: `Apellidos: ${apellidoValidationError}` },
         { status: 400, headers: corsHeaders }
       );
     }

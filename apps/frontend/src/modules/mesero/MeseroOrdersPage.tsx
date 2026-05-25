@@ -171,7 +171,7 @@ export default function MeseroOrdersPage({ user, onBack, onOpenOrder }: MeseroOr
   };
 
   return (
-    <main className="min-h-screen bg-background px-3 py-5 text-text md:px-6 md:py-8 font-sans">
+    <main className="min-h-full bg-background px-3 py-5 text-text md:px-6 md:py-8 font-sans">
       <div className="mx-auto w-full max-w-5xl">
         <button onClick={onBack} className="mb-4 text-[28px] text-text hover:opacity-70 transition-opacity">☰</button>
 

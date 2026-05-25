@@ -99,7 +99,7 @@ export default function ClientMenuPage({
             />
           </div>
 
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
             <button
               type="button"
               onClick={() => setSelectedCategoryId(null)}

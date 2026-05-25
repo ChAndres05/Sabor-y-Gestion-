@@ -461,7 +461,7 @@ export const ordersApi = {
     }
 
     // Si se envía a cocina, usar el endpoint especializado que guarda en asignaciones_cocina_pedido
-    if (status === 'EN_PREPARACION') {
+    if (status === 'PENDIENTE') {
       await cocinaApi.sendToKitchen(targetOrder.id, userId);
     } else {
       // Para otros estados, usar el endpoint de estado normal

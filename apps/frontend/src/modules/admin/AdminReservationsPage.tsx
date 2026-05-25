@@ -78,7 +78,7 @@ export default function AdminReservationsPage({ onBack, onOpenReservationOrder, 
   };
 
   return (
-    <main className="min-h-screen bg-background px-3 py-5 text-text md:px-6 md:py-8">
+    <main className="min-h-full bg-background px-3 py-5 text-text md:px-6 md:py-8">
       <div className="mx-auto w-full max-w-5xl">
         <div className="mb-4 flex items-center justify-between">
           <button

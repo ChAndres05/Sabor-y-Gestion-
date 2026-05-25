@@ -176,7 +176,7 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
   };
 
   return (
-    <div className="min-h-screen bg-[var(--color-background)] flex flex-col font-sans">
+    <div className="min-h-full bg-[var(--color-background)] flex flex-col font-sans">
       <header className="bg-white p-4 md:p-6 shadow-sm border-b flex justify-between items-center z-20">
         <div className="flex items-center gap-4">
           <button onClick={onOpenSidebar} className="p-2 text-[var(--color-primary)] text-2xl">☰</button>

@@ -188,7 +188,12 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
         return { ...currentOrder, items: updatedItems, status: newStatus };
       })
     );
-    try { await cocinaApi.marcarPlatoPreparado(item.id, newChecked); } 
+    try {
+      await cocinaApi.marcarPlatoPreparado(item.id, newChecked);
+      if (order.status === 'pending') {
+        await updateBackendStatus(orderId, 'EN_PREPARACION');
+      }
+    } 
     catch (error) { console.error('Error BD:', error); }
   };
 
@@ -208,14 +213,14 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
 
   if (isLoading) {
     return (
-      <div className="min-h-screen font-sans p-4 sm:p-6 md:p-8 text-[#1c1c1c] bg-[#F2E9DC] flex items-center justify-center">
+      <div className="min-h-full font-sans p-4 sm:p-6 md:p-8 text-[#1c1c1c] bg-[#F2E9DC] flex items-center justify-center">
         <p className="text-xl font-bold">Cargando monitor de cocina...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen font-sans p-4 sm:p-6 md:p-8 text-[#1c1c1c] bg-[#F2E9DC]">
+    <div className="min-h-full font-sans p-4 sm:p-6 md:p-8 text-[#1c1c1c] bg-[#F2E9DC]">
       <div className="mb-6 max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">

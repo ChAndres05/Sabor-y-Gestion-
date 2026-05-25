@@ -4,6 +4,8 @@ import type {
   MenuCategoryFormValues,
 } from '../types/menu.types';
 
+import { validateName, validateDescription } from '../../../shared/utils/validation';
+
 interface CategoryFormModalProps {
   open: boolean;
   mode: 'create' | 'edit';
@@ -33,16 +35,23 @@ export function CategoryFormModal({
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!nombre.trim()) {
-      setError('El nombre de la categoría es obligatorio');
+    const nameValidationError = validateName(nombre);
+    if (nameValidationError) {
+      setError(nameValidationError);
+      return;
+    }
+
+    const descValidationError = validateDescription(descripcion);
+    if (descValidationError) {
+      setError(descValidationError);
       return;
     }
 
     setError('');
 
     await onSubmit({
-      nombre,
-      descripcion,
+      nombre: nombre.trim(),
+      descripcion: descripcion.trim(),
       activo,
     });
   };

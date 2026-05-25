@@ -64,6 +64,11 @@ export function TableFormModal({
       return;
     }
 
+    if (Number(capacidad) > 10) {
+      setError('La capacidad de la mesa no puede ser mayor a 10');
+      return;
+    }
+
     if (!zoneId) {
       setError('Debes seleccionar una zona');
       return;
@@ -127,6 +132,7 @@ export function TableFormModal({
               <input
                 type="number"
                 min="1"
+                max="10"
                 step="1"
                 value={capacidad}
                 onChange={(event) => setCapacidad(event.target.value)}

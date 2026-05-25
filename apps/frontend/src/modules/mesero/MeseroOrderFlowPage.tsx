@@ -1,5 +1,6 @@
 import { clientFlowApi } from '../../shared/api/client-flow.api';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { validateObservation } from '../../shared/utils/validation';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import { ordersApi } from '../../shared/api/orders.api';
 import { tablesApi } from '../../shared/api/tables.api';
@@ -24,7 +25,7 @@ function formatCurrency(value: number | string | null | undefined) { return `Bs 
 
 function getOrderStatusLabel(status: TableOrderStatus) {
   switch (status) {
-    case 'REGISTRADO': return 'Registrado'; case 'EN_PREPARACION': return 'En preparación';
+    case 'REGISTRADO': return 'Registrado'; case 'PENDIENTE': return 'Pendiente (Cocina)'; case 'EN_PREPARACION': return 'En preparación';
     case 'LISTO': return 'Listo para entregar'; case 'EN_CAMINO': return 'En camino';
     case 'ENTREGADO': return 'Pedido completado'; case 'PAGADO': return 'Pagado'; case 'CANCELADO': return 'Cancelado';
   }
@@ -36,7 +37,7 @@ function getTableStatusLabel(status: RestaurantTable['estado']) {
 
 function getStatusBadgeClass(status: TableOrderStatus) {
   switch (status) {
-    case 'REGISTRADO': return 'bg-process/10 text-process'; case 'EN_PREPARACION': return 'bg-alert/10 text-alert';
+    case 'REGISTRADO': return 'bg-process/10 text-process'; case 'PENDIENTE': return 'bg-[#ef4444]/10 text-[#ef4444]'; case 'EN_PREPARACION': return 'bg-[#eab308]/10 text-[#eab308]';
     case 'LISTO': case 'EN_CAMINO': return 'bg-info/10 text-info';
     case 'ENTREGADO': case 'PAGADO': return 'bg-success/10 text-success'; case 'CANCELADO': return 'bg-gray-200 text-gray-600';
   }
@@ -253,6 +254,13 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
   const handleSaveItem = async () => {
     setIsSavingItem(true);
     try {
+      const validationError = validateObservation(observation);
+      if (validationError) {
+        setFeedback({ type: 'error', title: 'Observación no válida', message: validationError });
+        setIsSavingItem(false);
+        return;
+      }
+
       const targetOrderId = order?.id;
       const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
       const payload: AddOrderItemPayload = {
@@ -312,6 +320,27 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
     } catch (error) { console.error(error); setFeedback({ type: 'error', title: 'No se pudo cambiar', message: error instanceof Error ? error.message : 'Error inesperado' }); } finally { setIsChangingStatus(false); }
   };
 
+  const handleCancelOrder = async () => {
+    if (!order) {
+      setFeedback({ type: 'info', title: 'Sin pedido', message: 'No hay ningún pedido activo para cancelar.' });
+      return;
+    }
+
+    const confirmCancel = window.confirm('¿Está seguro de que desea cancelar este pedido? Esta acción no se puede deshacer.');
+    if (!confirmCancel) return;
+
+    try {
+      await ordersApi.updateOrderStatus(order.id, 'CANCELADO', tableId);
+      await tablesApi.updateStatus(tableId, 'LIBRE');
+      setFeedback({ type: 'success', title: 'Pedido Cancelado', message: 'El pedido ha sido cancelado y la mesa liberada.' });
+      refreshPageState();
+      onBack();
+    } catch (error) {
+      console.error(error);
+      setFeedback({ type: 'error', title: 'Error al cancelar', message: error instanceof Error ? error.message : 'No se pudo cancelar el pedido.' });
+    }
+  };
+
   const handleNewOrder = async () => {
     if (!order) return;
     setIsLoading(true);
@@ -350,11 +379,22 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
   const headerDescription = table ? [`Mesa ${table.numero}`, order ? `Orden #${order.id}` : '', getTableStatusLabel(table.estado), order?.customer.nombre?.trim(), `Mesero ${user.nombre}`].filter((item): item is string => Boolean(item && item.trim())).join(' · ') : 'Flujo operativo del mesero';
 
   return (
-    <main className="min-h-screen bg-background px-3 py-5 text-text md:px-6 md:py-8">
+    <main className="min-h-full bg-background px-3 py-5 text-text md:px-6 md:py-8">
       <div className="mx-auto w-full max-w-[430px] md:max-w-5xl">
         <div className="mb-4 flex items-center justify-between">
           <button type="button" onClick={onBack} className="text-[28px] leading-none text-text" aria-label="Volver a mesas">☰</button>
-          {onOpenOrders && <button type="button" onClick={onOpenOrders} className="rounded-full bg-white px-4 py-2 text-[12px] font-bold text-primary shadow-sm">Mis pedidos</button>}
+          <div className="flex items-center gap-2">
+            {order && (
+              <button
+                type="button"
+                onClick={() => void handleCancelOrder()}
+                className="rounded-full bg-alert/10 px-4 py-2 text-[12px] font-bold text-alert shadow-sm hover:bg-alert/20 transition-all active:scale-[0.98]"
+              >
+                Cancelar pedido
+              </button>
+            )}
+            {onOpenOrders && <button type="button" onClick={onOpenOrders} className="rounded-full bg-white px-4 py-2 text-[12px] font-bold text-primary shadow-sm">Mis pedidos</button>}
+          </div>
         </div>
 
         <header className="mb-4">
@@ -419,7 +459,7 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
                         <div><h2 className="text-[20px] font-bold text-text">Categorías</h2><p className="mt-1 text-[12px] text-gray-500">Selecciona para filtrar productos.</p></div>
                         <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${getStatusBadgeClass(order.estado)}`}>{getOrderStatusLabel(order.estado)}</span>
                       </div>
-                      <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+                      <div className="mt-4 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
                         {categories.map((category) => (
                           <button key={category.id} type="button" onClick={() => setSelectedCategoryId(category.id)} className={`shrink-0 rounded-xl px-4 py-3 text-[12px] font-bold ${selectedCategoryId === category.id ? 'bg-primary text-white' : 'bg-background text-text'}`}>{category.nombre}</button>
                         ))}
@@ -540,8 +580,9 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
 
                     {!isBillRequested && (
                       <div className="flex flex-col gap-3 md:flex-row md:flex-wrap">
-                        {order.estado === 'REGISTRADO' && <button type="button" onClick={() => void handleChangeOrderStatus('EN_PREPARACION')} disabled={isChangingStatus || !hasItems} className="w-full md:w-auto flex-1 rounded-xl bg-primary px-5 py-3 text-[14px] font-bold text-white disabled:opacity-60">Enviar a cocina</button>}
-                        {order.estado === 'EN_PREPARACION' && <div className="w-full md:w-auto flex-1 rounded-xl bg-gray-100 px-5 py-3 text-[14px] font-bold text-gray-500 text-center">Pedido en preparación...</div>}
+                        {order.estado === 'REGISTRADO' && <button type="button" onClick={() => void handleChangeOrderStatus('PENDIENTE')} disabled={isChangingStatus || !hasItems} className="w-full md:w-auto flex-1 rounded-xl bg-primary px-5 py-3 text-[14px] font-bold text-white disabled:opacity-60">Enviar a cocina</button>}
+                        {order.estado === 'PENDIENTE' && <div className="w-full md:w-auto flex-1 rounded-xl bg-gray-100 px-5 py-3 text-[14px] font-bold text-gray-500 text-center">Pedido enviado a cocina (Pendiente)</div>}
+                        {order.estado === 'EN_PREPARACION' && <div className="w-full md:w-auto flex-1 rounded-xl bg-[#eab308]/10 px-5 py-3 text-[14px] font-bold text-[#eab308] text-center">Pedido en preparación...</div>}
                         {(order.estado === 'LISTO' || order.estado === 'EN_CAMINO') && <button type="button" onClick={() => void handleChangeOrderStatus('ENTREGADO')} disabled={isChangingStatus} className="w-full md:w-auto flex-1 rounded-xl bg-success px-5 py-3 text-[14px] font-bold text-white disabled:opacity-60">Marcar entregado en mesa</button>}
 
                         {/* 🛑 BOTÓN DE CUENTA CON NUEVA VALIDACIÓN Y FEEDBACK VISUAL */}

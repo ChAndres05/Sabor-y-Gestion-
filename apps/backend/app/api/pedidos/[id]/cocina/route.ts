@@ -34,10 +34,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     // Usar transacción para actualizar estado, crear asignación e historial
     const resultado = await prisma.$transaction(async (tx) => {
-      // 1. Actualizar estado del pedido a EN_PREPARACION
+      // 1. Actualizar estado del pedido a PENDIENTE
       const pedidoActualizado = await tx.pedidos.update({
         where: { id_pedido },
-        data: { estado: 'EN_PREPARACION' },
+        data: { estado: 'PENDIENTE' },
         include: {
           mesa: true,
           detalles_pedido: {
@@ -66,8 +66,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           data: {
             id_pedido,
             id_usuario,
-            estado: 'EN_PREPARACION',
-            observaciones: 'Pedido enviado a cocina'
+            estado: 'PENDIENTE',
+            observaciones: 'Pedido enviado a cocina (Pendiente)'
           }
         });
       }
