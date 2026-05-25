@@ -331,10 +331,8 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
 
     try {
       await ordersApi.updateOrderStatus(order.id, 'CANCELADO', tableId);
-      await tablesApi.updateStatus(tableId, 'LIBRE');
-      setFeedback({ type: 'success', title: 'Pedido Cancelado', message: 'El pedido ha sido cancelado y la mesa liberada.' });
+      setFeedback({ type: 'success', title: 'Pedido Cancelado', message: 'El pedido ha sido cancelado.' });
       refreshPageState();
-      onBack();
     } catch (error) {
       console.error(error);
       setFeedback({ type: 'error', title: 'Error al cancelar', message: error instanceof Error ? error.message : 'No se pudo cancelar el pedido.' });
@@ -384,7 +382,7 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
         <div className="mb-4 flex items-center justify-between">
           <button type="button" onClick={onBack} className="text-[28px] leading-none text-text" aria-label="Volver a mesas">☰</button>
           <div className="flex items-center gap-2">
-            {order && (
+            {order && order.estado === 'REGISTRADO' && (
               <button
                 type="button"
                 onClick={() => void handleCancelOrder()}

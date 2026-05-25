@@ -26,6 +26,12 @@ export async function PATCH(
       const pedidoOriginal = await tx.pedidos.findUnique({ where: { id_pedido } });
       if (!pedidoOriginal) throw new Error("PEDIDO_NO_ENCONTRADO");
 
+      if (estado === 'CANCELADO') {
+        if (pedidoOriginal.estado !== 'REGISTRADO') {
+          throw new Error("SOLO_REGISTRADOS_PUEDEN_CANCELARSE");
+        }
+      }
+
       // 🛑 OPTIMIZACIÓN DE VELOCIDAD: Cálculo Nativo en Base de Datos
       if (estado === 'CUENTA_SOLICITADA' && pedidoOriginal.id_mesa) {
 
@@ -126,10 +132,21 @@ export async function PATCH(
 
       // D. Lógica de MESAS
       if ((estado === 'PAGADO' || estado === 'CANCELADO') && pedidoActualizado.id_mesa) {
-        await tx.mesas.update({
-          where: { id_mesa: pedidoActualizado.id_mesa },
-          data: { estado: 'LIBRE' }
+        const pedidosActivosEnMesa = await tx.pedidos.count({
+          where: {
+            id_mesa: pedidoActualizado.id_mesa,
+            estado: {
+              notIn: ['PAGADO', 'CANCELADO']
+            }
+          }
         });
+
+        if (pedidosActivosEnMesa === 0) {
+          await tx.mesas.update({
+            where: { id_mesa: pedidoActualizado.id_mesa },
+            data: { estado: 'LIBRE' }
+          });
+        }
       }
 
       // E. Lógica de RESERVAS
@@ -177,6 +194,13 @@ export async function PATCH(
     if (errorMessage === "PEDIDOS_INCOMPLETOS_PARA_CUENTA") {
       return NextResponse.json(
         { error: "No se puede solicitar la cuenta. Aún hay pedidos sin entregar en esta mesa." },
+        { status: 400 }
+      );
+    }
+
+    if (errorMessage === "SOLO_REGISTRADOS_PUEDEN_CANCELARSE") {
+      return NextResponse.json(
+        { error: "Solo se pueden cancelar pedidos recién registrados. Si ya está en cocina u otro estado, no se puede cancelar." },
         { status: 400 }
       );
     }
