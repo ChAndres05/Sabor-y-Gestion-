@@ -44,8 +44,9 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
   const cuponEncontrado = MOCK_CUPONES.find(c => c.codigo === codigoDescuento.toUpperCase());
   const montoDescuento = cuponEncontrado ? subtotal * cuponEncontrado.descuento : 0;
 
-  const totalFinal = subtotal - montoDescuento;
-  const ivaInformativo = totalFinal * 0.13;
+  const subtotalConDescuento = subtotal - montoDescuento;
+  const ivaAgregado = subtotalConDescuento * 0.13;
+  const totalFinal = subtotalConDescuento + ivaAgregado;
   const cambio = montoRecibido > totalFinal ? montoRecibido - totalFinal : 0;
 
   // NUEVO: Validación simple de correo (debe tener algo, un @, y algo después)
@@ -158,8 +159,8 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
               </div>
             )}
             <div className="flex justify-between text-[10px] text-gray-400 border-t pt-3 uppercase font-bold tracking-widest">
-              <span>IVA (13% Incluido)</span>
-              <span>Bs {ivaInformativo.toFixed(2)}</span>
+              <span>IVA (13%)</span>
+              <span>Bs {ivaAgregado.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-2xl font-black text-[var(--color-primary)] tracking-tighter">
               <span>Total a pagar</span>

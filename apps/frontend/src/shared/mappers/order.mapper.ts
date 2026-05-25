@@ -85,6 +85,7 @@ export function mapBackendOrderToWaiterFrontend(
       nombre: customerName,
       telefono: stringValue(customer.telefono, '00000000'),
       ci: customer.usuario_ci ? String(customer.usuario_ci) : '0',
+      correo: stringValue(customer.correo_electronico ?? customer.correo ?? backendOrder.cliente_correo ?? ''),
     },
     items: mappedItems,
     subtotal: numberValue(backendOrder.subtotal, 0),

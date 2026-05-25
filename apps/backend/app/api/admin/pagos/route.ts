@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { pusherServer } from '@/lib/pusher';
+import nodemailer from 'nodemailer';
 
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { id_mesa, metodo_pago, monto_pagado, monto_recibido, monto_cambio, referencia_pago, id_usuario_cajero } = body;
+        const { id_mesa, metodo_pago, monto_pagado, monto_recibido, monto_cambio, referencia_pago, id_usuario_cajero, correo_cliente, enviar_recibo, ci_cliente, nombre_cliente, detalles_consumidos } = body;
 
         // Validaciones básicas de entrada
         if (!id_mesa || !metodo_pago || !id_usuario_cajero) {
@@ -98,6 +99,79 @@ export async function POST(request: Request) {
 
         // Simulación de actualización de pedidos para limpiar la vista de meseros
         await pusherServer.trigger('tables-channel', 'table-order-updated', { id_mesa, estado: 'PAGADO' });
+
+        if (enviar_recibo && correo_cliente) {
+            try {
+                const transporter = nodemailer.createTransport({
+                    service: "gmail",
+                    auth: {
+                        user: process.env.EMAIL_USER,
+                        pass: process.env.EMAIL_PASS,
+                    },
+                });
+
+                await transporter.sendMail({
+                    from: '"Sabor y Gestión" <noreply@saborygestion.com>',
+                    to: correo_cliente,
+                    subject: "Comprobante de Pago - Sabor y Gestión",
+                    html: `
+                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                            <h2 style="color: #ea580c; text-align: center;">¡Gracias por tu visita!</h2>
+                            <p>Hola,</p>
+                            <p>Adjuntamos el detalle de tu pago reciente en <strong>Sabor y Gestión</strong>.</p>
+                            
+                            <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                                <h3 style="margin-top: 0; color: #374151;">Datos del Cliente</h3>
+                                <p style="margin: 5px 0;"><strong>Nombre:</strong> ${nombre_cliente || 'Cliente General'}</p>
+                                <p style="margin: 5px 0;"><strong>CI/NIT:</strong> ${ci_cliente || '0'}</p>
+                                
+                                <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 15px 0;">
+                                
+                                <h3 style="margin-top: 0; color: #374151;">Detalle del Consumo (Mesa ${resultadoTransaccion.numero || id_mesa})</h3>
+                                ${detalles_consumidos && detalles_consumidos.length > 0 ? 
+                                    `<table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 14px;">
+                                        <thead>
+                                            <tr style="border-bottom: 2px solid #e5e7eb; text-align: left;">
+                                                <th style="padding: 8px 0; color: #6b7280; width: 15%;">Cant.</th>
+                                                <th style="padding: 8px 0; color: #6b7280; width: 60%;">Producto</th>
+                                                <th style="padding: 8px 0; text-align: right; color: #6b7280; width: 25%;">Subtotal</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${detalles_consumidos.map((d: { cantidad: number; nombre: string; subtotal: number }) => `
+                                                <tr>
+                                                    <td style="padding: 8px 0; border-bottom: 1px dashed #eee;">${d.cantidad}x</td>
+                                                    <td style="padding: 8px 0; border-bottom: 1px dashed #eee; color: #374151;">${d.nombre}</td>
+                                                    <td style="padding: 8px 0; text-align: right; border-bottom: 1px dashed #eee; font-weight: bold;">Bs. ${Number(d.subtotal).toFixed(2)}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>`
+                                : '<p style="color: #6b7280;">Detalle no disponible.</p>'}
+
+                                <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 15px 0;">
+                                
+                                <p style="margin: 5px 0;"><strong>Método de Pago:</strong> ${metodo_pago}</p>
+                                ${referencia_pago ? `<p style="margin: 5px 0;"><strong>Referencia:</strong> ${referencia_pago}</p>` : ''}
+                                
+                                <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 15px 0;">
+                                <h3 style="margin: 0; color: #111827; display: flex; justify-content: space-between;">
+                                    <span>Total Pagado (IVA Incluido):</span>
+                                    <span>Bs. ${Number(monto_pagado).toFixed(2)}</span>
+                                </h3>
+                            </div>
+                            
+                            <p style="color: #6b7280; font-size: 12px; text-align: center;">
+                                Este es un comprobante electrónico informativo.
+                            </p>
+                        </div>
+                    `,
+                });
+                console.log(`Recibo enviado a ${correo_cliente}`);
+            } catch (emailError) {
+                console.error("Error al enviar el recibo por correo:", emailError);
+            }
+        }
 
         return NextResponse.json({ message: "PAGO_PROCESADO_EXITOSAMENTE", mesa: resultadoTransaccion });
 
