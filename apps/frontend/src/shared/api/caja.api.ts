@@ -8,6 +8,11 @@ export interface ProcesarPagoPayload {
     monto_cambio: number;
     referencia_pago?: string;
     id_usuario_cajero: number;
+    correo_cliente?: string;
+    enviar_recibo?: boolean;
+    ci_cliente?: string;
+    nombre_cliente?: string;
+    detalles_consumidos?: { cantidad: number; nombre: string; subtotal: number }[];
 }
 
 export const cajaApi = {

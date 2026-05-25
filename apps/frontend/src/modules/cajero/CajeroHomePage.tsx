@@ -23,6 +23,7 @@ interface MesaFacturacion {
   total_acumulado: number;
   ci_cliente: string;
   nombre_cliente: string;
+  correo_cliente: string;
   pedidosRaw: TableOrder[];
 }
 
@@ -101,7 +102,7 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
     return mesasFiltradas.map(mesa => {
       const pedidosDeEstaMesa = pedidosActivos.filter(p => p.tableId === mesa.id);
       const totalMesa = pedidosDeEstaMesa.reduce((acc, pedido) => acc + pedido.total, 0);
-      const cliente = pedidosDeEstaMesa[0]?.customer || { nombre: 'Cliente General', ci: '0' };
+      const cliente = pedidosDeEstaMesa[0]?.customer || { nombre: 'Cliente General', ci: '0', correo: '' };
 
       return {
         id_mesa: mesa.id,
@@ -110,6 +111,7 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
         total_acumulado: totalMesa,
         ci_cliente: cliente.ci || '',
         nombre_cliente: cliente.nombre || '',
+        correo_cliente: cliente.correo || '',
         pedidosRaw: pedidosDeEstaMesa
       };
     }).filter(m => m.total_acumulado > 0);
@@ -136,7 +138,12 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
         monto_recibido: datos.monto_recibido,
         monto_cambio: datos.monto_cambio ?? 0,
         referencia_pago: datos.referencia_pago,
-        id_usuario_cajero: user.id
+        id_usuario_cajero: user.id,
+        correo_cliente: datos.correo_cliente,
+        enviar_recibo: datos.enviar_recibo,
+        ci_cliente: datos.ci_cliente,
+        nombre_cliente: datos.nombre_cliente,
+        detalles_consumidos: Array.isArray(mesaSeleccionada.pedidosRaw) ? mesaSeleccionada.pedidosRaw.flatMap(p => p.items || []).map(i => ({ cantidad: i.cantidad, nombre: i.nombreProducto, subtotal: i.subtotal })) : []
       });
 
       const trx = {
@@ -421,6 +428,7 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
           detalles={Array.isArray(mesaSeleccionada.pedidosRaw) ? mesaSeleccionada.pedidosRaw.flatMap(p => p.items || []) : []}
           ci_cliente={mesaSeleccionada.ci_cliente}
           nombre_cliente={mesaSeleccionada.nombre_cliente}
+          correo_cliente={mesaSeleccionada.correo_cliente}
           onClose={() => setMesaSeleccionada(null)}
           onConfirmarPago={handleFinalizarPago}
         />

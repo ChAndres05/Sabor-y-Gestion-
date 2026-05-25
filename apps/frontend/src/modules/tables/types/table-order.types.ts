@@ -13,6 +13,7 @@ export interface TableOrderCustomer {
   telefono: string;
   ci: string;
   idUsuario?: number | null;
+  correo?: string | null;
 }
 
 export interface OrderProductIngredient {
