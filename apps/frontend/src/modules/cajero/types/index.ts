@@ -26,4 +26,6 @@ export interface PagoConfirmacion {
   referencia_pago?: string;
   ci_cliente?: string;
   nombre_cliente?: string;
+  correo_cliente?: string; 
+  enviar_recibo?: boolean;
 }

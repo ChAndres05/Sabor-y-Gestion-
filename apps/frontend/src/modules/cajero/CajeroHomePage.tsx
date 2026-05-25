@@ -6,7 +6,6 @@ import { mockMovimientosDia } from '../../shared/mocks/cajaMocks';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { PagoConfirmacion } from './types';
 import { cajaApi } from '../../shared/api/caja.api';
-// Nuevas importaciones de las APIs reales
 import { tablesApi } from '../../shared/api/tables.api';
 import { ordersApi } from '../../shared/api/orders.api';
 import type { RestaurantTable } from '../tables/types/table.types';
@@ -17,7 +16,6 @@ import { RESTAURANT_STATE_CHANGED_EVENT } from '../../shared/utils/events';
 interface CajeroHomeProps { user: AuthUser; onLogout: () => void; onOpenSidebar: () => void; defaultView?: ViewState; }
 type ViewState = 'facturacion' | 'cierre';
 
-// Interfaz extendida para manejar los datos reales del backend
 interface MesaFacturacion {
   id_mesa: number;
   numero: number;
@@ -32,12 +30,14 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
   const { estaAbierta, jornada, cerrarCaja } = useCajaStore();
   const [activeView, setView] = useState<ViewState>(defaultView || 'facturacion');
 
-  // Estados para datos reales
   const [mesasActivas, setMesasActivas] = useState<RestaurantTable[]>([]);
   const [pedidosActivos, setPedidosActivos] = useState<TableOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [mesaSeleccionada, setMesaSeleccionada] = useState<MesaFacturacion | null>(null);
   const [showAperturaModal, setShowAperturaModal] = useState(false);
+
+  // NUEVO ESTADO: Controla si estamos en el paso 1 (Ingreso) o paso 2 (Resumen) del cierre
+  const [stepCierre, setStepCierre] = useState<1 | 2>(1);
 
   useEffect(() => {
     if (defaultView) {
@@ -51,7 +51,6 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
   const [showGastoModal, setShowGastoModal] = useState(false);
   const [nuevoGasto, setNuevoGasto] = useState({ motivo: '', monto: 0 });
 
-  // Función para cargar los datos del backend
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -74,7 +73,6 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
     }
   }, [estaAbierta, loadData]);
 
-  // Suscripción a WebSockets para actualizaciones en tiempo real (Pusher)
   useEffect(() => {
     if (!estaAbierta) return;
 
@@ -85,7 +83,7 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
 
     ordersChannel.bind('order-updated', handleRefresh);
     tablesChannel.bind('table-order-updated', handleRefresh);
-    tablesChannel.bind('table-updated', handleRefresh); // Para captar estado CUENTA_SOLICITADA
+    tablesChannel.bind('table-updated', handleRefresh);
     window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleRefresh);
 
     return () => {
@@ -97,7 +95,6 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
     };
   }, [estaAbierta, loadData]);
 
-  // Agrupación de pedidos por mesa (Reemplazo del Mock)
   const mesasFacturacion = useMemo(() => {
     const mesasFiltradas = mesasActivas.filter(m => m.estado === 'CUENTA_SOLICITADA' || m.estado === 'OCUPADA');
 
@@ -128,8 +125,6 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
     return { totalVentas, ventasEfectivo, ventasTransf, efectivoEnCaja, gastos: gastosTotal, ventasTotales };
   }, [jornada, movimientos]);
 
-  // Removido: if (!estaAbierta) return <AperturaCaja />;
-  
   const handleFinalizarPago = async (datos: PagoConfirmacion) => {
     if (!mesaSeleccionada) return;
 
@@ -138,15 +133,12 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
         id_mesa: mesaSeleccionada.id_mesa,
         metodo_pago: datos.metodo_pago,
         monto_pagado: datos.monto_pagado,
-        // 👇 Si monto_recibido es opcional, lo dejamos pasar o le ponemos fallback si da error
         monto_recibido: datos.monto_recibido,
-        // 🚀 EL CAMBIO AQUÍ: Le agregamos '?? 0' para obligar a que siempre sea un número limpio
         monto_cambio: datos.monto_cambio ?? 0,
         referencia_pago: datos.referencia_pago,
         id_usuario_cajero: user.id
       });
 
-      // El resto del código de movimientos se mantiene idéntico...
       const trx = {
         id: `TRX-${Date.now()}`,
         referencia: `Mesa ${mesaSeleccionada.numero}`,
@@ -192,7 +184,7 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
         </button>
       </header>
 
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto custom-scrollbar">
         <div className="max-w-7xl mx-auto">
           {activeView === 'facturacion' ? (
             !estaAbierta ? (
@@ -257,7 +249,17 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
             <div className="space-y-6">
               <div className="bg-[var(--color-primary)] text-white p-6 rounded-3xl flex justify-between items-center shadow-lg">
                 <div><h2 className="text-xl font-bold">Jornada Activa ✓</h2><p className="text-[10px] uppercase font-bold opacity-70 tracking-widest">Desde: {new Date(jornada?.fecha_hora_apertura || '').toLocaleTimeString()}</p></div>
-                <button onClick={() => setShowConfirmCierre(true)} className="bg-white text-[var(--color-primary)] px-6 py-2 rounded-xl font-bold uppercase text-xs shadow-md">Cerrar Caja</button>
+                {/* NUEVO: Al presionar "Cerrar Caja", nos aseguramos de ir al paso 1 y limpiar el input */}
+                <button 
+                  onClick={() => {
+                    setStepCierre(1);
+                    setMontoContado(0);
+                    setShowConfirmCierre(true);
+                  }} 
+                  className="bg-white text-[var(--color-primary)] px-6 py-2 rounded-xl font-bold uppercase text-xs shadow-md"
+                >
+                  Cerrar Caja
+                </button>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[var(--color-primary)] text-center">
@@ -314,20 +316,101 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
         </div>
       )}
 
-      {/* MODAL CIERRE FINAL */}
+      {/* NUEVO: MODAL CIERRE FINAL EN DOS PASOS */}
       {showConfirmCierre && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
           <div className="bg-[var(--color-primary)] w-full max-w-md p-8 rounded-[3rem] text-white shadow-2xl border-2 border-white/10 animate-in zoom-in-95">
-            <h2 className="text-2xl font-black mb-6 text-center tracking-tighter uppercase italic">Arqueo de Caja</h2>
-            <div className="space-y-4 mb-8 text-sm opacity-90 border-b border-white/10 pb-6 font-bold text-center">
-              <p>Efectivo Esperado: Bs {stats.efectivoEnCaja.toFixed(2)}</p>
-              <p className="text-[9px] opacity-40 font-normal italic">* Transferencias (Bs {stats.ventasTransf.toFixed(2)}) auditadas digitalmente.</p>
-            </div>
-            <input type="number" autoFocus min="0" onKeyDown={(e) => ["-", "+", "e", "E"].includes(e.key) && e.preventDefault()} onChange={(e) => setMontoContado(Math.max(0, Number(e.target.value)))} className="w-full bg-black/20 p-5 rounded-3xl text-3xl font-black text-center border-2 border-white/20 outline-none mb-8 focus:border-white transition-all" placeholder="0.00" />
-            <div className="grid grid-cols-2 gap-4">
-              <button onClick={() => setShowConfirmCierre(false)} className="py-4 border border-white/30 rounded-2xl font-bold uppercase text-xs">Cancelar</button>
-              <button onClick={() => { const dif = montoContado - stats.efectivoEnCaja; alert(`Cierre exitoso. Diferencia: Bs ${dif.toFixed(2)}`); cerrarCaja(); setShowConfirmCierre(false); setView('facturacion'); }} className="py-4 bg-white text-[var(--color-primary)] rounded-2xl font-black uppercase text-xs shadow-xl">Confirmar</button>
-            </div>
+            <h2 className="text-2xl font-black mb-6 text-center tracking-tighter uppercase italic">
+              {stepCierre === 1 ? 'Arqueo de Caja' : 'Resumen de Cierre'}
+            </h2>
+
+            {stepCierre === 1 ? (
+              // PASO 1: Ingreso del monto contado
+              <>
+                <div className="space-y-4 mb-8 text-sm opacity-90 border-b border-white/10 pb-6 font-bold text-center">
+                  <p>Efectivo Esperado: Bs {stats.efectivoEnCaja.toFixed(2)}</p>
+                  <p className="text-[9px] opacity-40 font-normal italic">* Transferencias (Bs {stats.ventasTransf.toFixed(2)}) auditadas digitalmente.</p>
+                </div>
+                
+                <label className="text-[10px] uppercase font-bold tracking-widest opacity-80 mb-2 block text-center">
+                  Efectivo contado en cajón
+                </label>
+                <input 
+                  type="number" 
+                  autoFocus 
+                  min="0" 
+                  value={montoContado || ''}
+                  onKeyDown={(e) => ["-", "+", "e", "E"].includes(e.key) && e.preventDefault()} 
+                  onChange={(e) => setMontoContado(Math.max(0, Number(e.target.value)))} 
+                  className="w-full bg-black/20 p-5 rounded-3xl text-3xl font-black text-center border-2 border-white/20 outline-none mb-8 focus:border-white transition-all placeholder:text-white/30" 
+                  placeholder="0.00" 
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <button onClick={() => setShowConfirmCierre(false)} className="py-4 border border-white/30 rounded-2xl font-bold uppercase text-xs hover:bg-white/10 transition-colors">Cancelar</button>
+                  <button onClick={() => setStepCierre(2)} className="py-4 bg-white text-[var(--color-primary)] rounded-2xl font-black uppercase text-xs shadow-xl hover:bg-gray-100 transition-colors">Siguiente</button>
+                </div>
+              </>
+            ) : (
+              // PASO 2: Resumen y confirmación
+              <div className="animate-in slide-in-from-right-4 duration-300">
+                <div className="bg-white text-[var(--color-text)] p-6 rounded-3xl mb-8 space-y-4 shadow-inner">
+                  <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                    <span className="text-sm font-bold text-gray-500 uppercase">Efectivo en Sistema</span>
+                    <span className="font-black text-lg">Bs {stats.efectivoEnCaja.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                    <span className="text-sm font-bold text-gray-500 uppercase">Efectivo Declarado</span>
+                    <span className="font-black text-lg">Bs {montoContado.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2">
+                    <span className="text-sm font-black uppercase">Diferencia</span>
+                    <span className={`font-black text-xl ${
+                      montoContado - stats.efectivoEnCaja < 0 
+                        ? 'text-[var(--color-alert)]' 
+                        : montoContado - stats.efectivoEnCaja > 0 
+                          ? 'text-[var(--color-success)]' 
+                          : 'text-[var(--color-info)]'
+                    }`}>
+                      {montoContado - stats.efectivoEnCaja > 0 ? '+' : ''}{(montoContado - stats.efectivoEnCaja).toFixed(2)}
+                    </span>
+                  </div>
+                  
+                  {montoContado - stats.efectivoEnCaja < 0 && (
+                    <div className="bg-[var(--color-alert)]/10 text-[var(--color-alert)] p-3 rounded-xl mt-4 text-center border border-[var(--color-alert)]/20">
+                      <p className="text-[10px] font-bold animate-pulse uppercase tracking-wide">
+                        ⚠️ Se registrará un faltante en caja
+                      </p>
+                    </div>
+                  )}
+                  {montoContado - stats.efectivoEnCaja > 0 && (
+                    <div className="bg-[var(--color-success)]/10 text-[var(--color-success)] p-3 rounded-xl mt-4 text-center border border-[var(--color-success)]/20">
+                      <p className="text-[10px] font-bold uppercase tracking-wide">
+                        ✓ Se registrará un sobrante en caja
+                      </p>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <button onClick={() => setStepCierre(1)} className="py-4 border border-white/30 rounded-2xl font-bold uppercase text-xs hover:bg-white/10 transition-colors">Atrás</button>
+                  <button 
+                    onClick={() => {
+                      // Aquí se hará el envío al backend cuando esté listo
+                      cerrarCaja(); 
+                      setShowConfirmCierre(false); 
+                      setView('facturacion'); 
+                    }} 
+                    className={`py-4 text-white rounded-2xl font-black uppercase text-xs shadow-xl transition-all hover:scale-105 ${
+                      montoContado - stats.efectivoEnCaja < 0 
+                        ? 'bg-[var(--color-alert)]' 
+                        : 'bg-[var(--color-success)]'
+                    }`}
+                  >
+                    Cerrar Turno
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
