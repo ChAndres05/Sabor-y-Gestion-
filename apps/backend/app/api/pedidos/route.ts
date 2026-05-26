@@ -1,15 +1,94 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { pusherServer } from '@/lib/pusher'; // <-- 1. Importamos la instancia de Pusher
+import bcryptjs from 'bcryptjs';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { id_mesa, id_usuario_mesero, id_usuario_cliente, observaciones } = body;
+    let { id_mesa, id_usuario_mesero, id_usuario_cliente, observaciones, cliente_nombre, cliente_ci, cliente_telefono } = body;
 
     if (!id_mesa || !id_usuario_mesero) {
       return NextResponse.json({ error: 'id_mesa y id_usuario_mesero son requeridos' }, { status: 400 });
     }
+
+    // --- LOGICA DE CLIENTE INVITADO O CREACION DE CUENTA AUTOMATICA ---
+    if (!id_usuario_cliente && cliente_nombre) {
+      if (cliente_ci && cliente_ci.trim() !== '' && cliente_ci !== '0') {
+        // Verificar si el CI ya existe para evitar errores de restriccion unica
+        const parsedCi = parseInt(cliente_ci);
+        if (!isNaN(parsedCi)) {
+          const existingUserByCi = await prisma.usuarios.findUnique({ where: { usuario_ci: parsedCi } });
+          if (existingUserByCi) {
+             id_usuario_cliente = existingUserByCi.id_usuario;
+          }
+        }
+
+        if (!id_usuario_cliente) {
+          // Crear cuenta automáticamente
+          const usernameBase = cliente_nombre.replace(/\s+/g, '').toLowerCase();
+          let username = usernameBase;
+          
+          // Verificar si el username ya existe
+          let userExists = await prisma.usuarios.findUnique({ where: { nombre_usuario: username } });
+          let counter = 1;
+          while (userExists) {
+            username = `${usernameBase}${counter}`;
+            userExists = await prisma.usuarios.findUnique({ where: { nombre_usuario: username } });
+          }
+
+          const passwordPlain = `${username}${cliente_ci}`;
+          const hash = await bcryptjs.hash(passwordPlain, 10);
+
+          let rolCliente = await prisma.roles.findFirst({
+            where: { nombre: { contains: 'CLIENTE', mode: 'insensitive' } }
+          });
+
+          if (!rolCliente) {
+            rolCliente = await prisma.roles.create({ data: { nombre: 'CLIENTE' } });
+          }
+
+          // Lógica para separar nombre y apellido según la cantidad de palabras
+          let parsedNombre = cliente_nombre.trim();
+          let parsedApellido = null;
+          const nameParts = parsedNombre.split(/\s+/);
+
+          if (nameParts.length === 2) {
+            // Ej: "Juan Martinez" -> Nombre: Juan, Apellido: Martinez
+            parsedNombre = nameParts[0];
+            parsedApellido = nameParts[1];
+          } else if (nameParts.length === 3) {
+            // Ej: "Juan Martinez Cruz" -> Nombre: Juan, Apellido: Martinez Cruz
+            parsedNombre = nameParts[0];
+            parsedApellido = `${nameParts[1]} ${nameParts[2]}`;
+          } else if (nameParts.length >= 4) {
+            // Ej: "Juan Mario Cruz Martinez" -> Nombre: Juan Mario, Apellido: Cruz Martinez
+            parsedNombre = `${nameParts[0]} ${nameParts[1]}`;
+            parsedApellido = nameParts.slice(2).join(' ');
+          }
+
+          const nuevoUsuario = await prisma.usuarios.create({
+            data: {
+              nombre: parsedNombre,
+              apellido: parsedApellido,
+              usuario_ci: !isNaN(parsedCi) ? parsedCi : Math.floor(Math.random() * 1000000),
+              nombre_usuario: username,
+              contrasena_hash: hash,
+              telefono: cliente_telefono || null,
+              id_rol: rolCliente.id_rol,
+              activo: true,
+            }
+          });
+
+          id_usuario_cliente = nuevoUsuario.id_usuario;
+        }
+      } else {
+        // Pedido de Invitado: Agregamos el nombre a las observaciones para no perderlo
+        const guestInfo = `Invitado: ${cliente_nombre}`;
+        observaciones = observaciones ? `${guestInfo} | ${observaciones}` : guestInfo;
+      }
+    }
+    // ------------------------------------------------------------------
 
     // --- NUEVO: REGLA DE NEGOCIO PARA PROTEGER LA CUENTA ---
     // Verificamos el estado actual de la mesa antes de crear cualquier pedido
