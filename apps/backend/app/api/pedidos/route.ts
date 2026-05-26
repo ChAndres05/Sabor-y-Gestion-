@@ -6,7 +6,8 @@ import bcryptjs from 'bcryptjs';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    let { id_mesa, id_usuario_mesero, id_usuario_cliente, observaciones, cliente_nombre, cliente_ci, cliente_telefono } = body;
+    const { id_mesa, id_usuario_mesero, cliente_nombre, cliente_ci, cliente_telefono } = body;
+    let { id_usuario_cliente, observaciones } = body;
 
     if (!id_mesa || !id_usuario_mesero) {
       return NextResponse.json({ error: 'id_mesa y id_usuario_mesero son requeridos' }, { status: 400 });
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
           while (userExists) {
             username = `${usernameBase}${counter}`;
             userExists = await prisma.usuarios.findUnique({ where: { nombre_usuario: username } });
+            counter++;
           }
 
           const passwordPlain = `${username}${cliente_ci}`;
