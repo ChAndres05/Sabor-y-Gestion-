@@ -62,6 +62,22 @@ export async function POST(request: Request) {
                         estado_pago: 'CONFIRMADO'
                     }
                 });
+
+                // Registrar la factura electrónica o recibo correspondiente al pedido
+                await tx.facturas.create({
+                    data: {
+                        id_pedido: pedido.id_pedido,
+                        id_usuario_emision: id_usuario_cajero,
+                        tipo_documento: enviar_recibo ? "FACTURA" : "RECIBO",
+                        numero_documento: `FAC-${Date.now()}-${pedido.id_pedido}`,
+                        subtotal: pedido.subtotal,
+                        impuesto: Number(pedido.subtotal) * 0.13,
+                        descuento: pedido.descuento,
+                        total: Number(pedido.subtotal) * 1.13 - Number(pedido.descuento),
+                        estado_documento: "EMITIDA",
+                        observaciones: `Facturado a: ${nombre_cliente || 'S/N'}, CI/NIT: ${ci_cliente || '0'}${correo_cliente ? ` - Enviado a: ${correo_cliente}` : ''}`
+                    }
+                });
             }
 
             // 5. Crear el registro contable global en la tabla "movimientos_caja" 
