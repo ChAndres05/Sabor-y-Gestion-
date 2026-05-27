@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import SectionCard from '../../shared/components/SectionCard';
-import { MOCK_CASH_HISTORY } from '../../shared/mocks/historial-caja.mock';
+import { cajaApi, type CashTransaction } from '../../shared/api/caja.api';
 
 interface CashHistoryPageProps {
   onBack: () => void;
@@ -9,6 +9,11 @@ interface CashHistoryPageProps {
 type PaymentMethodFilter = 'ALL' | 'Efectivo' | 'QR';
 
 export default function CashHistoryPage({ onBack }: CashHistoryPageProps) {
+  const [transactions, setTransactions] = useState<CashTransaction[]>([]);
+  const [cajeros, setCajeros] = useState<{ id: number; name: string }[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [filterCajeroId, setFilterCajeroId] = useState<number | 'ALL'>('ALL');
   const [filterDate, setFilterDate] = useState<string>(''); // YYYY-MM-DD
   const [filterMethod, setFilterMethod] = useState<PaymentMethodFilter>('ALL');
@@ -16,18 +21,34 @@ export default function CashHistoryPage({ onBack }: CashHistoryPageProps) {
   const [isCajeroFilterOpen, setIsCajeroFilterOpen] = useState(false);
   const [isMethodFilterOpen, setIsMethodFilterOpen] = useState(false);
 
-  // Get unique cajeros from mock data
-  const cajeros = useMemo(() => {
-    const uniqueCajeros = new Map<number, string>();
-    MOCK_CASH_HISTORY.forEach((entry) => {
-      uniqueCajeros.set(entry.cajeroId, entry.cajeroName);
-    });
-    return Array.from(uniqueCajeros.entries()).map(([id, name]) => ({ id, name }));
+  useEffect(() => {
+    let isMounted = true;
+    cajaApi.getCashHistory()
+      .then((data) => {
+        if (isMounted) {
+          setTransactions(data.transactions);
+          setCajeros(data.cajeros);
+          setError(null);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          setError(err.message || 'Error al cargar el historial de caja');
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Filter transactions
   const filteredHistory = useMemo(() => {
-    return MOCK_CASH_HISTORY.filter((entry) => {
+    return transactions.filter((entry) => {
       // Filter by cajero
       if (filterCajeroId !== 'ALL' && entry.cajeroId !== filterCajeroId) return false;
       
@@ -42,7 +63,7 @@ export default function CashHistoryPage({ onBack }: CashHistoryPageProps) {
 
       return true;
     });
-  }, [filterCajeroId, filterDate, filterMethod]);
+  }, [transactions, filterCajeroId, filterDate, filterMethod]);
 
   // Calculate statistics based on filtered history
   const statistics = useMemo(() => {
@@ -198,7 +219,11 @@ export default function CashHistoryPage({ onBack }: CashHistoryPageProps) {
 
         <div className="pb-2">
           <h2 className="text-lg font-bold text-text mb-4">Lista de transacciones</h2>
-          {filteredHistory.length === 0 ? (
+          {isLoading ? (
+            <p className="text-sm text-gray-500">Cargando transacciones...</p>
+          ) : error ? (
+            <p className="text-sm text-red-500">{error}</p>
+          ) : filteredHistory.length === 0 ? (
             <p className="text-sm text-gray-500">No hay transacciones con los filtros seleccionados.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

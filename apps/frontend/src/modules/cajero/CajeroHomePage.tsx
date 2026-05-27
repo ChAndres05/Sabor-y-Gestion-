@@ -2,9 +2,8 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useCajaStore } from '../../store/cajaStore';
 import { AperturaCaja } from './components/AperturaCaja';
 import { ModalProcesarPago } from './components/ModalProcesarPago';
-import { mockMovimientosDia } from '../../shared/mocks/cajaMocks';
 import type { AuthUser } from '../auth/types/auth.types';
-import type { PagoConfirmacion } from './types';
+import type { PagoConfirmacion, MovimientoCajaFormatted, MovimientoCajaBackend } from './types';
 import { cajaApi } from '../../shared/api/caja.api';
 import { tablesApi } from '../../shared/api/tables.api';
 import { ordersApi } from '../../shared/api/orders.api';
@@ -27,7 +26,7 @@ interface MesaFacturacion {
 }
 
 export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOpenSidebar, defaultView }) => {
-  const { estaAbierta, jornada, cerrarCaja } = useCajaStore();
+  const { estaAbierta, jornada, abrirCaja, cerrarCaja } = useCajaStore();
   const [activeView, setView] = useState<ViewState>(defaultView || 'facturacion');
 
   const [mesasActivas, setMesasActivas] = useState<RestaurantTable[]>([]);
@@ -45,11 +44,37 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
     }
   }, [defaultView]);
 
-  const [movimientos, setMovimientos] = useState(mockMovimientosDia);
+  useEffect(() => {
+    const verificarJornadaReal = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const res = await fetch(`${API_URL}/api/cajero/asignacion?id_usuario_cajero=${user.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.jornada && data.jornada.estado === 'ABIERTA') {
+            abrirCaja(data.jornada);
+          } else {
+            cerrarCaja();
+          }
+        } else {
+          cerrarCaja();
+        }
+      } catch (err) {
+        console.error("Error al verificar jornada real:", err);
+      }
+    };
+
+    if (user?.id) {
+      void verificarJornadaReal();
+    }
+  }, [user?.id, abrirCaja, cerrarCaja]);
+
+  const [movimientos, setMovimientos] = useState<MovimientoCajaFormatted[]>([]);
   const [montoContado, setMontoContado] = useState<number>(0);
   const [showConfirmCierre, setShowConfirmCierre] = useState(false);
   const [showGastoModal, setShowGastoModal] = useState(false);
   const [nuevoGasto, setNuevoGasto] = useState({ motivo: '', monto: 0 });
+  const [ventasTotalesGlobales, setVentasTotalesGlobales] = useState<number>(0);
 
   const loadData = useCallback(async () => {
     try {
@@ -60,16 +85,46 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
       ]);
       setMesasActivas(tablesData);
       setPedidosActivos(ordersData);
+
+      if (estaAbierta && jornada?.id_jornada_caja) {
+        try {
+          const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+          const res = await fetch(`${API_URL}/api/cajero/movimientos?id_jornada_caja=${jornada.id_jornada_caja}`);
+          if (res.ok) {
+            const data = await res.json();
+            const formatMovimiento = (m: MovimientoCajaBackend): MovimientoCajaFormatted => {
+              const isEgress = m.tipo_movimiento === 'EGRESO_EXTRA';
+              const tipo = m.descripcion?.toLowerCase().includes('transferencia') ? 'transferencia' : 'efectivo';
+              return {
+                id: `DB-${m.id_movimiento_caja}`,
+                referencia: m.descripcion || 'Movimiento de Caja',
+                tipo: tipo as 'efectivo' | 'transferencia',
+                monto: isEgress ? -Math.abs(Number(m.monto)) : Math.abs(Number(m.monto)),
+                hora: new Date(m.fecha_hora_movimiento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              };
+            };
+            setMovimientos(data.movimientos.map(formatMovimiento));
+            setVentasTotalesGlobales(data.ventas_totales_globales || 0);
+          }
+        } catch (err) {
+          console.error("Error al cargar movimientos reales:", err);
+        }
+      } else {
+        setMovimientos([]);
+        setVentasTotalesGlobales(0);
+      }
     } catch (error) {
       console.error("Error al cargar datos de facturación:", error);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [estaAbierta, jornada]);
 
   useEffect(() => {
     if (estaAbierta) {
       void loadData();
+    } else {
+      setMovimientos([]);
     }
   }, [estaAbierta, loadData]);
 
@@ -121,9 +176,9 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
     const gastosTotal = Math.abs(movimientos.filter(m => m.monto < 0).reduce((acc, curr) => acc + curr.monto, 0));
     const efectivoEnCaja = (jornada?.monto_inicial || 0) + ventasEfectivo - gastosTotal;
     const totalVentas = ventasEfectivo + ventasTransf;
-    const ventasTotales = totalVentas + (jornada?.monto_inicial || 0);
+    const ventasTotales = ventasTotalesGlobales;
     return { totalVentas, ventasEfectivo, ventasTransf, efectivoEnCaja, gastos: gastosTotal, ventasTotales };
-  }, [jornada, movimientos]);
+  }, [jornada, movimientos, ventasTotalesGlobales]);
 
   const handleFinalizarPago = async (datos: PagoConfirmacion) => {
     if (!mesaSeleccionada) return;
@@ -158,12 +213,31 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
     }
   };
 
-  const registrarGasto = () => {
-    if (nuevoGasto.motivo && nuevoGasto.monto > 0) {
-      const gasto = { id: `GAS-${Date.now()}`, referencia: nuevoGasto.motivo, tipo: 'efectivo' as const, monto: -Math.abs(nuevoGasto.monto), hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-      setMovimientos([gasto, ...movimientos]);
-      setShowGastoModal(false);
-      setNuevoGasto({ motivo: '', monto: 0 });
+  const registrarGasto = async () => {
+    if (nuevoGasto.motivo && nuevoGasto.monto > 0 && jornada?.id_jornada_caja) {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const res = await fetch(`${API_URL}/api/cajero/movimiento`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id_jornada_caja: jornada.id_jornada_caja,
+            id_usuario: user.id,
+            tipo_movimiento: 'EGRESO_EXTRA',
+            monto: Number(nuevoGasto.monto),
+            descripcion: nuevoGasto.motivo
+          })
+        });
+        if (!res.ok) {
+          throw new Error('Error al registrar el gasto en el servidor');
+        }
+        setShowGastoModal(false);
+        setNuevoGasto({ motivo: '', monto: 0 });
+        await loadData();
+      } catch (err) {
+        console.error(err);
+        alert(err instanceof Error ? err.message : 'Error al registrar el gasto');
+      }
     }
   };
 
@@ -394,11 +468,29 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
                 <div className="grid grid-cols-2 gap-4">
                   <button onClick={() => setStepCierre(1)} className="py-4 border border-white/30 rounded-2xl font-bold uppercase text-xs hover:bg-white/10 transition-colors">Atrás</button>
                   <button 
-                    onClick={() => {
-                      // Aquí se hará el envío al backend cuando esté listo
-                      cerrarCaja(); 
-                      setShowConfirmCierre(false); 
-                      setView('facturacion'); 
+                    onClick={async () => {
+                      try {
+                        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                        const res = await fetch(`${API_URL}/api/cajero/cierre`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            id_usuario_cierre: user.id,
+                            monto_contado_cierre: montoContado,
+                            monto_teorico_cierre: stats.efectivoEnCaja
+                          })
+                        });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          throw new Error(data.error || 'Error al cerrar caja');
+                        }
+                        cerrarCaja(); 
+                        setShowConfirmCierre(false); 
+                        setView('facturacion'); 
+                      } catch (err) {
+                        console.error(err);
+                        alert(err instanceof Error ? err.message : 'Error al cerrar la caja en el servidor');
+                      }
                     }} 
                     className={`py-4 text-white rounded-2xl font-black uppercase text-xs shadow-xl transition-all hover:scale-105 ${
                       montoContado - stats.efectivoEnCaja < 0 
@@ -427,7 +519,10 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
       )}
 
       {showAperturaModal && (
-        <AperturaCaja onClose={() => setShowAperturaModal(false)} />
+        <AperturaCaja 
+          id_usuario_cajero={user?.id}
+          onClose={() => setShowAperturaModal(false)} 
+        />
       )}
     </div>
   );

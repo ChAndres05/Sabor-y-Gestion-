@@ -10,6 +10,22 @@ export interface ProcesarPagoPayload {
     id_usuario_cajero: number;
 }
 
+export interface CashTransaction {
+  id: number;
+  cajeroId: number;
+  cajeroName: string;
+  date: string;
+  amount: number;
+  paymentMethod: 'Efectivo' | 'QR';
+  type: 'Ingreso' | 'Egreso';
+  description: string;
+}
+
+export interface CashHistoryResponse {
+  transactions: CashTransaction[];
+  cajeros: { id: number; name: string }[];
+}
+
 export const cajaApi = {
     async registrarPagoReal(payload: ProcesarPagoPayload): Promise<void> {
         const res = await fetch(`${API_URL}/api/admin/pagos`, {
@@ -22,5 +38,14 @@ export const cajaApi = {
             const errData = await res.json().catch(() => ({}));
             throw new Error(errData.error || 'Error al procesar el pago contable');
         }
+    },
+
+    async getCashHistory(): Promise<CashHistoryResponse> {
+        const res = await fetch(`${API_URL}/api/admin/historial-caja`);
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || 'Error al obtener historial de caja');
+        }
+        return res.json() as Promise<CashHistoryResponse>;
     }
 };
