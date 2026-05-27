@@ -29,3 +29,19 @@ export interface PagoConfirmacion {
   correo_cliente?: string; 
   enviar_recibo?: boolean;
 }
+
+export interface MovimientoCajaFormatted {
+  id: string;
+  referencia: string;
+  tipo: 'efectivo' | 'transferencia';
+  monto: number;
+  hora: string;
+}
+
+export interface MovimientoCajaBackend {
+  id_movimiento_caja: number;
+  tipo_movimiento: string;
+  monto: string | number;
+  descripcion: string | null;
+  fecha_hora_movimiento: string | Date;
+}

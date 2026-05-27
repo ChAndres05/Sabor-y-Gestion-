@@ -1,28 +1,41 @@
 import React, { useState } from 'react';
 import { useCajaStore } from '../../../store/cajaStore';
-import type { JornadaCaja } from '../types';
 
 interface AperturaCajaProps {
   onClose?: () => void;
+  id_usuario_cajero?: number;
 }
 
-export const AperturaCaja: React.FC<AperturaCajaProps> = ({ onClose }) => {
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+export const AperturaCaja: React.FC<AperturaCajaProps> = ({ onClose, id_usuario_cajero }) => {
   const [monto, setMonto] = useState<number>(0);
   const abrirCajaGlobal = useCajaStore((state) => state.abrirCaja);
 
-  const handleApertura = (): void => {
-    // Simulamos la creación de jornada siguiendo el esquema de la BD [cite: 22, 24]
-    const nuevaJornada: JornadaCaja = {
-      id_jornada_caja: Math.floor(Math.random() * 1000),
-      id_asignacion_caja_turno: 1,
-      id_usuario_apertura: 1, 
-      monto_inicial: monto, 
-      estado: 'ABIERTA',
-      fecha_hora_apertura: new Date().toISOString(),
-    };
+  const handleApertura = async (): Promise<void> => {
+    try {
+      const userId = id_usuario_cajero || 28;
+      const res = await fetch(`${API_URL}/api/cajero/apertura`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id_usuario_apertura: userId,
+          monto_inicial: monto
+        })
+      });
 
-    abrirCajaGlobal(nuevaJornada);
-    if (onClose) onClose();
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Error al abrir la caja');
+      }
+
+      abrirCajaGlobal(data.jornada);
+      if (onClose) onClose();
+
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : 'Error al abrir la caja en el servidor');
+    }
   };
 
   return (
