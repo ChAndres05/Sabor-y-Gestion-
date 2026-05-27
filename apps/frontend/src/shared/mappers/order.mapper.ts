@@ -68,8 +68,13 @@ export function mapBackendOrderToWaiterFrontend(
     };
   });
 
-  // 2. MAGIA MATEMÁTICA: Calculamos el tiempo total correcto (Tiempo Base * Cantidad)
-  const tiempoTotalCalculado = mappedItems.reduce((acc, item) => acc + (item.tiempoPreparacion * item.cantidad), 0);
+  // 2. Calculamos el tiempo estimado dinámicamente:
+  // Para cada item, si la cantidad > 1, se le suma 5 minutos a su tiempo base.
+  // El tiempo del pedido es el máximo de estos tiempos individuales.
+  let tiempoCalculado = 0;
+  if (mappedItems.length > 0) {
+    tiempoCalculado = Math.max(...mappedItems.map(item => item.tiempoPreparacion + (item.cantidad > 1 ? 5 : 0)));
+  }
 
   return {
     id: orderId,
@@ -92,8 +97,7 @@ export function mapBackendOrderToWaiterFrontend(
     impuesto: 0,
     descuento: 0,
     total: numberValue(backendOrder.total ?? backendOrder.subtotal, 0),
-    // 3. Asignamos el tiempo calculado (o el del backend como respaldo)
-    tiempoEstimadoMinutos: tiempoTotalCalculado > 0 ? tiempoTotalCalculado : numberValue(backendOrder.tiempo_estimado_minutos ?? backendOrder.tiempoEstimadoMinutos, 0),
+    tiempoEstimadoMinutos: tiempoCalculado,
     observaciones: stringValue(backendOrder.observaciones),
     fechaCreacion: stringValue(backendOrder.fecha_hora_pedido ?? backendOrder.fechaCreacion, new Date().toISOString()),
   };
