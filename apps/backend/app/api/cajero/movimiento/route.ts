@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { pusherServer } from '@/lib/pusher';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +31,12 @@ export async function POST(request: Request) {
         descripcion: descripcion || null
       }
     });
+
+    try {
+      await pusherServer.trigger('caja-channel', 'caja-updated', { tipo: 'MOVIMIENTO_REGISTRADO', movimiento: nuevoMovimiento });
+    } catch (pushErr) {
+      console.error('Error triggering Pusher for cash movement:', pushErr);
+    }
 
     return NextResponse.json({
       message: 'MOVIMIENTO_REGISTRADO_EXITOSAMENTE',

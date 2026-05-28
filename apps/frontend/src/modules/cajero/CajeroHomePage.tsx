@@ -136,19 +136,23 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onOpenSidebar,
 
     const ordersChannel = pusherClient.subscribe('orders-channel');
     const tablesChannel = pusherClient.subscribe('tables-channel');
+    const cajaChannel = pusherClient.subscribe('caja-channel');
     
     const handleRefresh = () => { void loadData(true); };
 
     ordersChannel.bind('order-updated', handleRefresh);
     tablesChannel.bind('table-order-updated', handleRefresh);
     tablesChannel.bind('table-updated', handleRefresh);
+    cajaChannel.bind('caja-updated', handleRefresh);
     window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleRefresh);
 
     return () => {
       ordersChannel.unbind_all();
       tablesChannel.unbind_all();
+      cajaChannel.unbind_all();
       pusherClient.unsubscribe('orders-channel');
       pusherClient.unsubscribe('tables-channel');
+      pusherClient.unsubscribe('caja-channel');
       window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleRefresh);
     };
   }, [estaAbierta, loadData]);
