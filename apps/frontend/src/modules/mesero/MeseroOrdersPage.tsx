@@ -35,6 +35,7 @@ function formatTime(value: string) {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false, // Forzar formato 24 horas
+      timeZone: 'UTC', // Mostrar la hora de Bolivia tal como se guardó en UTC
     }).format(new Date(value));
   } catch {
     return '--:--';
