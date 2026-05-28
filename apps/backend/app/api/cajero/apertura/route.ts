@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { pusherServer } from '@/lib/pusher';
 
 export const dynamic = 'force-dynamic';
 
@@ -136,6 +137,12 @@ export async function POST(request: Request) {
         fecha_hora_apertura: new Date(),
       },
     });
+
+    try {
+      await pusherServer.trigger('caja-channel', 'caja-updated', { tipo: 'JORNADA_ABIERTA', jornada: nuevaJornada });
+    } catch (pushErr) {
+      console.error('Error triggering Pusher for cash opening:', pushErr);
+    }
 
     return NextResponse.json({
       message: 'JORNADA_DE_CAJA_ABIERTA_EXITOSAMENTE',

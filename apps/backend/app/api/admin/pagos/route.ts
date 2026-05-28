@@ -124,6 +124,9 @@ export async function POST(request: Request) {
         // Simulación de actualización de pedidos para limpiar la vista de meseros
         await pusherServer.trigger('tables-channel', 'table-order-updated', { id_mesa, estado: 'PAGADO' });
 
+        // Notificar actualización de caja en tiempo real
+        await pusherServer.trigger('caja-channel', 'caja-updated', { tipo: 'PAGO_PROCESADO' });
+
         if (enviar_recibo && correo_cliente) {
             try {
                 const transporter = nodemailer.createTransport({
