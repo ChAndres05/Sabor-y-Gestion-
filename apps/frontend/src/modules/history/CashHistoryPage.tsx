@@ -52,10 +52,14 @@ export default function CashHistoryPage({ onBack }: CashHistoryPageProps) {
       // Filter by cajero
       if (filterCajeroId !== 'ALL' && entry.cajeroId !== filterCajeroId) return false;
       
-      // Filter by date
+      // Filter by date (local timezone comparison to avoid UTC mismatch)
       if (filterDate) {
-        const entryDate = entry.date.split('T')[0];
-        if (entryDate !== filterDate) return false;
+        const dateObj = new Date(entry.date);
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        const localDateStr = `${year}-${month}-${day}`;
+        if (localDateStr !== filterDate) return false;
       }
       
       // Filter by payment method
