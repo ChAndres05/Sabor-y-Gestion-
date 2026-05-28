@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 
             // 4. Registrar de forma normalizada un pago en la tabla "pagos" por cada pedido consolidado
             for (const pedido of pedidosActivos) {
-                const total_con_iva = Number(pedido.subtotal) * 1.13 - Number(pedido.descuento);
+                const total_sin_iva = Number(pedido.subtotal) - Number(pedido.descuento);
                 
                 await tx.pagos.create({
                     data: {
@@ -63,8 +63,8 @@ export async function POST(request: Request) {
                         id_metodo_pago: metodo.id_metodo_pago,
                         id_jornada_caja: jornadaActiva.id_jornada_caja,
                         id_usuario_cajero: id_usuario_cajero,
-                        monto_pagado: total_con_iva, 
-                        monto_recibido: metodo_pago === 'EFECTIVO' ? Number(monto_recibido) : total_con_iva,
+                        monto_pagado: total_sin_iva, 
+                        monto_recibido: metodo_pago === 'EFECTIVO' ? Number(monto_recibido) : total_sin_iva,
                         monto_cambio: metodo_pago === 'EFECTIVO' ? Number(monto_cambio) : 0,
                         referencia_pago: referencia_pago || null,
                         estado_pago: 'CONFIRMADO'
@@ -79,9 +79,9 @@ export async function POST(request: Request) {
                         tipo_documento: "FACTURA",
                         numero_documento: `FAC-${Date.now()}-${pedido.id_pedido}`,
                         subtotal: pedido.subtotal,
-                        impuesto: Number(pedido.subtotal) * 0.13,
+                        impuesto: 0,
                         descuento: pedido.descuento,
-                        total: Number(pedido.subtotal) * 1.13 - Number(pedido.descuento),
+                        total: Number(pedido.subtotal) - Number(pedido.descuento),
                         estado_documento: "EMITIDA",
                         observaciones: `Facturado a: ${nombre_cliente || 'S/N'}, CI/NIT: ${ci_cliente || '0'}${(enviar_recibo && correo_cliente) ? ` - Enviado a: ${correo_cliente}` : ''}`
                     }
@@ -180,7 +180,7 @@ export async function POST(request: Request) {
                                 
                                 <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 15px 0;">
                                 <h3 style="margin: 0; color: #111827; display: flex; justify-content: space-between;">
-                                    <span>Total Pagado (IVA Incluido):</span>
+                                    <span>Total Pagado:</span>
                                     <span>Bs. ${Number(monto_pagado).toFixed(2)}</span>
                                 </h3>
                             </div>
