@@ -77,9 +77,11 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
   const [nuevoGasto, setNuevoGasto] = useState({ motivo: '', monto: 0 });
   const [ventasTotalesGlobales, setVentasTotalesGlobales] = useState<number>(0);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (silent = false) => {
     try {
-      setIsLoading(true);
+      if (!silent) {
+        setIsLoading(true);
+      }
       const [tablesData, ordersData] = await Promise.all([
         tablesApi.listTables(),
         ordersApi.listActiveOrders(),
@@ -117,7 +119,9 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
     } catch (error) {
       console.error("Error al cargar datos de facturación:", error);
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
   }, [estaAbierta, jornada]);
 
@@ -135,7 +139,7 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
     const ordersChannel = pusherClient.subscribe('orders-channel');
     const tablesChannel = pusherClient.subscribe('tables-channel');
     
-    const handleRefresh = () => { void loadData(); };
+    const handleRefresh = () => { void loadData(true); };
 
     ordersChannel.bind('order-updated', handleRefresh);
     tablesChannel.bind('table-order-updated', handleRefresh);

@@ -170,6 +170,7 @@ Sabor-y-Gestion/
 │   │   │   ├── api/             # Endpoints de la API
 │   │   │   │   ├── admin/       # Gestión de mesas, usuarios y zonas
 │   │   │   │   ├── busqueda/    # Endpoint de búsqueda global
+│   │   │   │   ├── cajero/      # Gestión de caja (apertura, asignación, cierre, movimientos)
 │   │   │   │   ├── categorias/  # CRUD y servicios de categorías
 │   │   │   │   ├── clientes/    # Búsqueda por CI y su historial
 │   │   │   │   ├── cocina/      # Monitor, armado y detalle de pedidos
@@ -189,7 +190,7 @@ Sabor-y-Gestion/
 │   │   │   ├── globals.css
 │   │   │   ├── layout.tsx       # Layout base de Next
 │   │   │   └── page.tsx         # Página de inicio del backend
-│   │   ├── lib/                 # Instancias globales (prisma.ts, pusher.ts)
+│   │   ├── lib/                 # Instancias y helpers (prisma.ts, pusher.ts, validation.ts)
 │   │   ├── prisma/              # Capa de datos (schema.prisma)
 │   │   ├── public/              # Archivos estáticos del servidor (SVGs)
 │   │   ├── AGENTS.md            # Reglas y contexto para IAs (ej. Cursor)
@@ -212,7 +213,7 @@ Sabor-y-Gestion/
 │       │   ├── modules/         # Lógica de negocio dividida por dominio/rol
 │       │   │   ├── admin/       # Vistas de menú y reservaciones
 │       │   │   ├── auth/        # (api, types, formularios y vistas)
-│       │   │   ├── cajero/      # Vista central de caja
+│       │   │   ├── cajero/      # Vista central y gestión de caja
 │       │   │   ├── cliente/     # Vistas públicas: menú, detalle, pedidos activos
 │       │   │   ├── cocina/      # (api, monitor de preparación en tiempo real)
 │       │   │   ├── history/     # Historial y reportes (detalles, cierres)
@@ -221,13 +222,13 @@ Sabor-y-Gestion/
 │       │   │   ├── tables/      # (components, types, gestión visual de mesas)
 │       │   │   └── users/       # (api, types, mappers, administración de personal)
 │       │   ├── shared/          # Recursos transversales y reutilizables
-│       │   │   ├── api/         # Clientes Axios (client-flow, orders)
-│       │   │   ├── components/  # UI genérica (AuthLayout, BaseButton, Modals, Inputs)
+│       │   │   ├── api/         # Clientes Axios (caja, client-flow, orders, tables)
+│       │   │   ├── components/  # UI genérica (AuthLayout, BaseButton, Modals, Inputs, Sidebar, etc.)
 │       │   │   ├── constants/   # Definiciones inmutables (roles.ts, routes.ts)
 │       │   │   ├── mappers/     # Funciones de transformación de datos (DTOs)
 │       │   │   ├── mocks/       # Datos simulados para desarrollo sin backend
 │       │   │   ├── types/       # Interfaces y tipos TypeScript globales
-│       │   │   └── utils/       # Helpers globales (eventos, pusher, redirecciones)
+│       │   │   └── utils/       # Helpers globales (eventos, pusher, redirecciones, validaciones)
 │       │   ├── store/           # Gestión de estado global con Zustand (cajaStore.ts)
 │       │   ├── styles/          # Estilos Tailwind y clases personalizadas (globals.css)
 │       │   ├── App.css          # Estilos específicos del componente App
@@ -325,4 +326,105 @@ El acceso y manipulación de datos se gestiona mediante **Prisma ORM**. A contin
   ```bash
   pnpm --filter backend exec prisma studio
   ```
+
+---
+
+## 13. REFERENCIA DE LA API (ENDPOINTS DEL BACKEND)
+
+A continuación se detallan los endpoints disponibles en el backend (`apps/backend`), organizados por módulos funcionales:
+
+### 13.1 Autenticación y Seguridad
+
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `POST` | `/api/login` | Autentica un usuario con sus credenciales y genera la sesión. |
+| `POST` | `/api/register` | Registra a un nuevo usuario (personal del local o cliente) aplicando validaciones de datos personales y roles. |
+| `POST` | `/api/forgot-password` | Envía un código de verificación de un solo uso por correo para iniciar la recuperación de contraseña. |
+| `POST` | `/api/verify-code` | Valida si el código de seguridad ingresado por el usuario es correcto y no ha expirado. |
+| `POST` | `/api/reset-password` | Actualiza la contraseña del usuario tras haber validado exitosamente el código de seguridad. |
+
+### 13.2 Gestión de Caja (`apps/backend/app/api/cajero/*`)
+
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `POST` | `/api/cajero/apertura` | Abre la sesión de caja del turno registrando el saldo inicial en efectivo. |
+| `GET` | `/api/cajero/asignacion` | Verifica si el usuario actual (cajero) cuenta con una asignación activa y válida de caja. |
+| `POST` | `/api/cajero/movimiento` | Registra un ingreso o egreso manual de dinero con su respectiva justificación. |
+| `GET` | `/api/cajero/movimientos` | Obtiene el listado de todos los movimientos de caja registrados durante el turno en curso. |
+| `POST` | `/api/cajero/cierre` | Realiza el cierre definitivo de caja, computando totales de ventas, formas de pago (Efectivo/QR), ingresos, egresos y posibles discrepancias. |
+
+### 13.3 Categorías y Productos del Menú
+
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/categorias` | Retorna todas las categorías activas en el sistema. |
+| `POST` | `/api/categorias` | Crea una nueva categoría de menú (ej. Bebidas, Postres) aplicando validación de caracteres. |
+| `PATCH` | `/api/categorias/[id]` | Modifica el nombre, descripción o estado de una categoría específica. |
+| `DELETE` | `/api/categorias/[id]` | Desactiva o elimina una categoría del menú. |
+| `GET` | `/api/productos` | Obtiene el listado de todos los productos y platos disponibles. |
+| `POST` | `/api/productos` | Crea un nuevo producto (asociando categorías, precios y presentaciones). |
+| `PATCH` | `/api/productos/[id]` | Edita los detalles, disponibilidad, precios o presentaciones de un producto. |
+| `DELETE` | `/api/productos/[id]` | Desactiva un producto del catálogo general. |
+
+### 13.4 Carta Digital y Búsqueda
+
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/menu` | Retorna el menú completo estructurado por categorías y productos (optimizado para clientes). |
+| `GET` | `/api/busqueda` | Endpoint global de búsqueda rápida para filtrar elementos del panel de control. |
+| `GET` | `/api/health/db` | Healthcheck que verifica la conexión activa con la base de datos de PostgreSQL. |
+
+### 13.5 Gestión de Mesas
+
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/mesas` | Obtiene el listado general de mesas del restaurante con su estado actual (`LIBRE`, `OCUPADA`, `RESERVADA`, etc.). |
+| `GET` | `/api/mesas/[id]` | Obtiene el estado y detalles específicos de una mesa determinada por su ID. |
+| `PATCH` | `/api/mesas/[id]` | Modifica el estado o configuración de una mesa de manera directa. |
+
+### 13.6 Pedidos y Flujo de Cocina
+
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `POST` | `/api/pedidos` | Crea un nuevo pedido inicial vinculándolo a una mesa y detallando los ítems seleccionados. |
+| `GET` | `/api/pedidos/activos` | Devuelve todos los pedidos activos en preparación o listos para ser entregados. |
+| `GET` | `/api/pedidos/historial` | Lista el historial completo de pedidos finalizados (pagados o cancelados) en el local. |
+| `GET` | `/api/pedidos/mesa/[tableId]` | Obtiene la información del pedido activo asociado a una mesa específica. |
+| `GET` | `/api/pedidos/mesero/[id]` | Obtiene la lista de pedidos atendidos o pendientes a cargo de un mesero específico. |
+| `PATCH` | `/api/pedidos/[id]/estado` | Cambia el estado del pedido completo (`PREPARANDOSE`, `LISTO`, `ENTREGADO`, `CANCELADO`). |
+| `POST` | `/api/pedidos/[id]/cocina` | Envía formalmente los platos o ítems de un pedido al monitor en tiempo real de la cocina. |
+| `POST` | `/api/pedidos/[id]/detalles` | Añade nuevos productos o platos a un pedido que ya se encuentra abierto/activo. |
+| `PATCH` | `/api/pedidos/[id]/detalles/[itemId]` | Modifica la cantidad, especificaciones o notas de preparación de un ítem del pedido. |
+| `DELETE` | `/api/pedidos/[id]/detalles/[itemId]` | Elimina un ítem específico de un pedido activo. |
+| `POST` | `/api/pedidos/reserva` | Crea un pedido vinculado a una reserva de mesa previamente confirmada. |
+
+### 13.7 Clientes e Historiales
+
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/clientes/ci/[ci]` | Busca a un cliente por su número de Cédula de Identidad (CI) para autocompletar su información de facturación. |
+| `GET` | `/api/clientes/pedidos/historial` | Obtiene el registro histórico de consumos y visitas realizadas por un cliente. |
+
+### 13.8 Gestión de Reservas
+
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/reservas` | Obtiene el listado completo de reservaciones de mesas. |
+| `POST` | `/api/reservas` | Registra una nueva reserva especificando mesa, fecha, hora y datos del cliente. |
+| `PATCH` | `/api/reservas/[id]` | Modifica el estado o los datos principales de una reserva activa. |
+| `POST` | `/api/reservas/mesa/[tableId]/cancelar` | Cancela la reserva activa asociada a una mesa específica para liberarla de inmediato. |
+| `GET` | `/api/reservas/cliente/[userId]` | Retorna todas las reservas previas y futuras creadas por un usuario cliente determinado. |
+
+### 13.9 Administración Avanzada (`/api/admin/*`)
+
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/admin/mesas` | Listado completo de mesas y su asignación a nivel de zonas del local para tareas de gestión. |
+| `GET` | `/api/admin/zonas` | Obtiene el listado de zonas del restaurante (ej. Terraza, Salón Principal). |
+| `POST` | `/api/admin/zonas` | Crea una nueva zona en el mapa de distribución física del restaurante. |
+| `PATCH` | `/api/admin/usuarios` | Actualiza la información laboral del personal (roles de usuario, estado activo/inactivo). |
+| `POST` | `/api/admin/pagos` | Registra el pago final de una cuenta de mesa, emite el recibo/comprobante y libera la mesa para nuevos clientes. |
+| `GET` | `/api/admin/historial-caja` | Consolidado totalizador de transacciones de pago e ingresos/egresos de caja para auditoría administrativa. |
+| `GET` | `/api/admin/seed` | Proceso especial para poblar la base de datos de desarrollo y pruebas con datos semilla. |
+
 
