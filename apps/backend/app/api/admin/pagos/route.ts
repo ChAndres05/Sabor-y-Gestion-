@@ -27,8 +27,9 @@ export async function POST(request: Request) {
             }
 
             // 2. Buscar el ID del método de pago por su nombre (convierte 'EFECTIVO' o 'TRANSFERENCIA')
+            const nombreMetodoBusqueda = metodo_pago === 'TRANSFERENCIA' ? 'QR' : metodo_pago;
             const metodo = await tx.metodos_pago.findFirst({
-                where: { nombre: metodo_pago }
+                where: { nombre: { equals: nombreMetodoBusqueda, mode: 'insensitive' } }
             });
 
             if (!metodo) {
@@ -68,14 +69,14 @@ export async function POST(request: Request) {
                     data: {
                         id_pedido: pedido.id_pedido,
                         id_usuario_emision: id_usuario_cajero,
-                        tipo_documento: enviar_recibo ? "FACTURA" : "RECIBO",
+                        tipo_documento: "FACTURA",
                         numero_documento: `FAC-${Date.now()}-${pedido.id_pedido}`,
                         subtotal: pedido.subtotal,
                         impuesto: Number(pedido.subtotal) * 0.13,
                         descuento: pedido.descuento,
                         total: Number(pedido.subtotal) * 1.13 - Number(pedido.descuento),
                         estado_documento: "EMITIDA",
-                        observaciones: `Facturado a: ${nombre_cliente || 'S/N'}, CI/NIT: ${ci_cliente || '0'}${correo_cliente ? ` - Enviado a: ${correo_cliente}` : ''}`
+                        observaciones: `Facturado a: ${nombre_cliente || 'S/N'}, CI/NIT: ${ci_cliente || '0'}${(enviar_recibo && correo_cliente) ? ` - Enviado a: ${correo_cliente}` : ''}`
                     }
                 });
             }

@@ -49,13 +49,7 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
   const totalFinal = subtotalConDescuento + ivaAgregado;
   const cambio = montoRecibido > totalFinal ? montoRecibido - totalFinal : 0;
 
-  // NUEVO: Validación simple de correo (debe tener algo, un @, y algo después)
-  const isCorreoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoCliente);
-
-  // NUEVO: Lógica combinada para saber si se puede habilitar el botón de Confirmar
-  const puedeConfirmar = 
-    (metodoPago !== 'EFECTIVO' || montoRecibido >= totalFinal) && 
-    (!enviarCorreo || (enviarCorreo && isCorreoValido));
+  const puedeConfirmar = metodoPago !== 'EFECTIVO' || montoRecibido >= totalFinal;
 
   const handleConfirmar = (): void => {
     const datos: PagoConfirmacion = {
@@ -68,7 +62,6 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
       referencia_pago: metodoPago === 'TRANSFERENCIA' ? referenciaPago : undefined,
       ci_cliente: ciCliente,
       nombre_cliente: nombreCliente,
-      // NUEVO: Añadimos los campos al payload (Asegúrate de agregarlos a tu type PagoConfirmacion en '../types')
       correo_cliente: correoCliente,
       enviar_recibo: enviarCorreo 
     };
@@ -122,27 +115,17 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
               </div>
             </div>
 
-            {/* NUEVO: Campo de Correo a full width */}
             <div>
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">
-                Correo Electrónico {enviarCorreo && <span className="text-[var(--color-alert)]">*</span>}
+                Correo Electrónico
               </label>
               <input
                 type="email"
                 value={correoCliente}
                 onChange={(e) => setCorreoCliente(e.target.value)}
                 placeholder="ejemplo@correo.com"
-                className={`w-full bg-gray-50 p-3 rounded-xl text-sm font-bold focus:ring-4 outline-none transition-all border-2 ${
-                  enviarCorreo && !isCorreoValido && correoCliente.length > 0 
-                    ? 'border-[var(--color-alert)] focus:border-[var(--color-alert)] ring-[var(--color-alert)]/10 text-[var(--color-alert)]' 
-                    : 'border-transparent focus:border-[var(--color-primary)] ring-[var(--color-primary)]/10'
-                }`}
+                className="w-full bg-gray-50 p-3 rounded-xl text-sm font-bold focus:ring-4 outline-none transition-all border-2 border-transparent focus:border-[var(--color-primary)] ring-[var(--color-primary)]/10"
               />
-              {enviarCorreo && !isCorreoValido && correoCliente.length > 0 && (
-                <span className="text-[10px] font-bold text-[var(--color-alert)] mt-1 ml-1 block animate-in fade-in">
-                  Ingresa un correo electrónico válido
-                </span>
-              )}
             </div>
           </div>
 
