@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { pusherServer } from '@/lib/pusher';
+import { nowBolivia } from '@/lib/timezone';
 
 export async function PATCH(
   request: Request,
@@ -71,7 +72,7 @@ export async function PATCH(
         where: { id_pedido },
         data: { 
           estado,
-          ...(estado === 'ENTREGADO' ? { fecha_hora_entrega: new Date() } : {})
+          ...(estado === 'ENTREGADO' ? { fecha_hora_entrega: nowBolivia() } : {})
         },
         include: {
           mesa: true,
@@ -102,7 +103,7 @@ export async function PATCH(
           await tx.asignaciones_cocina_pedido.update({
             where: { id_asignacion_cocina_pedido: existingAsignacion.id_asignacion_cocina_pedido },
             data: {
-              fecha_hora_inicio_preparacion: new Date(),
+              fecha_hora_inicio_preparacion: nowBolivia(),
               id_usuario_cocinero: id_usuario
             }
           });
@@ -112,7 +113,7 @@ export async function PATCH(
               id_pedido,
               id_usuario_cocinero: id_usuario,
               estado_asignacion: 'ASIGNADO',
-              fecha_hora_inicio_preparacion: new Date(),
+              fecha_hora_inicio_preparacion: nowBolivia(),
             }
           });
         }
@@ -124,8 +125,8 @@ export async function PATCH(
           },
           data: {
             estado_asignacion: 'LISTO',
-            fecha_hora_listo: new Date(),
-            fecha_hora_finalizacion: new Date(),
+            fecha_hora_listo: nowBolivia(),
+            fecha_hora_finalizacion: nowBolivia(),
           }
         });
       }
