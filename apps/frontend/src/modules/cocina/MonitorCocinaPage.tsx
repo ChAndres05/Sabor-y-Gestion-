@@ -3,12 +3,12 @@ import { pusherClient } from '../../shared/utils/pusher';
 import { RESTAURANT_STATE_CHANGED_EVENT, RESTAURANT_STATE_CHANGED_STORAGE_KEY } from '../../shared/utils/events';
 import { cocinaApi } from './api/cocina.api';
 
-interface OrderItem { id: number; name: string; quantity: number; checked: boolean; notes: string | null; }
+interface OrderItem { id: number; name: string; quantity: number; checked: boolean; notes: string | null; prepTime: number; }
 type OrderStatus = 'pending' | 'preparing' | 'ready';
-interface Order { id: number; orderNumber: number; items: OrderItem[]; status: OrderStatus; isToggled: boolean; source?: 'mesa' | 'reserva'; tableNumber?: number; customerName?: string; reservationTime?: string; prepareFrom?: string; }
+interface Order { id: number; orderNumber: number; items: OrderItem[]; status: OrderStatus; isToggled: boolean; source?: 'mesa' | 'reserva'; tableNumber?: number; customerName?: string; reservationTime?: string; prepareFrom?: string; maxPrepTime?: number; }
 interface MonitorCocinaPageProps { onBack: () => void; user?: { id?: number; id_usuario?: number; nombre: string; rol: string }; }
 
-type BackendDetallePedido = { id_detalle_pedido: number; cantidad: number; observaciones?: string | null; preparado?: boolean; esta_preparado?: boolean; preparado_cocina?: boolean; presentacion_producto?: { producto?: { nombre?: string; }; }; };
+type BackendDetallePedido = { id_detalle_pedido: number; cantidad: number; observaciones?: string | null; preparado?: boolean; esta_preparado?: boolean; preparado_cocina?: boolean; presentacion_producto?: { tiempo_preparacion_minutos?: number; producto?: { nombre?: string; tiempo_preparacion?: number; }; }; };
 type BackendPedido = { 
   id_pedido: number; 
   estado?: string; 
@@ -39,11 +39,45 @@ function saveCheckedItemInStorage(orderId: number, itemId: number, itemName: str
   localStorage.setItem('gestionysabor_kitchen_checked_items', JSON.stringify(checkedData));
 }
 
+function getCountdownTextAndColor(prepareFrom: string, maxPrepTime: number, nowMs: number) {
+  const prepTimeMin = maxPrepTime > 0 ? maxPrepTime : 15;
+  const startTime = new Date(prepareFrom).getTime();
+  const deadline = startTime + prepTimeMin * 60 * 1000;
+  const diffMs = deadline - nowMs;
+  const isOverdue = diffMs < 0;
+  const absDiffMs = Math.abs(diffMs);
+  
+  const totalSeconds = Math.floor(absDiffMs / 1000);
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  
+  const formattedTime = `${isOverdue ? '-' : ''}${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  
+  const remainingMinutes = diffMs / (60 * 1000);
+  
+  let colorClass = 'bg-[#22c55e] text-white';
+  let labelText = 'Tiempo suficiente';
+  
+  if (isOverdue) {
+    colorClass = 'bg-[#ef4444] text-white animate-pulse';
+    labelText = 'Urgencia';
+  } else if (remainingMinutes <= 2) {
+    colorClass = 'bg-[#ef4444] text-white animate-pulse';
+    labelText = 'Crítico';
+  } else if (remainingMinutes <= 5) {
+    colorClass = 'bg-[#eab308] text-black';
+    labelText = 'Atención';
+  }
+  
+  return { formattedTime, colorClass, labelText };
+}
+
 export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPageProps) {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState('');
+  const [now, setNow] = useState(Date.now());
   
   const lockedOrders = useRef<Set<number>>(new Set());
 
@@ -59,14 +93,12 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
 
   const fetchPedidos = useCallback(async () => {
     try {
-      // Sin headers de caché para no molestar a CORS
       const response = await fetch(`${API_URL}/api/cocina/pedidos?t=${Date.now()}`, { cache: 'no-store' });
       
       if (!response.ok) throw new Error('No se pudieron cargar los pedidos');
       const data = (await response.json()) as BackendPedido[];
       const checkedData = getCheckedItemsFromStorage();
       
-      // Filtramos pedidos ya completados/cancelados que no pertenecen al monitor
       const pedidosListosParaCocina = data.filter((o) => {
         const estadoActual = o.estado?.toUpperCase();
         return estadoActual && !['LISTO', 'ENTREGADO', 'PAGADO', 'CANCELADO'].includes(estadoActual);
@@ -89,12 +121,15 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
             const existingItem = existingOrder?.items.find((item) => item.id === detalle.id_detalle_pedido);
             const storageKey = `${backendOrder.id_pedido}-${detalle.id_detalle_pedido}-${name}`;
             const backendChecked = detalle.preparado ?? detalle.esta_preparado ?? detalle.preparado_cocina;
+            const itemPrepTime = detalle.presentacion_producto?.tiempo_preparacion_minutos ??
+                                 detalle.presentacion_producto?.producto?.tiempo_preparacion ?? 0;
             return {
               id: detalle.id_detalle_pedido,
               name,
               quantity: detalle.cantidad,
               notes: detalle.observaciones ?? null,
               checked: typeof backendChecked === 'boolean' ? backendChecked : existingItem?.checked ?? checkedData[storageKey] ?? false,
+              prepTime: itemPrepTime,
             };
           }).sort((a, b) => a.id - b.id);
 
@@ -109,6 +144,8 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
             uiStatus = 'preparing';
           }
           
+          const orderPrepTime = Math.max(...mappedItems.map((i) => i.prepTime), 0);
+
           newOrders.push({
             id: backendOrder.id_pedido,
             orderNumber: backendOrder.id_pedido,
@@ -120,6 +157,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
             customerName: backendOrder.cliente_nombre ?? backendOrder.cliente?.nombre,
             reservationTime: backendOrder.hora_reserva ?? backendOrder.reservationTime,
             prepareFrom: backendOrder.fecha_pedido ?? backendOrder.preparar_desde ?? backendOrder.prepareFrom,
+            maxPrepTime: orderPrepTime,
           });
         });
         return newOrders;
@@ -127,30 +165,47 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
     } catch (error) { console.error('Error cargando pedidos:', error); } finally { setIsLoading(false); }
   }, [API_URL]);
 
+  const fetchPedidosRef = useRef(fetchPedidos);
   useEffect(() => {
-    const updateTime = () => setCurrentTime(new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: true }));
-    updateTime(); const timer = setInterval(updateTime, 1000); return () => clearInterval(timer);
+    fetchPedidosRef.current = fetchPedidos;
+  }, [fetchPedidos]);
+
+  useEffect(() => {
+    const updateTime = () => {
+      setCurrentTime(new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: true }));
+      setNow(Date.now());
+    };
+    updateTime();
+    const timer = setInterval(updateTime, 1000);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
-    void fetchPedidos();
-    const handleStateChange = () => { void fetchPedidos(); };
-    const handleStorageChange = (event: StorageEvent) => { if (event.key === RESTAURANT_STATE_CHANGED_STORAGE_KEY) void fetchPedidos(); };
+    void fetchPedidosRef.current();
+    const handleStateChange = () => { void fetchPedidosRef.current(); };
+    const handleStorageChange = (event: StorageEvent) => { 
+      if (event.key === RESTAURANT_STATE_CHANGED_STORAGE_KEY) void fetchPedidosRef.current(); 
+    };
     window.addEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
     window.addEventListener('storage', handleStorageChange);
 
     const channel = pusherClient.subscribe('cocina-channel');
-    channel.bind('nuevo-pedido', fetchPedidos); channel.bind('pedido-actualizado', fetchPedidos);
-    channel.bind('detalle-actualizado', fetchPedidos); channel.bind('pedido-armado', fetchPedidos);
+    const onEvent = () => { void fetchPedidosRef.current(); };
+    channel.bind('nuevo-pedido', onEvent); 
+    channel.bind('pedido-actualizado', onEvent);
+    channel.bind('detalle-actualizado', onEvent); 
+    channel.bind('pedido-armado', onEvent);
 
     return () => {
       window.removeEventListener(RESTAURANT_STATE_CHANGED_EVENT, handleStateChange);
       window.removeEventListener('storage', handleStorageChange);
-      channel.unbind('nuevo-pedido', fetchPedidos); channel.unbind('pedido-actualizado', fetchPedidos);
-      channel.unbind('detalle-actualizado', fetchPedidos); channel.unbind('pedido-armado', fetchPedidos);
+      channel.unbind('nuevo-pedido', onEvent); 
+      channel.unbind('pedido-actualizado', onEvent);
+      channel.unbind('detalle-actualizado', onEvent); 
+      channel.unbind('pedido-armado', onEvent);
       pusherClient.unsubscribe('cocina-channel');
     };
-  }, [fetchPedidos]);
+  }, []);
 
   const lockOrder = (id: number) => {
     lockedOrders.current.add(id);
@@ -259,15 +314,14 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
             className="border-2 border-black bg-[#F2E9DC] rounded-[20px] p-5 flex flex-col justify-between min-h-[240px] shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
           >
             {order.status !== 'ready' && order.prepareFrom && (
-              <div className={`absolute top-0 right-0 px-3 py-1 text-[10px] font-black border-l-2 border-b-2 border-black 
-                ${(() => {
-                  const diff = Math.floor((new Date().getTime() - new Date(order.prepareFrom!).getTime()) / 60000);
-                  if (diff >= 30) return 'bg-red-500 text-white animate-pulse';
-                  if (diff >= 15) return 'bg-yellow-400 text-black';
-                  return 'bg-white text-black';
-                })()}`}>
-                {Math.floor((new Date().getTime() - new Date(order.prepareFrom!).getTime()) / 60000)} MIN EN ESPERA
-              </div>
+              (() => {
+                const { formattedTime, colorClass, labelText } = getCountdownTextAndColor(order.prepareFrom, order.maxPrepTime ?? 0, now);
+                return (
+                  <div className={`absolute top-0 right-0 px-3 py-1 text-[10px] font-black border-l-2 border-b-2 border-black ${colorClass}`}>
+                    {labelText}: {formattedTime}
+                  </div>
+                );
+              })()
             )}
             <div>
               <div className="flex justify-between items-center mb-4">
