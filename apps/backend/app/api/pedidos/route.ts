@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { pusherServer } from '@/lib/pusher'; // <-- 1. Importamos la instancia de Pusher
 import bcryptjs from 'bcryptjs';
+import { nowBolivia } from '@/lib/timezone';
 
 export async function POST(request: Request) {
   try {
@@ -134,6 +135,8 @@ export async function POST(request: Request) {
       if (!cliente) clienteId = null;
     }
 
+    const fechaBolivia = nowBolivia();
+
     // Usar transacción para crear pedido y actualizar estado de la mesa
     // Nota: Esto funciona perfectamente para pedidos adicionales, si la mesa ya está 'OCUPADA', simplemente se mantiene 'OCUPADA'.
     const [nuevoPedido] = await prisma.$transaction([
@@ -149,6 +152,7 @@ export async function POST(request: Request) {
           impuesto: 0,
           descuento: 0,
           total: 0,
+          fecha_hora_pedido: fechaBolivia,
         },
         include: {
           mesa: true // <-- 2. Incluimos la mesa para el monitor de cocina

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { pusherServer } from '@/lib/pusher';
+import { nowBolivia } from '@/lib/timezone';
 
 export async function POST(request: Request) {
   try {
@@ -82,6 +83,7 @@ export async function POST(request: Request) {
           impuesto: 0,
           descuento: 0,
           total: total,
+          fecha_hora_pedido: nowBolivia(),
           detalles_pedido: {
             create: detallesData
           }
