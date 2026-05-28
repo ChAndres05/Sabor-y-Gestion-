@@ -6,7 +6,13 @@ import nodemailer from 'nodemailer';
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { id_mesa, metodo_pago, monto_pagado, monto_recibido, monto_cambio, referencia_pago, id_usuario_cajero, correo_cliente, enviar_recibo, ci_cliente, nombre_cliente, detalles_consumidos } = body;
+        const { id_mesa, monto_pagado, monto_recibido, monto_cambio, referencia_pago, id_usuario_cajero, correo_cliente, enviar_recibo, ci_cliente, nombre_cliente, detalles_consumidos } = body;
+        let { metodo_pago } = body;
+
+        // Normalizar TRANSFERENCIA a QR para backend y facturación
+        if (metodo_pago === 'TRANSFERENCIA') {
+            metodo_pago = 'QR';
+        }
 
         // Validaciones básicas de entrada
         if (!id_mesa || !metodo_pago || !id_usuario_cajero) {
@@ -26,9 +32,9 @@ export async function POST(request: Request) {
                 throw new Error("JORNADA_DE_CAJA_NO_ABIERTA");
             }
 
-            // 2. Buscar el ID del método de pago por su nombre (convierte 'EFECTIVO' o 'TRANSFERENCIA')
+            // 2. Buscar el ID del método de pago por su nombre
             const metodo = await tx.metodos_pago.findFirst({
-                where: { nombre: metodo_pago }
+                where: { nombre: { equals: metodo_pago, mode: 'insensitive' } }
             });
 
             if (!metodo) {
@@ -49,14 +55,16 @@ export async function POST(request: Request) {
 
             // 4. Registrar de forma normalizada un pago en la tabla "pagos" por cada pedido consolidado
             for (const pedido of pedidosActivos) {
+                const total_con_iva = Number(pedido.subtotal) * 1.13 - Number(pedido.descuento);
+                
                 await tx.pagos.create({
                     data: {
                         id_pedido: pedido.id_pedido,
                         id_metodo_pago: metodo.id_metodo_pago,
                         id_jornada_caja: jornadaActiva.id_jornada_caja,
                         id_usuario_cajero: id_usuario_cajero,
-                        monto_pagado: pedido.total, // Asignamos el valor exacto de este ticket
-                        monto_recibido: metodo_pago === 'EFECTIVO' ? Number(monto_recibido) : null,
+                        monto_pagado: total_con_iva, 
+                        monto_recibido: metodo_pago === 'EFECTIVO' ? Number(monto_recibido) : total_con_iva,
                         monto_cambio: metodo_pago === 'EFECTIVO' ? Number(monto_cambio) : 0,
                         referencia_pago: referencia_pago || null,
                         estado_pago: 'CONFIRMADO'
@@ -68,14 +76,14 @@ export async function POST(request: Request) {
                     data: {
                         id_pedido: pedido.id_pedido,
                         id_usuario_emision: id_usuario_cajero,
-                        tipo_documento: enviar_recibo ? "FACTURA" : "RECIBO",
+                        tipo_documento: "FACTURA",
                         numero_documento: `FAC-${Date.now()}-${pedido.id_pedido}`,
                         subtotal: pedido.subtotal,
                         impuesto: Number(pedido.subtotal) * 0.13,
                         descuento: pedido.descuento,
                         total: Number(pedido.subtotal) * 1.13 - Number(pedido.descuento),
                         estado_documento: "EMITIDA",
-                        observaciones: `Facturado a: ${nombre_cliente || 'S/N'}, CI/NIT: ${ci_cliente || '0'}${correo_cliente ? ` - Enviado a: ${correo_cliente}` : ''}`
+                        observaciones: `Facturado a: ${nombre_cliente || 'S/N'}, CI/NIT: ${ci_cliente || '0'}${(enviar_recibo && correo_cliente) ? ` - Enviado a: ${correo_cliente}` : ''}`
                     }
                 });
             }
