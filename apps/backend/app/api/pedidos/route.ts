@@ -136,10 +136,6 @@ export async function POST(request: Request) {
     }
 
     const fechaBolivia = nowBolivia();
-    console.log('🕐 DEBUG TIMEZONE:');
-    console.log('   UTC ahora:', new Date().toISOString());
-    console.log('   Bolivia (ISO):', fechaBolivia.toISOString());
-    console.log('   Bolivia (local):', fechaBolivia.toString());
 
     // Usar transacción para crear pedido y actualizar estado de la mesa
     // Nota: Esto funciona perfectamente para pedidos adicionales, si la mesa ya está 'OCUPADA', simplemente se mantiene 'OCUPADA'.
