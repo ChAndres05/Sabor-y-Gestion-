@@ -1,5 +1,6 @@
 import React from 'react';
 import type { AuthUser } from '../../modules/auth/types/auth.types';
+import { useCajaStore } from '../../store/cajaStore';
 
 interface SidebarOption {
   key: string;
@@ -55,7 +56,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, user, options
               <p className="mb-3 text-[10px] uppercase font-bold tracking-widest opacity-50">Sesión #{sessionNumber}</p>
             )}
             <button
-              onClick={() => { onClose(); onLogout(); }}
+              onClick={() => {
+                if (user.rol === 'CAJERO' && useCajaStore.getState().estaAbierta) {
+                  alert('No puedes cerrar sesión sin antes haber cerrado la caja de tu turno.');
+                  return;
+                }
+                onClose();
+                onLogout();
+              }}
               className="w-full bg-white text-[var(--color-primary)] py-2 rounded-xl font-bold text-sm hover:bg-white/90 transition-colors shadow-sm"
             >
               Cerrar Sesión
