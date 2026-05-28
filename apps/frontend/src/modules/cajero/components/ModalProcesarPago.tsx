@@ -28,7 +28,7 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
   const [referenciaPago, setReferenciaPago] = useState('');
   const [ciCliente, setCiCliente] = useState(ci_cliente || '');
   const [nombreCliente, setNombreCliente] = useState(nombre_cliente || '');
-  
+
   // NUEVO: Estados para el correo y el toggle
   const [correoCliente, setCorreoCliente] = useState(correo_cliente || '');
   const [enviarCorreo, setEnviarCorreo] = useState(false);
@@ -63,7 +63,7 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
       ci_cliente: ciCliente,
       nombre_cliente: nombreCliente,
       correo_cliente: correoCliente,
-      enviar_recibo: enviarCorreo 
+      enviar_recibo: enviarCorreo
     };
 
     onConfirmarPago(datos);
@@ -227,9 +227,9 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
           {/* NUEVO: Toggle de Envío por Correo */}
           <div className="flex items-center gap-3 mb-5">
             <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
-                className="sr-only peer" 
+              <input
+                type="checkbox"
+                className="sr-only peer"
                 checked={enviarCorreo}
                 onChange={(e) => setEnviarCorreo(e.target.checked)}
               />
