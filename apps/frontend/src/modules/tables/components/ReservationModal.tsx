@@ -87,7 +87,45 @@ export function ReservationModal({
     }
   };
 
+  const validateReservationDateTime = (): boolean => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const monthIdx = MONTHS.indexOf(mes);
+    const dayNum = Number(dia);
+    const [hourStr, minStr] = horaInicio.split(':');
+    
+    const reservationDate = new Date(currentYear, monthIdx, dayNum, Number(hourStr), Number(minStr), 0, 0);
+    
+    if (reservationDate < now) {
+      const reservationDay = new Date(currentYear, monthIdx, dayNum, 0, 0, 0, 0);
+      const todayDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      
+      if (reservationDay < todayDay) {
+        setFeedback({
+          type: 'error',
+          title: 'Fecha no válida',
+          message: 'No puedes realizar una reserva para un día anterior al actual.'
+        });
+      } else {
+        setFeedback({
+          type: 'error',
+          title: 'Hora no válida',
+          message: 'No puedes realizar una reserva para una hora en el pasado.'
+        });
+      }
+      return false;
+    }
+    return true;
+  };
+
+  const handleNextStep = () => {
+    if (validateReservationDateTime()) {
+      setStep('CLIENT');
+    }
+  };
+
   const handleFinalConfirm = async () => {
+    if (!validateReservationDateTime()) return;
     setIsSubmitting(true);
     try {
       const currentYear = new Date().getFullYear();
@@ -173,7 +211,7 @@ export function ReservationModal({
               </div>
 
               <button 
-                onClick={isClientRole ? handleFinalConfirm : () => setStep('CLIENT')}
+                onClick={isClientRole ? handleFinalConfirm : handleNextStep}
                 disabled={isSubmitting}
                 className="w-full bg-[#c25134] text-white py-3.5 rounded-[12px] font-black border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] uppercase text-[13px] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all disabled:opacity-50"
               >
