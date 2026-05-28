@@ -41,7 +41,10 @@ function saveCheckedItemInStorage(orderId: number, itemId: number, itemName: str
 
 function getCountdownTextAndColor(prepareFrom: string, maxPrepTime: number, nowMs: number) {
   const prepTimeMin = maxPrepTime > 0 ? maxPrepTime : 15;
-  const startTime = new Date(prepareFrom).getTime();
+  // Como la fecha se guarda en la base de datos con la hora local de Bolivia pero con formato UTC ('Z'),
+  // el navegador la interpreta como UTC. Sumamos 4 horas (en milisegundos) para obtener el timestamp UTC real
+  // y poder compararlo correctamente con Date.now().
+  const startTime = new Date(prepareFrom).getTime() + 4 * 60 * 60 * 1000;
   const deadline = startTime + prepTimeMin * 60 * 1000;
   const diffMs = deadline - nowMs;
   const isOverdue = diffMs < 0;
