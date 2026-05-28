@@ -101,7 +101,7 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
                 referencia: m.descripcion || 'Movimiento de Caja',
                 tipo: tipo as 'efectivo' | 'transferencia',
                 monto: isEgress ? -Math.abs(Number(m.monto)) : Math.abs(Number(m.monto)),
-                hora: new Date(m.fecha_hora_movimiento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                hora: new Date(m.fecha_hora_movimiento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })
               };
             };
             setMovimientos(data.movimientos.map(formatMovimiento));
@@ -329,7 +329,7 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onLogout, onOp
             ) : (
             <div className="space-y-6">
               <div className="bg-[var(--color-primary)] text-white p-6 rounded-3xl flex justify-between items-center shadow-lg">
-                <div><h2 className="text-xl font-bold">Jornada Activa ✓</h2><p className="text-[10px] uppercase font-bold opacity-70 tracking-widest">Desde: {new Date(jornada?.fecha_hora_apertura || '').toLocaleTimeString()}</p></div>
+                <div><h2 className="text-xl font-bold">Jornada Activa ✓</h2><p className="text-[10px] uppercase font-bold opacity-70 tracking-widest">Desde: {new Date(jornada?.fecha_hora_apertura || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'UTC' })}</p></div>
                 {/* NUEVO: Al presionar "Cerrar Caja", nos aseguramos de ir al paso 1 y limpiar el input */}
                 <button 
                   onClick={() => {
