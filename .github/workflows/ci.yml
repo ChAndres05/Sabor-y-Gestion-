@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main, develop]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   validate:
     name: Lint, Typecheck & Build
@@ -32,15 +35,15 @@ jobs:
 
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10.33.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: 'pnpm'
@@ -70,7 +73,7 @@ jobs:
 
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Simulación de despliegue
       - name: Execute Deployment

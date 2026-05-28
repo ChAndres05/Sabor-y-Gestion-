@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { clientFlowApi } from '../../../shared/api/client-flow.api';
 import { FeedbackModal } from '../../../shared/components/FeedbackModal';
 
@@ -14,6 +14,7 @@ interface ReservationModalProps {
 }
 
 const MONTHS = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+const AVAILABLE_HOURS = Array.from({ length: 16 }, (_, i) => `${String(i + 8).padStart(2, '0')}:00`);
 
 export function ReservationModal({ 
   open, 
@@ -60,13 +61,6 @@ export function ReservationModal({
     }
   }, [open]);
 
-  const availableHours = useMemo(() => {
-    const hours = [];
-    for (let h = 8; h <= 23; h++) {
-      hours.push(`${h.toString().padStart(2, '0')}:00`);
-    }
-    return hours;
-  }, []);
 
   const handleSearchCI = async () => {
     if (!ci.trim()) return;
@@ -162,7 +156,7 @@ export function ReservationModal({
               <div>
                 <label className="block text-[10px] font-black uppercase mb-1">HORA DE INICIO (24H)</label>
                 <select value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} className="w-full appearance-none rounded-[12px] border-2 border-black px-3 py-2 text-[14px] font-bold bg-[#F2E9DC] outline-none">
-                  {availableHours.map(h => <option key={h} value={h}>{h}</option>)}
+                  {AVAILABLE_HOURS.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
               </div>
 
