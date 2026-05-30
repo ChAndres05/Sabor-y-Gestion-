@@ -45,8 +45,7 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
   const montoDescuento = cuponEncontrado ? subtotal * cuponEncontrado.descuento : 0;
 
   const subtotalConDescuento = subtotal - montoDescuento;
-  const ivaAgregado = subtotalConDescuento * 0.13;
-  const totalFinal = subtotalConDescuento + ivaAgregado;
+  const totalFinal = subtotalConDescuento;
   const cambio = montoRecibido > totalFinal ? montoRecibido - totalFinal : 0;
 
   const puedeConfirmar = metodoPago !== 'EFECTIVO' || montoRecibido >= totalFinal;
@@ -141,11 +140,7 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
                 <span>- Bs {montoDescuento.toFixed(2)}</span>
               </div>
             )}
-            <div className="flex justify-between text-[10px] text-gray-400 border-t pt-3 uppercase font-bold tracking-widest">
-              <span>IVA (13%)</span>
-              <span>Bs {ivaAgregado.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-2xl font-black text-[var(--color-primary)] tracking-tighter">
+            <div className="flex justify-between text-2xl font-black text-[var(--color-primary)] tracking-tighter border-t pt-3">
               <span>Total a pagar</span>
               <span>Bs {totalFinal.toFixed(2)}</span>
             </div>

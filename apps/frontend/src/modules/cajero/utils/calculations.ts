@@ -1,11 +1,10 @@
 export const calcularTotalesFactura = (subtotal: number, descuentoMonto: number = 0) => {
-  const total = subtotal - descuentoMonto; //
-  const impuestoIva = total * 0.13; // 13% IVA informativo para Bolivia
+  const total = subtotal - descuentoMonto;
   
   return {
     subtotal: subtotal,
     descuento: descuentoMonto,
     total: total,
-    impuesto: impuestoIva
+    impuesto: 0
   };
 };
