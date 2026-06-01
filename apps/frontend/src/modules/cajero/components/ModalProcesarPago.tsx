@@ -33,13 +33,7 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
   const [correoCliente, setCorreoCliente] = useState(correo_cliente || '');
   const [enviarCorreo, setEnviarCorreo] = useState(false);
 
-  // 1. Bloqueo de números negativos en la lógica
-  const handleMontoChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
-    const value = e.target.value === '' ? 0 : Number(e.target.value);
-    setMontoRecibido(value < 0 ? 0 : value);
-  };
-
-  // 2. Lógica de validación de cupones
+  // 2. Lógica de validación de cupones y cálculo de totales
   const subtotal = detalles.reduce((acc, item) => acc + item.subtotal, 0);
   const cuponEncontrado = MOCK_CUPONES.find(c => c.codigo === codigoDescuento.toUpperCase());
   const montoDescuento = cuponEncontrado ? subtotal * cuponEncontrado.descuento : 0;
@@ -47,6 +41,46 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
   const subtotalConDescuento = subtotal - montoDescuento;
   const totalFinal = subtotalConDescuento;
   const cambio = montoRecibido > totalFinal ? montoRecibido - totalFinal : 0;
+
+  // 1. Bloqueo de números negativos, límite de decimales divisibles por 10 (segundo decimal debe ser 0) y máximo 200 Bs adicionales
+  const handleMontoChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    let rawValue = e.target.value;
+
+    // Limitar a decimales divisibles por 10 (forzar que el segundo dígito decimal sea '0' y no permitir más)
+    if (rawValue.includes('.')) {
+      const [entero, decimal] = rawValue.split('.');
+      if (decimal.length > 1) {
+        const primerDecimal = decimal.charAt(0);
+        rawValue = `${entero}.${primerDecimal}0`;
+        e.target.value = rawValue;
+      }
+    }
+
+    const value = rawValue === '' ? 0 : Number(rawValue);
+    const maxPermitido = totalFinal + 200;
+
+    if (value > maxPermitido) {
+      setMontoRecibido(maxPermitido);
+      e.target.value = maxPermitido.toFixed(2);
+    } else if (value < 0) {
+      setMontoRecibido(0);
+      e.target.value = '0';
+    } else {
+      setMontoRecibido(value);
+    }
+  };
+
+  // Sincronizar y limitar el monto recibido si el total final cambia (ej. al aplicar cupón)
+  React.useEffect(() => {
+    const maxPermitido = totalFinal + 200;
+    if (montoRecibido > maxPermitido) {
+      setMontoRecibido(maxPermitido);
+      const inputEl = document.getElementById('input-monto-recibido') as HTMLInputElement | null;
+      if (inputEl) {
+        inputEl.value = maxPermitido.toFixed(2);
+      }
+    }
+  }, [totalFinal, montoRecibido]);
 
   const puedeConfirmar = metodoPago !== 'EFECTIVO' || montoRecibido >= totalFinal;
 
@@ -170,6 +204,7 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
               <div>
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Monto Recibido</label>
                 <input
+                  id="input-monto-recibido"
                   type="number"
                   min="0"
                   onKeyDown={(e) => ["-", "+", "e", "E"].includes(e.key) && e.preventDefault()}
