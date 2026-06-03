@@ -342,9 +342,9 @@ function App() {
           {screenState === 'client-product-detail' && sessionUser && selectedClientProductId !== null && (
             <ClientProductDetailPage user={sessionUser} productId={selectedClientProductId} onBack={() => setScreen('client-menu')} onLogout={handleLogout} onNavigate={navigateClient} />
           )}
-          {screenState === 'client-reserve-table' && sessionUser && <TableManagementPage role="CLIENTE" user={sessionUser} onNavigate={navigateClient} onBack={() => setScreen('cliente-home')} />}
+          {screenState === 'client-reserve-table' && sessionUser && <TableManagementPage role="CLIENTE" user={sessionUser} onNavigate={navigateClient} onBack={() => setIsSidebarOpen(true)} />}
           {screenState === 'client-reservations' && sessionUser && (
-            <ClientReservationsPage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onBack={() => setScreen('cliente-home')} onOpenReservationOrder={(resId) => setScreen('client-reservation-order', { reservationId: resId })} />
+            <ClientReservationsPage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onBack={() => setIsSidebarOpen(true)} onOpenReservationOrder={(resId) => setScreen('client-reservation-order', { reservationId: resId })} />
           )}
           {screenState === 'client-reservation-order' && sessionUser && selectedReservationId !== null && (
             <ClientReservationOrderPage 
@@ -363,7 +363,7 @@ function App() {
             />
           )}
           {screenState === 'client-orders' && sessionUser && (
-            <ClientOrdersPage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onBack={() => setScreen('cliente-home')} onManageOrder={(tableId) => setScreen('client-manage-order', { tableId })} />
+            <ClientOrdersPage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onBack={() => setIsSidebarOpen(true)} onManageOrder={(tableId) => setScreen('client-manage-order', { tableId })} />
           )}
           {screenState === 'client-manage-order' && sessionUser && selectedTableId !== null && (
             <ClientActiveOrderPage user={sessionUser} tableId={selectedTableId} onBack={() => navigateClient('orders')} />

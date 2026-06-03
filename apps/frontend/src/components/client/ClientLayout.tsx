@@ -12,6 +12,7 @@ interface ClientLayoutProps {
   children: ReactNode;
   maxWidthClassName?: string;
   onBack?: () => void;
+  showBackButton?: boolean;
 }
 
 const navigationItems: Array<{ key: ClientNavigationKey; label: string; description: string }> = [
@@ -47,6 +48,7 @@ export default function ClientLayout({
   children,
   maxWidthClassName = 'max-w-screen-xl',
   onBack,
+  showBackButton,
 }: ClientLayoutProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -65,9 +67,9 @@ export default function ClientLayout({
                 type="button"
                 onClick={onBack ? onBack : () => setIsDrawerOpen(true)}
                 className="rounded-2xl bg-white px-3 py-2 text-[24px] leading-none text-text shadow-sm transition-colors hover:bg-black/5"
-                aria-label={onBack ? "Volver" : "Abrir navegación del cliente"}
+                aria-label={showBackButton ? "Volver" : "Abrir navegación del cliente"}
               >
-                ☰
+                {showBackButton ? "←" : "☰"}
               </button>
             </div>
 

@@ -304,7 +304,7 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
     <main className="min-h-full bg-background px-3 py-5 text-text md:px-6 md:py-8">
       <div className="mx-auto w-full max-w-[430px] md:max-w-5xl">
         <div className="mb-4 flex items-center justify-between">
-          <button type="button" onClick={onBack} className="text-[28px] leading-none text-text" aria-label="Volver al menú principal">{'\u2630'}</button>
+          <button type="button" onClick={onBack} className="text-[28px] leading-none text-text" aria-label="Volver">←</button>
         </div>
 
         <header className="mb-4">

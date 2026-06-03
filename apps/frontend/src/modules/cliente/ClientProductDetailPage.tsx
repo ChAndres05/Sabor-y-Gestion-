@@ -76,6 +76,7 @@ export default function ClientProductDetailPage({
       onNavigate={onNavigate}
       onLogout={onLogout}
       onBack={onBack}
+      showBackButton={true}
       maxWidthClassName="max-w-md"
     >
       <div className="h-full overflow-y-auto pr-1">
