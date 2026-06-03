@@ -3,6 +3,7 @@ import bcryptjs from "bcryptjs";
 import { prisma } from "../../../lib/prisma";
 import jwt from "jsonwebtoken";
 import { validateName } from "../../../lib/validation";
+import { nowBolivia } from "@/lib/timezone";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -111,6 +112,7 @@ export async function POST(req: Request) {
         correo_electronico,
         contrasena_hash: hash,
         activo: true,
+        fecha_creacion: nowBolivia(),
       },
     });
 

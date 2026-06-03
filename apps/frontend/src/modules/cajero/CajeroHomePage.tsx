@@ -95,7 +95,8 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onOpenSidebar,
             const data = await res.json();
             const formatMovimiento = (m: MovimientoCajaBackend): MovimientoCajaFormatted => {
               const isEgress = m.tipo_movimiento === 'EGRESO_EXTRA';
-              const tipo = m.descripcion?.toLowerCase().includes('transferencia') ? 'transferencia' : 'efectivo';
+              const desc = m.descripcion?.toLowerCase() || '';
+              const tipo = (desc.includes('transferencia') || desc.includes('qr')) ? 'transferencia' : 'efectivo';
               return {
                 id: `DB-${m.id_movimiento_caja}`,
                 referencia: m.descripcion || 'Movimiento de Caja',

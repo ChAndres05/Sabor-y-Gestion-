@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { pusherServer } from '@/lib/pusher';
+import { nowBolivia } from '@/lib/timezone';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,8 @@ export async function POST(request: Request) {
         id_usuario: Number(id_usuario),
         tipo_movimiento,
         monto: Number(monto),
-        descripcion: descripcion || null
+        descripcion: descripcion || null,
+        fecha_hora_movimiento: nowBolivia()
       }
     });
 

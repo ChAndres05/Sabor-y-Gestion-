@@ -80,6 +80,7 @@ export async function POST(request: Request) {
               telefono: cliente_telefono || null,
               id_rol: rolCliente.id_rol,
               activo: true,
+              fecha_creacion: nowBolivia(),
             }
           });
 

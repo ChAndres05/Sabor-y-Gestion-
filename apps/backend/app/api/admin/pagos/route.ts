@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { pusherServer } from '@/lib/pusher';
 import nodemailer from 'nodemailer';
+import { nowBolivia } from '@/lib/timezone';
 
 export async function POST(request: Request) {
     try {
@@ -53,6 +54,8 @@ export async function POST(request: Request) {
                 throw new Error("NO_HAY_PEDIDOS_ACTIVOS");
             }
 
+            const fechaActualLocal = nowBolivia();
+
             // 4. Registrar de forma normalizada un pago en la tabla "pagos" por cada pedido consolidado
             for (const pedido of pedidosActivos) {
                 const total_sin_iva = Number(pedido.subtotal) - Number(pedido.descuento);
@@ -67,7 +70,8 @@ export async function POST(request: Request) {
                         monto_recibido: metodo_pago === 'EFECTIVO' ? Number(monto_recibido) : total_sin_iva,
                         monto_cambio: metodo_pago === 'EFECTIVO' ? Number(monto_cambio) : 0,
                         referencia_pago: referencia_pago || null,
-                        estado_pago: 'CONFIRMADO'
+                        estado_pago: 'CONFIRMADO',
+                        fecha_hora_pago: fechaActualLocal
                     }
                 });
 
@@ -83,7 +87,8 @@ export async function POST(request: Request) {
                         descuento: pedido.descuento,
                         total: Number(pedido.subtotal) - Number(pedido.descuento),
                         estado_documento: "EMITIDA",
-                        observaciones: `Facturado a: ${nombre_cliente || 'S/N'}, CI/NIT: ${ci_cliente || '0'}${(enviar_recibo && correo_cliente) ? ` - Enviado a: ${correo_cliente}` : ''}`
+                        observaciones: `Facturado a: ${nombre_cliente || 'S/N'}, CI/NIT: ${ci_cliente || '0'}${(enviar_recibo && correo_cliente) ? ` - Enviado a: ${correo_cliente}` : ''}`,
+                        fecha_emision: fechaActualLocal
                     }
                 });
             }
@@ -96,7 +101,8 @@ export async function POST(request: Request) {
                     id_usuario: id_usuario_cajero,
                     tipo_movimiento: 'INGRESO_EXTRA',
                     monto: Number(monto_pagado),
-                    descripcion: `Cobro Consolidado Mesa ${mesaContexto?.numero || id_mesa} - Método: ${metodo_pago}`
+                    descripcion: `Cobro Consolidado Mesa ${mesaContexto?.numero || id_mesa} - Método: ${metodo_pago}`,
+                    fecha_hora_movimiento: fechaActualLocal
                 }
             });
 
