@@ -90,6 +90,7 @@ export async function PATCH(
             id_usuario,
             estado,
             observaciones: observaciones || null,
+            fecha_hora_cambio: nowBolivia(),
           }
         });
       }
@@ -114,6 +115,7 @@ export async function PATCH(
               id_usuario_cocinero: id_usuario,
               estado_asignacion: 'ASIGNADO',
               fecha_hora_inicio_preparacion: nowBolivia(),
+              fecha_hora_asignacion: nowBolivia(),
             }
           });
         }

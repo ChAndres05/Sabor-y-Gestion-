@@ -97,24 +97,26 @@ export async function GET() {
       };
     });
 
-    const mappedMovimientos = movimientos.map(mov => {
-      const type = mov.tipo_movimiento.toUpperCase().includes('EGRESO') ? 'Egreso' : 'Ingreso';
-      const cajeroName = mov.usuario
-        ? `${mov.usuario.nombre} ${mov.usuario.apellido || ''}`.trim()
-        : 'Cajero';
+    const mappedMovimientos = movimientos
+      .filter(mov => !mov.descripcion?.includes('Cobro Consolidado'))
+      .map(mov => {
+        const type = mov.tipo_movimiento.toUpperCase().includes('EGRESO') ? 'Egreso' : 'Ingreso';
+        const cajeroName = mov.usuario
+          ? `${mov.usuario.nombre} ${mov.usuario.apellido || ''}`.trim()
+          : 'Cajero';
 
-      return {
-        id: `m-${mov.id_movimiento_caja}`,
-        cajeroId: mov.id_usuario,
-        cajeroName,
-        date: mov.fecha_hora_movimiento.toISOString(),
-        amount: Number(mov.monto),
-        paymentMethod: 'Efectivo' as const,
-        type,
-        description: mov.descripcion || (type === 'Egreso' ? 'Egreso de caja' : 'Ingreso de caja'),
-        timestamp: mov.fecha_hora_movimiento.getTime()
-      };
-    });
+        return {
+          id: `m-${mov.id_movimiento_caja}`,
+          cajeroId: mov.id_usuario,
+          cajeroName,
+          date: mov.fecha_hora_movimiento.toISOString(),
+          amount: Number(mov.monto),
+          paymentMethod: 'Efectivo' as const,
+          type,
+          description: mov.descripcion || (type === 'Egreso' ? 'Egreso de caja' : 'Ingreso de caja'),
+          timestamp: mov.fecha_hora_movimiento.getTime()
+        };
+      });
 
     // Combine and sort by timestamp desc
     const allTransactions = [...mappedPagos, ...mappedMovimientos]

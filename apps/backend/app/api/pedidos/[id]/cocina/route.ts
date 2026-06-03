@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { pusherServer } from '@/lib/pusher';
+import { nowBolivia } from '@/lib/timezone';
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -56,7 +57,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           id_pedido,
           id_usuario_cocinero: cocinero.id_usuario,
           estado_asignacion: 'ASIGNADO',
-          observaciones: 'Enviado a cocina automáticamente'
+          observaciones: 'Enviado a cocina automáticamente',
+          fecha_hora_asignacion: nowBolivia()
         }
       });
 
@@ -67,7 +69,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             id_pedido,
             id_usuario,
             estado: 'PENDIENTE',
-            observaciones: 'Pedido enviado a cocina (Pendiente)'
+            observaciones: 'Pedido enviado a cocina (Pendiente)',
+            fecha_hora_cambio: nowBolivia()
           }
         });
       }

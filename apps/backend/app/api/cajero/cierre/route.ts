@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { pusherServer } from '@/lib/pusher';
+import { nowBolivia } from '@/lib/timezone';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
       where: { id_jornada_caja: jornadaActiva.id_jornada_caja },
       data: {
         id_usuario_cierre: Number(id_usuario_cierre),
-        fecha_hora_cierre: new Date(),
+        fecha_hora_cierre: nowBolivia(),
         monto_teorico_cierre: Number(monto_teorico_cierre),
         monto_contado_cierre: Number(monto_contado_cierre),
         diferencia_cierre: diferencia,

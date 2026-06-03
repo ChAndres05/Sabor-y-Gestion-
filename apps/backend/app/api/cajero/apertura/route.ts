@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { pusherServer } from '@/lib/pusher';
+import { nowBolivia } from '@/lib/timezone';
 
 export const dynamic = 'force-dynamic';
 
@@ -134,7 +135,7 @@ export async function POST(request: Request) {
         id_usuario_apertura: userId,
         monto_inicial: Number(monto_inicial),
         estado: 'ABIERTA',
-        fecha_hora_apertura: new Date(),
+        fecha_hora_apertura: nowBolivia(),
       },
     });
 
