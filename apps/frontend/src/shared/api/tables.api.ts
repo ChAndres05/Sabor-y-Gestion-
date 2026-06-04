@@ -62,7 +62,7 @@ export const tablesApi = {
   },
 
   async createZone(values: ZoneFormValues): Promise<Zone> {
-    const res = await fetch(`${API_URL}/api/zonas`, {
+    const res = await fetch(`${API_URL}/api/admin/zonas`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nombre: values.nombre }),
