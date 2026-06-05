@@ -3,6 +3,9 @@ import { MOCK_CUPONES } from '../../../shared/mocks/cuponesMocks';
 import type { PagoConfirmacion } from '../types';
 import type { TableOrderItem } from '../../tables/types/table-order.types';
 
+// NUEVO: Importamos la imagen del QR directamente desde la carpeta assets
+import qrImage from '../../../assets/qr.png';
+
 interface ModalProcesarPagoProps {
   numeroMesa: number;
   detalles: TableOrderItem[];
@@ -10,7 +13,7 @@ interface ModalProcesarPagoProps {
   onConfirmarPago: (datos: PagoConfirmacion) => void;
   ci_cliente?: string;
   nombre_cliente?: string;
-  correo_cliente?: string; // NUEVO: Posibilidad de recibir el correo del backend
+  correo_cliente?: string;
 }
 
 export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
@@ -29,7 +32,6 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
   const [ciCliente, setCiCliente] = useState(ci_cliente || '');
   const [nombreCliente, setNombreCliente] = useState(nombre_cliente || '');
 
-  // NUEVO: Estados para el correo y el toggle
   const [correoCliente, setCorreoCliente] = useState(correo_cliente || '');
   const [enviarCorreo, setEnviarCorreo] = useState(false);
 
@@ -42,11 +44,10 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
   const totalFinal = subtotalConDescuento;
   const cambio = montoRecibido > totalFinal ? montoRecibido - totalFinal : 0;
 
-  // 1. Bloqueo de números negativos, límite de decimales divisibles por 10 (segundo decimal debe ser 0) y máximo 200 Bs adicionales
+  // 1. Bloqueo de números negativos, límite de decimales divisibles por 10
   const handleMontoChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     let rawValue = e.target.value;
 
-    // Limitar a decimales divisibles por 10 (forzar que el segundo dígito decimal sea '0' y no permitir más)
     if (rawValue.includes('.')) {
       const [entero, decimal] = rawValue.split('.');
       if (decimal.length > 1) {
@@ -70,7 +71,6 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
     }
   };
 
-  // Sincronizar y limitar el monto recibido si el total final cambia (ej. al aplicar cupón)
   React.useEffect(() => {
     const maxPermitido = totalFinal + 200;
     if (montoRecibido > maxPermitido) {
@@ -222,7 +222,10 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
             <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
               <div className="text-center p-5 border-2 border-dashed border-gray-200 rounded-[2rem] bg-gray-50">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Escanea el código QR</p>
-                <div className="w-32 h-32 bg-white mx-auto rounded-2xl shadow-inner flex items-center justify-center text-4xl border border-gray-100">🔳</div>
+                {/* NUEVO: Reemplazamos el emoji por la imagen del QR */}
+                <div className="w-40 h-40 bg-white mx-auto rounded-2xl shadow-sm flex items-center justify-center p-2 border border-gray-100 overflow-hidden">
+                  <img src={qrImage} alt="Código QR para Pago" className="w-full h-full object-contain" />
+                </div>
               </div>
               <div>
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Número de Referencia</label>
@@ -254,7 +257,6 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
 
         {/* Footer fijo con Toggle y Botón */}
         <div className="p-8 bg-gray-50/50 border-t border-gray-100 shrink-0">
-          {/* NUEVO: Toggle de Envío por Correo */}
           <div className="flex items-center gap-3 mb-5">
             <label className="relative inline-flex items-center cursor-pointer">
               <input

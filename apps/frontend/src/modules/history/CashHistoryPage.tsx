@@ -15,7 +15,9 @@ export default function CashHistoryPage({ onBack }: CashHistoryPageProps) {
   const [error, setError] = useState<string | null>(null);
 
   const [filterCajeroId, setFilterCajeroId] = useState<number | 'ALL'>('ALL');
-  const [filterDate, setFilterDate] = useState<string>(''); // YYYY-MM-DD
+  // Se reemplazó filterDate por startDate y endDate
+  const [startDate, setStartDate] = useState<string>(''); // YYYY-MM-DD
+  const [endDate, setEndDate] = useState<string>(''); // YYYY-MM-DD
   const [filterMethod, setFilterMethod] = useState<PaymentMethodFilter>('ALL');
 
   const [isCajeroFilterOpen, setIsCajeroFilterOpen] = useState(false);
@@ -52,14 +54,16 @@ export default function CashHistoryPage({ onBack }: CashHistoryPageProps) {
       // Filter by cajero
       if (filterCajeroId !== 'ALL' && entry.cajeroId !== filterCajeroId) return false;
       
-      // Filter by date (local timezone comparison to avoid UTC mismatch)
-      if (filterDate) {
+      // Filter by date range (local timezone comparison to avoid UTC mismatch)
+      if (startDate || endDate) {
         const dateObj = new Date(entry.date);
         const year = dateObj.getFullYear();
         const month = String(dateObj.getMonth() + 1).padStart(2, '0');
         const day = String(dateObj.getDate()).padStart(2, '0');
         const localDateStr = `${year}-${month}-${day}`;
-        if (localDateStr !== filterDate) return false;
+        
+        if (startDate && localDateStr < startDate) return false;
+        if (endDate && localDateStr > endDate) return false;
       }
       
       // Filter by payment method
@@ -67,7 +71,7 @@ export default function CashHistoryPage({ onBack }: CashHistoryPageProps) {
 
       return true;
     });
-  }, [transactions, filterCajeroId, filterDate, filterMethod]);
+  }, [transactions, filterCajeroId, startDate, endDate, filterMethod]);
 
   // Calculate statistics based on filtered history
   const statistics = useMemo(() => {
@@ -77,7 +81,6 @@ export default function CashHistoryPage({ onBack }: CashHistoryPageProps) {
 
     filteredHistory.forEach(entry => {
       // Assuming only 'Ingreso' counts towards total in caja. 
-      // If there are Egresos, maybe we subtract? Let's add Ingresos and subtract Egresos.
       const amount = entry.type === 'Ingreso' ? entry.amount : -entry.amount;
       
       total += amount;
@@ -137,14 +140,14 @@ export default function CashHistoryPage({ onBack }: CashHistoryPageProps) {
           {/* Filters */}
           <div className="bg-white rounded-[20px] p-5 shadow-sm mb-6 flex flex-col md:flex-row gap-4 items-end">
             {/* Cajero Filter */}
-            <div className="relative w-full md:w-1/3">
+            <div className="relative w-full md:w-[25%]">
               <label className="mb-2 block text-xs font-bold text-gray-500 uppercase">Cajero</label>
               <button
                 type="button"
                 onClick={() => { setIsCajeroFilterOpen(!isCajeroFilterOpen); setIsMethodFilterOpen(false); }}
                 className="flex w-full items-center justify-between rounded-xl bg-[#FDF6ED] border border-gray-200 px-4 py-3 text-sm font-semibold text-text"
               >
-                <span>{cajeroLabel}</span>
+                <span className="truncate pr-2">{cajeroLabel}</span>
                 <span>˅</span>
               </button>
               {isCajeroFilterOpen && (
@@ -170,19 +173,30 @@ export default function CashHistoryPage({ onBack }: CashHistoryPageProps) {
               )}
             </div>
 
-            {/* Date Filter */}
-            <div className="w-full md:w-1/3">
-              <label className="mb-2 block text-xs font-bold text-gray-500 uppercase">Fecha</label>
-              <input 
-                type="date" 
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                className="w-full rounded-xl bg-[#FDF6ED] border border-gray-200 px-4 py-3 text-sm font-semibold text-text outline-none focus:border-primary"
-              />
+            {/* Rango de Fechas Filter */}
+            <div className="w-full md:flex-1">
+              <label className="mb-2 block text-xs font-bold text-gray-500 uppercase">Rango de Fechas (Desde - Hasta)</label>
+              <div className="flex flex-col lg:flex-row gap-3">
+                <input 
+                  type="date" 
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full rounded-xl bg-[#FDF6ED] border border-gray-200 px-4 py-3 text-sm font-semibold text-text outline-none focus:border-primary"
+                  title="Fecha de inicio"
+                />
+                <input 
+                  type="date" 
+                  value={endDate}
+                  min={startDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full rounded-xl bg-[#FDF6ED] border border-gray-200 px-4 py-3 text-sm font-semibold text-text outline-none focus:border-primary"
+                  title="Fecha límite"
+                />
+              </div>
             </div>
 
             {/* Payment Method Filter */}
-            <div className="relative w-full md:w-1/3">
+            <div className="relative w-full md:w-[25%]">
               <label className="mb-2 block text-xs font-bold text-gray-500 uppercase">Método</label>
               <button
                 type="button"
