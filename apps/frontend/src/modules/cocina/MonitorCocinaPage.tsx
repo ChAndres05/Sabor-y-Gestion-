@@ -289,14 +289,16 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
             </button>
             <h1 className="text-2xl font-bold">Monitor de Cocina</h1>
           </div>
-          <p className="text-[#8c8c8c] text-sm font-medium sm:ml-12">Pedidos pendientes</p>
+          {/* Se cambió "Pedidos pendientes" a "Pedidos en cola" para que tenga más sentido con el estado recibido */}
+          <p className="text-[#8c8c8c] text-sm font-medium sm:ml-12">Pedidos en cola</p>
         </div>
       </div>
       <div className="bg-white rounded-[24px] p-4 sm:p-5 shadow-sm mb-8 max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex flex-wrap gap-4 sm:gap-5 text-[11px] font-black tracking-wider">
           <div className="flex items-center gap-2">
             <div className="w-[6px] h-[6px] rounded-full bg-[#ef4444]" />
-            <span>{pendingCount} PENDIENTES</span>
+            {/* Se cambió PENDIENTES por RECIBIDOS */}
+            <span>{pendingCount} RECIBIDOS</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-[6px] h-[6px] rounded-full bg-[#eab308]" />
@@ -349,11 +351,12 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
                           : 'bg-[#ef4444]'
                     }`}
                   >
+                    {/* Se cambió 'Pendiente' por 'Recibido' aquí en la etiqueta de la tarjeta */}
                     {order.status === 'ready'
                       ? 'Listo'
                       : order.status === 'preparing'
                         ? 'Preparando'
-                        : 'Pendiente'}
+                        : 'Recibido'}
                   </span>
                   <span className="text-[22px] font-bold border-2 border-black rounded-[12px] w-12 h-10 flex items-center justify-center text-[#1c1c1c] bg-[#F2E9DC]">
                     {order.orderNumber}
