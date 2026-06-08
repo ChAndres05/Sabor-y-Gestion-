@@ -88,3 +88,71 @@ export const formatUnidad = (unidad: UnidadMedida): string => {
   };
   return map[unidad];
 };
+
+export type TipoMovimiento = 'ENTRADA' | 'SALIDA' | 'MERMA' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO';
+
+export interface MovimientoStock {
+  id_movimiento: string;
+  id_insumo: string;
+  nombre_insumo: string;
+  tipo_movimiento: TipoMovimiento;
+  cantidad: number;
+  unidad_medida: UnidadMedida;
+  stock_anterior: number;
+  stock_actual: number;
+  fecha_hora: string; // Formato ISO
+  usuario: string;
+}
+
+export const mockMovimientos: MovimientoStock[] = [
+  {
+    id_movimiento: 'MOV-001',
+    id_insumo: 'INS-002',
+    nombre_insumo: 'Agua San Luis 2L',
+    tipo_movimiento: 'SALIDA',
+    cantidad: 2,
+    unidad_medida: 'LITRO',
+    stock_anterior: 29,
+    stock_actual: 27,
+    fecha_hora: '2026-02-17T10:45:00',
+    usuario: 'Mesero (Juan P.)'
+  },
+  {
+    id_movimiento: 'MOV-002',
+    id_insumo: 'INS-001',
+    nombre_insumo: 'Pechuga de Pollo',
+    tipo_movimiento: 'ENTRADA',
+    cantidad: 4,
+    unidad_medida: 'KILOGRAMO',
+    stock_anterior: 28,
+    stock_actual: 32,
+    fecha_hora: '2026-02-17T10:30:00',
+    usuario: 'Cocinero (Carlos M.)'
+  },
+  {
+    id_movimiento: 'MOV-003',
+    id_insumo: 'INS-003',
+    nombre_insumo: 'Tomate Perita',
+    tipo_movimiento: 'MERMA',
+    cantidad: 1,
+    unidad_medida: 'KILOGRAMO',
+    stock_anterior: 3,
+    stock_actual: 2,
+    fecha_hora: '2026-02-16T15:20:00',
+    usuario: 'Admin (Heidy M.)'
+  }
+
+  
+];
+
+// Helper para formatear fechas
+export const formatFecha = (isoString: string) => {
+  const date = new Date(isoString);
+  return date.toLocaleDateString('es-BO', { 
+    day: '2-digit', 
+    month: '2-digit', 
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
