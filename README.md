@@ -244,6 +244,11 @@ Sabor-y-Gestion/
 │       ├── tsconfig.node.json   # Configuración de TypeScript para node/vite
 │       └── vite.config.ts       # Configuración del bundler Vite
 │
+│   └── qa/                      # Suite de Pruebas Automatizadas (Playwright)
+│       ├── tests/               # Pruebas de integración de API y E2E
+│       ├── playwright.config.ts # Configuración global de Playwright
+│       └── package.json         # Dependencias del workspace de QA
+│
 ├── .env.example                 # Plantilla base de variables de entorno
 ├── .gitignore                   # Archivos ignorados en control de versiones
 ├── package.json                 # Scripts de control globales (dev, build, lint)
