@@ -4,6 +4,8 @@ import { CategoryCard } from './components/CategoryCard';
 import { CategoryFormModal } from './components/CategoryFormModal';
 import { ProductCard } from './components/ProductCard';
 import { ProductFormModal } from './components/ProductFormModal';
+import { mockInsumos } from '../../shared/mocks/inventario';
+
 import type {
   CategoryStatusFilter,
   MenuCategory,
@@ -719,14 +721,11 @@ export default function MenuManagementPage({
       />
 
       <ProductFormModal
-        key={
-          isCreateProductOpen
-            ? `product-create-${selectedCategoryId ?? 'all'}`
-            : 'product-create-closed'
-        }
+        key={isCreateProductOpen ? `product-create-${selectedCategoryId ?? 'all'}` : 'product-create-closed'}
         open={isCreateProductOpen}
         mode="create"
         categories={categories}
+        insumos={mockInsumos} 
         selectedCategoryId={selectedCategoryId}
         isSubmitting={isSubmittingProductForm}
         onClose={() => setIsCreateProductOpen(false)}
@@ -738,6 +737,7 @@ export default function MenuManagementPage({
         open={Boolean(editingProduct)}
         mode="edit"
         categories={categories}
+        insumos={mockInsumos} 
         initialProduct={editingProduct}
         isSubmitting={isSubmittingProductForm}
         onClose={() => setEditingProduct(null)}
