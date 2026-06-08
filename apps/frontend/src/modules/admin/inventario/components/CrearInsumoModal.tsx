@@ -8,7 +8,8 @@ export interface CrearInsumoFormData {
   nombre: string;
   categoria: string;
   unidad_medida: UnidadMedida;
-  stock_minimo: number | '';
+  stock_minimo: string;
+  stock_inicial: string;
 }
 
 interface CrearInsumoModalProps {
@@ -22,6 +23,7 @@ const valoresIniciales: CrearInsumoFormData = {
   categoria: '',
   unidad_medida: 'KILOGRAMO',
   stock_minimo: '',
+  stock_inicial: '',
 };
 
 export default function CrearInsumoModal({
@@ -36,14 +38,27 @@ export default function CrearInsumoModal({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     
+    if (name === 'stock_minimo' || name === 'stock_inicial') {
+      // Permitir sólo números con hasta 2 decimales
+      if (value !== '' && !/^\d*\.?\d{0,2}$/.test(value)) {
+        return;
+      }
+    }
+
     setFormData((prev) => ({
       ...prev,
-      [name]: name === 'stock_minimo' ? (value === '' ? '' : Number(value)) : value,
+      [name]: value,
     }));
 
     // Limpiar error al escribir
     if (errores[name as keyof CrearInsumoFormData]) {
       setErrores((prev) => ({ ...prev, [name]: undefined }));
+    }
+  };
+
+  const handleKeyDownDecimal = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (['e', 'E', '-', '+'].includes(e.key)) {
+      e.preventDefault();
     }
   };
 
@@ -54,8 +69,15 @@ export default function CrearInsumoModal({
     const nuevosErrores: Partial<Record<keyof CrearInsumoFormData, string>> = {};
     if (!formData.nombre.trim()) nuevosErrores.nombre = 'El nombre es obligatorio';
     if (!formData.categoria) nuevosErrores.categoria = 'Selecciona una categoría';
-    if (formData.stock_minimo === '' || formData.stock_minimo < 0) {
-      nuevosErrores.stock_minimo = 'Ingresa un valor válido (0 o mayor)';
+    
+    const stockMinNum = Number(formData.stock_minimo);
+    if (formData.stock_minimo === '' || isNaN(stockMinNum) || stockMinNum < 0) {
+      nuevosErrores.stock_minimo = 'Ingresa un valor válido (0 o mayor, máx. 2 decimales)';
+    }
+
+    const stockIniNum = Number(formData.stock_inicial);
+    if (formData.stock_inicial === '' || isNaN(stockIniNum) || stockIniNum < 0) {
+      nuevosErrores.stock_inicial = 'Ingresa un valor válido (0 o mayor, máx. 2 decimales)';
     }
 
     if (Object.keys(nuevosErrores).length > 0) {
@@ -140,7 +162,21 @@ export default function CrearInsumoModal({
           </div>
         </div>
 
-        {/* Fila 3: Control de Alertas */}
+        {/* Fila 3: Stock Inicial */}
+        <Input
+          label="Stock Inicial"
+          name="stock_inicial"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="Ej. 50"
+          value={formData.stock_inicial}
+          onChange={handleChange}
+          onKeyDown={handleKeyDownDecimal}
+          error={errores.stock_inicial}
+        />
+
+        {/* Fila 4: Control de Alertas */}
         <div className="mt-2 rounded-2xl bg-gray-50 p-4 border border-gray-100">
           <h4 className="mb-3 text-sm font-bold text-text">CONTROL DE ALERTAS</h4>
           <Input
@@ -148,9 +184,11 @@ export default function CrearInsumoModal({
             name="stock_minimo"
             type="number"
             min="0"
+            step="0.01"
             placeholder="Ej. 10"
             value={formData.stock_minimo}
             onChange={handleChange}
+            onKeyDown={handleKeyDownDecimal}
             error={errores.stock_minimo}
           />
           <p className="text-xs text-gray-500 leading-relaxed -mt-2">

@@ -3,10 +3,46 @@ import { mockInsumos, formatUnidad, type Insumo } from '../../../shared/mocks/in
 import BaseButton from '../../../shared/components/BaseButton';
 import { Input } from '../../../shared/components/Input';
 import CrearInsumoModal, { type CrearInsumoFormData } from './components/CrearInsumoModal';
+import AsociarInsumosModal, { type MockProductoReceta } from './components/AsociarInsumosModal';
+
+const initialMockProductosRecetas: MockProductoReceta[] = [
+  {
+    id_producto: 'PROD-001',
+    nombre: 'Pique Macho Especial',
+    ingredientes: [
+      { id_insumo: 'INS-004', nombre_insumo: 'Carne Molida Especial', cantidad: 0.35, unidad: 'KG' },
+      { id_insumo: 'INS-003', nombre_insumo: 'Tomate Perita', cantidad: 0.15, unidad: 'KG' }
+    ]
+  },
+  {
+    id_producto: 'PROD-002',
+    nombre: 'Hamburguesa clásica',
+    ingredientes: [
+      { id_insumo: 'INS-005', nombre_insumo: 'Pan de Hamburguesa Brioche', cantidad: 1.0, unidad: 'Unidades' },
+      { id_insumo: 'INS-007', nombre_insumo: 'Queso Cheddar', cantidad: 0.05, unidad: 'KG' }
+    ]
+  },
+  {
+    id_producto: 'PROD-003',
+    nombre: 'Pechuga a la Plancha',
+    ingredientes: [
+      { id_insumo: 'INS-001', nombre_insumo: 'Pechuga de Pollo', cantidad: 0.25, unidad: 'KG' }
+    ]
+  },
+  {
+    id_producto: 'PROD-004',
+    nombre: 'Agua Mineral Helada',
+    ingredientes: [
+      { id_insumo: 'INS-002', nombre_insumo: 'Agua San Luis 2L', cantidad: 1.0, unidad: 'Litros' }
+    ]
+  }
+];
 
 export default function CatalogoInsumos() {
   const [insumos, setInsumos] = useState<Insumo[]>(mockInsumos);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [productosRecetas, setProductosRecetas] = useState<MockProductoReceta[]>(initialMockProductosRecetas);
+  const [isAsociarOpen, setIsAsociarOpen] = useState<boolean>(false);
 
   const [busqueda, setBusqueda] = useState<string>('');
   const [filtroCategoria, setFiltroCategoria] = useState<string>('');
@@ -38,8 +74,8 @@ export default function CatalogoInsumos() {
       nombre: nuevoDato.nombre,
       categoria: nuevoDato.categoria,
       unidad_medida: nuevoDato.unidad_medida,
-      stock_actual: 0,
-      stock_minimo: nuevoDato.stock_minimo === '' ? 0 : nuevoDato.stock_minimo,
+      stock_actual: nuevoDato.stock_inicial === '' ? 0 : Number(nuevoDato.stock_inicial),
+      stock_minimo: nuevoDato.stock_minimo === '' ? 0 : Number(nuevoDato.stock_minimo),
       activo: true,
     };
     setInsumos([nuevoInsumo, ...insumos]);
@@ -93,13 +129,22 @@ export default function CatalogoInsumos() {
           </select>
         </label>
 
-        <BaseButton 
-          variant="primary" 
-          onClick={() => setIsModalOpen(true)}
-          className="mt-2 h-[46px] w-full md:w-auto"
-        >
-          + Nuevo insumo
-        </BaseButton>
+        <div className="mt-2 flex gap-2 w-full md:w-auto flex-col sm:flex-row">
+          <BaseButton 
+            variant="outline" 
+            onClick={() => setIsAsociarOpen(true)}
+            className="h-[46px] w-full md:w-auto"
+          >
+            Asociar con Productos
+          </BaseButton>
+          <BaseButton 
+            variant="primary" 
+            onClick={() => setIsModalOpen(true)}
+            className="h-[46px] w-full md:w-auto"
+          >
+            + Nuevo insumo
+          </BaseButton>
+        </div>
       </div>
 
       {/* Tabla Responsiva */}
@@ -111,6 +156,7 @@ export default function CatalogoInsumos() {
                 <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Código</th>
                 <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Insumo</th>
                 <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Categoría</th>
+                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Productos</th>
                 <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Unidad</th>
                 <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Stock Actual</th>
                 <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Min.</th>
@@ -127,7 +173,28 @@ export default function CatalogoInsumos() {
                     <tr key={insumo.id_insumo} className={`${filaClase} transition-colors`}>
                       <td className="px-6 py-4 text-sm text-gray-500">{insumo.id_insumo}</td>
                       <td className="px-6 py-4 text-sm font-bold text-gray-900">{insumo.nombre}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{insumo.categoria}</td>
+                       <td className="px-6 py-4 text-sm text-gray-500">{insumo.categoria}</td>
+                      <td className="px-6 py-4 text-sm">
+                        <div className="flex flex-wrap gap-1 max-w-[200px]">
+                          {(() => {
+                            const asociados = productosRecetas.filter((p) =>
+                              p.ingredientes.some((ing) => ing.id_insumo === insumo.id_insumo)
+                            );
+                            return asociados.length > 0 ? (
+                              asociados.map((p) => (
+                                <span
+                                  key={p.id_producto}
+                                  className="rounded-lg bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600"
+                                >
+                                  {p.nombre}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-gray-400 text-xs italic">Ninguno</span>
+                            );
+                          })()}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-sm text-gray-500">{formatUnidad(insumo.unidad_medida)}</td>
                       <td className={`px-6 py-4 text-sm font-bold ${estado.label === 'Crítico' ? 'text-alert' : 'text-gray-900'}`}>
                         {insumo.stock_actual}
@@ -154,6 +221,13 @@ export default function CatalogoInsumos() {
       </div>
 
       <CrearInsumoModal open={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleGuardarInsumo} />
+      <AsociarInsumosModal
+        open={isAsociarOpen}
+        onClose={() => setIsAsociarOpen(false)}
+        insumos={insumos}
+        productosRecetas={productosRecetas}
+        onUpdateRecetas={setProductosRecetas}
+      />
     </div>
   );
 }
