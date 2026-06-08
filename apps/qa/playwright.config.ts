@@ -1,9 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
 
-/**
- * Playwright configuration for 'Sabor y Gestión' QA test suite.
- * See https://playwright.dev/docs/test-configuration.
- */
 export default defineConfig({
   testDir: './src',
   /* Run tests in files in parallel */
@@ -21,23 +17,12 @@ export default defineConfig({
   ],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: process.env.FRONTEND_URL || 'http://localhost:4000',
-    
-    /* Extra HTTP headers to send with API requests */
-    extraHTTPHeaders: {
-      'Accept': 'application/json',
-    },
+  baseURL: 'https://sabor-y-gestion-frontend.vercel.app',
 
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
-    trace: 'on-first-retry',
-    
-    /* Take screenshots on failure */
-    screenshot: 'only-on-failure',
-
-    /* Record video on failure */
-    video: 'retain-on-failure',
-  },
+  trace: 'on-first-retry',
+  screenshot: 'only-on-failure',
+  video: 'retain-on-failure'
+},
 
   /* Configure projects for major browsers */
   projects: [
@@ -45,6 +30,7 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
+    /*
     {
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
@@ -52,13 +38,6 @@ export default defineConfig({
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
-    },
+    }, */
   ],
-
-  /* Run local dev server before starting the tests if desired */
-  // webServer: {
-  //   command: 'pnpm --filter frontend dev',
-  //   url: 'http://localhost:4000',
-  //   reuseExistingServer: !process.env.CI,
-  // },
 });
