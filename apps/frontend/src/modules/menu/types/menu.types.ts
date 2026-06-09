@@ -17,8 +17,11 @@ export interface MenuProduct {
   activo: boolean;
   disponible: boolean;
   ingredientes: Array<{
-    id: number;
+    id?: number;
+    id_insumo?: string;  // <-- OPCIONAL (Conexión a inventario)
     nombre: string;
+    cantidad?: number;   // <-- OPCIONAL (Cuánto descuenta)
+    unidad?: string;     // <-- OPCIONAL (KG, Litros, etc)
     incluidoPorDefecto: boolean;
   }>;
 }
@@ -37,6 +40,14 @@ export interface MenuProductFormValues {
   tiempoPreparacion: number;
   imagen: string | null;
   disponible: boolean;
+  // <-- NUEVO: Agregamos la receta al formulario
+  ingredientes: Array<{
+    id_insumo?: string;
+    nombre: string;
+    cantidad?: number;
+    unidad?: string;
+    incluidoPorDefecto: boolean;
+  }>;
 }
 
 export type CategoryStatusFilter = 'ALL' | 'ACTIVE' | 'INACTIVE';
