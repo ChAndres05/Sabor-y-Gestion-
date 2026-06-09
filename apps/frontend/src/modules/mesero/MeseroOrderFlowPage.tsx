@@ -12,6 +12,7 @@ import { pusherClient } from '../../shared/utils/pusher';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { RestaurantTable } from '../tables/types/table.types';
 import type { AddOrderItemPayload, OrderCatalogCategory, OrderCatalogProduct, TableOrder, TableOrderItem, TableOrderStatus } from '../tables/types/table-order.types';
+import { mockInsumos, mockProductosRecetas, saveInsumosToStorage, saveMovimientosToStorage, mockMovimientos } from '../../shared/mocks/inventario';
 
 type FlowStep = 'cliente' | 'menu' | 'pedido';
 
@@ -89,6 +90,42 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
   const refreshPageStateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selectedProduct = useMemo(() => products.find((product) => product.id === selectedProductId) ?? null, [products, selectedProductId]);
+
+  const currentRecipe = useMemo(() => {
+    if (!selectedProduct) return null;
+    const found = mockProductosRecetas.find(
+      (recipe) => recipe.nombre.toLowerCase() === selectedProduct.nombre.toLowerCase()
+    );
+    if (found) return found;
+
+    // Receta por defecto para productos que no tengan una receta específica configurada
+    // Esto permite probar el flujo de control de stock y descuentos con cualquier ítem.
+    return {
+      id_producto: String(selectedProduct.id),
+      nombre: selectedProduct.nombre,
+      ingredientes: [
+        { id_insumo: 'INS-003', nombre_insumo: 'Tomate Perita', cantidad: 0.10, unidad: 'KG' },
+        { id_insumo: 'INS-007', nombre_insumo: 'Queso Cheddar', cantidad: 0.02, unidad: 'KG' }
+      ]
+    };
+  }, [selectedProduct]);
+
+  const hasInsufficientStock = useMemo(() => {
+    if (!currentRecipe) return false;
+    return currentRecipe.ingredientes.some((ing) => {
+      const selection = ingredientSelections.find(
+        (sel) => sel.nombre.toLowerCase() === ing.nombre_insumo.toLowerCase()
+      );
+      const isIncluded = selection ? selection.incluido : true;
+      if (!isIncluded) return false;
+
+      const insumoStock = mockInsumos.find((i) => i.id_insumo === ing.id_insumo);
+      const totalNeeded = ing.cantidad * (Number(quantity) || 1);
+      const stockActual = insumoStock ? insumoStock.stock_actual : 0;
+      return stockActual < totalNeeded;
+    });
+  }, [currentRecipe, quantity, ingredientSelections]);
+
   const isBillRequested = table?.estado === 'CUENTA_SOLICITADA';
   const canEditItems = Boolean(order) && !isBillRequested && order?.estado === 'REGISTRADO';
   const canSaveCustomer = table?.estado !== 'FUERA_DE_SERVICIO' && !isBillRequested;
@@ -261,6 +298,12 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
         return;
       }
 
+      if (hasInsufficientStock) {
+        setFeedback({ type: 'error', title: 'Stock insuficiente', message: 'No hay suficientes insumos en inventario para este pedido.' });
+        setIsSavingItem(false);
+        return;
+      }
+
       const targetOrderId = order?.id;
       const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
       const payload: AddOrderItemPayload = {
@@ -275,6 +318,81 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
         ...(selectedProduct ? { precioUnitario: selectedProduct.precio, tiempoPreparacion: selectedProduct.tiempoPreparacion, imagen: selectedProduct.imagen ?? null } : {}),
       };
 
+      // 1. Restaurar stock del item anterior si estamos editando
+      if (editingItemId && order?.items) {
+        const oldItem = order.items.find(item => item.id === editingItemId);
+        if (oldItem) {
+          const oldRecipe = mockProductosRecetas.find(
+            (r) => r.nombre.toLowerCase() === oldItem.nombreProducto.toLowerCase()
+          );
+          if (oldRecipe) {
+            oldRecipe.ingredientes.forEach((ing) => {
+              // Verificar si el ingrediente estaba incluido en el ítem anterior
+              const wasIncluded = oldItem.ingredientes?.find(
+                (itemIng) => itemIng.nombre.toLowerCase() === ing.nombre_insumo.toLowerCase()
+              )?.incluido ?? true;
+
+              if (wasIncluded) {
+                const insumo = mockInsumos.find((i) => i.id_insumo === ing.id_insumo);
+                if (insumo) {
+                  const qtyToRestore = ing.cantidad * oldItem.cantidad;
+                  insumo.stock_actual += qtyToRestore;
+
+                  mockMovimientos.unshift({
+                    id_movimiento: `MOV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                    id_insumo: insumo.id_insumo,
+                    nombre_insumo: insumo.nombre,
+                    tipo_movimiento: 'ENTRADA',
+                    cantidad: qtyToRestore,
+                    unidad_medida: insumo.unidad_medida,
+                    stock_anterior: insumo.stock_actual - qtyToRestore,
+                    stock_actual: insumo.stock_actual,
+                    fecha_hora: new Date().toISOString(),
+                    usuario: `${user.nombre} (${user.rol}) - Edición Reversa`
+                  });
+                }
+              }
+            });
+          }
+        }
+      }
+
+      // 2. Descontar stock para el nuevo item/cantidad
+      if (currentRecipe) {
+        currentRecipe.ingredientes.forEach((ing) => {
+          // Verificar si el ingrediente está activo/incluido en la selección actual
+          const selection = ingredientSelections.find(
+            (sel) => sel.nombre.toLowerCase() === ing.nombre_insumo.toLowerCase()
+          );
+          const isIncluded = selection ? selection.incluido : true;
+
+          if (isIncluded) {
+            const insumo = mockInsumos.find((i) => i.id_insumo === ing.id_insumo);
+            if (insumo) {
+              const qtyToDeduct = ing.cantidad * Number(quantity);
+              insumo.stock_actual -= qtyToDeduct;
+
+              mockMovimientos.unshift({
+                id_movimiento: `MOV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                id_insumo: insumo.id_insumo,
+                nombre_insumo: insumo.nombre,
+                tipo_movimiento: 'SALIDA',
+                cantidad: qtyToDeduct,
+                unidad_medida: insumo.unidad_medida,
+                stock_anterior: insumo.stock_actual + qtyToDeduct,
+                stock_actual: insumo.stock_actual,
+                fecha_hora: new Date().toISOString(),
+                usuario: `${user.nombre} (${user.rol})`
+              });
+            }
+          }
+        });
+      }
+
+      // Guardar cambios del inventario mockeado a localStorage
+      saveInsumosToStorage();
+      saveMovimientosToStorage();
+
       if (editingItemId) {
         await ordersApi.updateOrderItem(tableId, editingItemId, payload, targetOrderId);
       } else {
@@ -286,8 +404,19 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
       resetItemForm();
       setIsItemModalOpen(false);
       setActiveStep('pedido');
-      setFeedback({ type: 'success', title: editingItemId ? 'Item actualizado' : 'Item agregado', message: editingItemId ? 'El item se actualizó correctamente.' : 'El producto se agregó al pedido actual.' });
-    } catch (error) { console.error(error); setFeedback({ type: 'error', title: 'No se pudo guardar', message: error instanceof Error ? error.message : 'Ocurrió un error inesperado' }); } finally { setIsSavingItem(false); }
+      setFeedback({ 
+        type: 'success', 
+        title: editingItemId ? 'Item actualizado' : 'Item agregado', 
+        message: editingItemId 
+          ? 'El item se actualizó correctamente y se ajustó el inventario.' 
+          : 'El producto se agregó al pedido y se redujo el stock de ingredientes.' 
+      });
+    } catch (error) { 
+      console.error(error); 
+      setFeedback({ type: 'error', title: 'No se pudo guardar', message: error instanceof Error ? error.message : 'Ocurrió un error inesperado' }); 
+    } finally { 
+      setIsSavingItem(false); 
+    }
   };
 
   const handleStartEditItem = (item: TableOrderItem) => {
@@ -303,10 +432,44 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
 
   const handleRemoveItem = async (itemId: number) => {
     try {
+      // Intentar restaurar el stock del item que se va a eliminar
+      if (order && order.items) {
+        const itemToRemove = order.items.find(item => item.id === itemId);
+        if (itemToRemove) {
+          const recipe = mockProductosRecetas.find(
+            (r) => r.nombre.toLowerCase() === itemToRemove.nombreProducto.toLowerCase()
+          );
+          if (recipe) {
+            recipe.ingredientes.forEach((ing) => {
+              const insumo = mockInsumos.find((i) => i.id_insumo === ing.id_insumo);
+              if (insumo) {
+                const qtyToRestore = ing.cantidad * itemToRemove.cantidad;
+                insumo.stock_actual += qtyToRestore;
+
+                mockMovimientos.unshift({
+                  id_movimiento: `MOV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                  id_insumo: insumo.id_insumo,
+                  nombre_insumo: insumo.nombre,
+                  tipo_movimiento: 'ENTRADA',
+                  cantidad: qtyToRestore,
+                  unidad_medida: insumo.unidad_medida,
+                  stock_anterior: insumo.stock_actual - qtyToRestore,
+                  stock_actual: insumo.stock_actual,
+                  fecha_hora: new Date().toISOString(),
+                  usuario: `${user.nombre} (${user.rol}) - Item Eliminado`
+                });
+              }
+            });
+            saveInsumosToStorage();
+            saveMovimientosToStorage();
+          }
+        }
+      }
+
       if (order) await ordersApi.removeOrderItem(order.id, itemId, tableId);
       else await ordersApi.removeOrderItem(0, itemId, tableId);
       await refreshOrders(order?.id);
-      setFeedback({ type: 'success', title: 'Item eliminado', message: 'El item se quitó del pedido actual.' });
+      setFeedback({ type: 'success', title: 'Item eliminado', message: 'El item se quitó del pedido actual y se devolvieron los insumos al inventario.' });
     } catch (error) { console.error(error); setFeedback({ type: 'error', title: 'Error', message: error instanceof Error ? error.message : 'Error inesperado' }); }
   };
 
@@ -330,8 +493,41 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
     if (!confirmCancel) return;
 
     try {
+      // Restaurar el stock de todos los items en el pedido cancelado
+      if (order.items && order.items.length > 0) {
+        order.items.forEach((item) => {
+          const recipe = mockProductosRecetas.find(
+            (r) => r.nombre.toLowerCase() === item.nombreProducto.toLowerCase()
+          );
+          if (recipe) {
+            recipe.ingredientes.forEach((ing) => {
+              const insumo = mockInsumos.find((i) => i.id_insumo === ing.id_insumo);
+              if (insumo) {
+                const qtyToRestore = ing.cantidad * item.cantidad;
+                insumo.stock_actual += qtyToRestore;
+
+                mockMovimientos.unshift({
+                  id_movimiento: `MOV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                  id_insumo: insumo.id_insumo,
+                  nombre_insumo: insumo.nombre,
+                  tipo_movimiento: 'ENTRADA',
+                  cantidad: qtyToRestore,
+                  unidad_medida: insumo.unidad_medida,
+                  stock_anterior: insumo.stock_actual - qtyToRestore,
+                  stock_actual: insumo.stock_actual,
+                  fecha_hora: new Date().toISOString(),
+                  usuario: `${user.nombre} (${user.rol}) - Cancelación`
+                });
+              }
+            });
+          }
+        });
+        saveInsumosToStorage();
+        saveMovimientosToStorage();
+      }
+
       await ordersApi.updateOrderStatus(order.id, 'CANCELADO', tableId);
-      setFeedback({ type: 'success', title: 'Pedido Cancelado', message: 'El pedido ha sido cancelado.' });
+      setFeedback({ type: 'success', title: 'Pedido Cancelado', message: 'El pedido ha sido cancelado y los insumos se devolvieron al inventario.' });
       refreshPageState();
     } catch (error) {
       console.error(error);
@@ -644,11 +840,8 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
                 </div>
               </div>
               <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div><p className="text-[13px] font-bold text-text">Ingredientes</p><p className="text-[12px] text-gray-500">Switch activo = lleva.</p></div>
-                  <span className={`relative inline-flex h-6 w-11 rounded-full ${hasCustomIngredients ? 'bg-success' : 'bg-gray-300'}`}>
-                    <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow ${hasCustomIngredients ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </span>
+                <div className="mb-2">
+                  <p className="text-[13px] font-bold text-text">Ingredientes</p>
                 </div>
                 <div className="overflow-hidden rounded-xl border border-gray-200">
                   {ingredientSelections.length === 0 ? (<p className="px-3 py-3 text-[12px] text-gray-500">Sin ingredientes configurados.</p>) : (
@@ -664,6 +857,7 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
                 </div>
                 {removedFromCurrentSelection.length > 0 && <p className="text-[12px] font-bold text-alert mt-2">Cocina verá: {removedFromCurrentSelection.map((ingredient) => `sin ${ingredient.nombre.toLowerCase()}`).join(', ')}</p>}
               </div>
+
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <button type="button" onClick={() => { setIsItemModalOpen(false); resetItemForm(); }} className="rounded-xl border border-text px-4 py-3 text-[13px] font-bold text-text">Cancelar</button>
                 <button type="button" onClick={() => void handleSaveItem()} disabled={isSavingItem || !selectedProductId || !quantity || Number(quantity) < 1} className="rounded-xl bg-primary px-4 py-3 text-[13px] font-bold text-white disabled:opacity-60">{isSavingItem ? 'Guardando...' : editingItemId ? 'Listo' : 'Crear'}</button>

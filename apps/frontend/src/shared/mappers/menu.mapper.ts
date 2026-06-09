@@ -1,3 +1,6 @@
+import { getMockIngredientsForProduct } from '../mocks/menu-ingredients.mock';
+import { mockProductosRecetas } from '../mocks/inventario';
+
 type NumericValue = number | string | null | undefined;
 
 export interface BackendProduct {
@@ -64,14 +67,32 @@ function getDefaultPresentation(product: BackendProduct) {
 export function mapProductFromBackend(product: BackendProduct) {
   const presentation = getDefaultPresentation(product);
 
-  const ingredientes =
-    presentation?.recetas_presentaciones
-      ?.filter((receta) => receta.insumo)
-      .map((receta) => ({
-        id: numberValue(receta.insumo?.id_insumo),
-        nombre: receta.insumo?.nombre ?? 'Insumo',
+  // Intentar primero obtener ingredientes del mock de recetas de inventario
+  const recipe = mockProductosRecetas.find(
+    (r) => r.nombre.toLowerCase() === product.nombre.toLowerCase()
+  );
+
+  let ingredientes = recipe
+    ? recipe.ingredientes.map((ing, idx) => ({
+        id: idx + 1000, // ID mock único
+        nombre: ing.nombre_insumo,
         incluidoPorDefecto: true,
-      })) ?? [];
+      }))
+    : (presentation?.recetas_presentaciones
+        ?.filter((receta) => receta.insumo)
+        .map((receta) => ({
+          id: numberValue(receta.insumo?.id_insumo),
+          nombre: receta.insumo?.nombre ?? 'Insumo',
+          incluidoPorDefecto: true,
+        })) ?? []);
+
+  if (ingredientes.length === 0 && product.nombre) {
+    ingredientes = getMockIngredientsForProduct(product.nombre).map((ing) => ({
+      id: ing.id,
+      nombre: ing.nombre,
+      incluidoPorDefecto: ing.incluidoPorDefecto,
+    }));
+  }
 
   const categoryFromRelation = product.categoria ?? product.categorias;
 
