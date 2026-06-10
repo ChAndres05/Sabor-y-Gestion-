@@ -244,12 +244,15 @@ export function mapBackendOrderToFrontend(backendOrderValue: unknown): TableOrde
     };
   });
 
-  const tiempoEstimadoMinutos = details.reduce<number>((maxMinutes, rawDetail) => {
-  const detail = asRecord(rawDetail);
-  const presentation = asRecord(detail.presentacion_producto);
-
-  return Math.max(maxMinutes, numberValue(presentation.tiempo_preparacion_minutos));
+  const maxTime = details.reduce<number>((max, rawDetail) => {
+    const detail = asRecord(rawDetail);
+    const presentation = asRecord(detail.presentacion_producto);
+    const cantidad = numberValue(detail.cantidad, 1);
+    const prepTime = numberValue(presentation.tiempo_preparacion_minutos);
+    const itemTime = prepTime + (cantidad > 2 ? 5 : 0);
+    return itemTime > max ? itemTime : max;
   }, 0);
+  const tiempoEstimadoMinutos = maxTime + (details.length > 2 ? 5 : 0);
 
   return {
     id: numberValue(backendOrder.id_pedido),
@@ -503,9 +506,12 @@ function calculateSubtotal(items: TableOrderItem[]) {
 }
 
 function calculateEstimatedTime(items: TableOrderItem[]) {
-  return items.length === 0
-    ? 0
-    : Math.max(...items.map((item) => item.tiempoPreparacion));
+  if (items.length === 0) return 0;
+  const maxTime = items.reduce((max, item) => {
+    const itemTime = item.tiempoPreparacion + (item.cantidad > 2 ? 5 : 0);
+    return itemTime > max ? itemTime : max;
+  }, 0);
+  return maxTime + (items.length > 2 ? 5 : 0);
 }
 
 function recalculateOrder(order: TableOrder): TableOrder {
