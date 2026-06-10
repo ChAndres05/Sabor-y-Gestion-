@@ -13,6 +13,7 @@ interface AdminMenuPageProps {
   onOpenOrders: () => void;
   onOpenCaja: () => void;
   onOpenInvoices: () => void;
+  onOpenCoupons: () => void;
 }
 
 const menuItems = [
@@ -24,6 +25,7 @@ const menuItems = [
   { key: 'delivery', label: 'Atención Delivery', enabled: false },
   { key: 'facturacion', label: 'Facturación', enabled: true },
   { key: 'facturas-admin', label: 'Control de Facturas', enabled: true },
+  { key: 'cupones', label: 'Gestión de Cupones', enabled: true },
   { key: 'cierre', label: 'Cierre de Caja', enabled: false },
   { key: 'inventario', label: 'Gestión de Inventario', enabled: false },
   { key: 'usuarios', label: 'Gestión de Usuarios', enabled: true },
@@ -40,6 +42,7 @@ export default function AdminMenuPage({
   onOpenOrders,
   onOpenCaja,
   onOpenInvoices,
+  onOpenCoupons,
 }: AdminMenuPageProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -65,6 +68,7 @@ export default function AdminMenuPage({
             { key: 'pedidos', label: 'Gestión de pedidos', onClick: () => { onOpenOrders(); setIsSidebarOpen(false); } },
             { key: 'facturacion', label: 'Facturación', onClick: () => { onOpenCaja(); setIsSidebarOpen(false); } },
             { key: 'facturas-admin', label: 'Control de Facturas', onClick: () => { onOpenInvoices(); setIsSidebarOpen(false); } },
+            { key: 'cupones', label: 'Gestión de Cupones', onClick: () => { onOpenCoupons(); setIsSidebarOpen(false); } },
             { key: 'usuarios', label: 'Gestión de Usuarios', onClick: () => { onOpenUsers(); setIsSidebarOpen(false); } }
           ]}
         />
@@ -104,6 +108,10 @@ export default function AdminMenuPage({
 
               if (item.key === 'facturas-admin') {
                 onOpenInvoices();
+              }
+
+              if (item.key === 'cupones') {
+                onOpenCoupons();
               }
             };
 

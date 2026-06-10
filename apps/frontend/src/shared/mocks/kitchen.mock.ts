@@ -2,7 +2,57 @@ import type { KitchenOrder } from '../types/kitchen.types';
 
 const KITCHEN_STORAGE_KEY = 'gestionysabor_kitchen_orders';
 
-const initialOrders: KitchenOrder[] = [];
+const initialOrders: KitchenOrder[] = [
+  {
+    id: 101,
+    orderNumber: 101,
+    status: 'pending',
+    isToggled: false,
+    source: 'mesa',
+    tableNumber: 3,
+    customerName: 'Ana Vargas',
+    prepareFrom: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    items: [
+      {
+        name: 'Hamburguesa Royale',
+        quantity: 1,
+        checked: false,
+        ingredientes: [
+          { nombre: 'Carne', incluido: true },
+          { nombre: 'Queso Cheddar', incluido: true },
+          { nombre: 'Tocino', incluido: true },
+          { nombre: 'Pepinillos', incluido: true },
+          { nombre: 'Cebolla Caramelizada', incluido: false },
+          { nombre: 'Mayonesa', incluido: true }
+        ]
+      }
+    ]
+  },
+  {
+    id: 102,
+    orderNumber: 102,
+    status: 'preparing',
+    isToggled: true,
+    source: 'mesa',
+    tableNumber: 5,
+    customerName: 'Roberto García',
+    prepareFrom: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+    items: [
+      {
+        name: 'Pizza Pepperoni',
+        quantity: 1,
+        checked: false,
+        ingredientes: [
+          { nombre: 'Mozzarella', incluido: true },
+          { nombre: 'Pepperoni', incluido: true },
+          { nombre: 'Aceitunas Negras', incluido: true },
+          { nombre: 'Champiñones', incluido: false },
+          { nombre: 'Pimentón', incluido: false }
+        ]
+      }
+    ]
+  }
+];
 
 function hasLocalStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
@@ -12,7 +62,11 @@ function readStorage(): KitchenOrder[] {
   if (!hasLocalStorage()) return initialOrders;
   try {
     const value = window.localStorage.getItem(KITCHEN_STORAGE_KEY);
-    return value ? JSON.parse(value) : initialOrders;
+    if (!value) {
+      window.localStorage.setItem(KITCHEN_STORAGE_KEY, JSON.stringify(initialOrders));
+      return initialOrders;
+    }
+    return JSON.parse(value);
   } catch {
     return initialOrders;
   }

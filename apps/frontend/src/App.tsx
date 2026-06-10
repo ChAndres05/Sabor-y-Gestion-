@@ -23,6 +23,7 @@ import TableManagementPage from './modules/tables/TableManagementPage';
 import MonitorCocinaPage from './modules/cocina/MonitorCocinaPage';
 import AdminReservationsPage from './modules/admin/AdminReservationsPage';
 import AdminInvoicesPage from './modules/admin/AdminInvoicesPage';
+import AdminCouponsPage from './modules/admin/AdminCouponsPage';
 import ServiceHistoryPage from './modules/history/ServiceHistoryPage';
 import CashHistoryPage from './modules/history/CashHistoryPage';
 import type { ClientNavigationKey } from './shared/types/client-flow.types';
@@ -38,12 +39,12 @@ type AppScreen =
   | 'cocina-home' | 'cajero-home' | 'cliente-home' | 'client-menu'
   | 'client-product-detail' | 'client-reserve-table' | 'client-reservations'
   | 'client-reservation-order' | 'client-orders' | 'client-manage-order'
-  | 'admin-reservations' | 'admin-orders' | 'admin-kitchen-monitor' | 'service-history' | 'cash-history' | 'admin-invoices';
+  | 'admin-reservations' | 'admin-orders' | 'admin-kitchen-monitor' | 'service-history' | 'cash-history' | 'admin-invoices' | 'admin-coupons';
 
 const AUTH_STORAGE_KEY = 'gestionysabor_auth';
 
 const ROLE_PERMISSIONS: Record<string, AppScreen[]> = {
-  [USER_ROLES.ADMIN]: ['admin-menu', 'admin-users', 'menu-management', 'admin-inventory', 'table-management', 'table-order', 'admin-kitchen-monitor', 'admin-reservations', 'admin-orders', 'client-reservation-order', 'mesero-orders', 'mesero-table-order', 'service-history', 'cash-history', 'admin-invoices'],
+  [USER_ROLES.ADMIN]: ['admin-menu', 'admin-users', 'menu-management', 'admin-inventory', 'table-management', 'table-order', 'admin-kitchen-monitor', 'admin-reservations', 'admin-orders', 'client-reservation-order', 'mesero-orders', 'mesero-table-order', 'service-history', 'cash-history', 'admin-invoices', 'admin-coupons'],
   [USER_ROLES.MESERO]: ['mesero-menu', 'mesero-tables', 'mesero-table-order', 'mesero-orders'],
   [USER_ROLES.COCINERO]: ['cocina-home'],
   [USER_ROLES.CAJERO]: ['cajero-home'],
@@ -128,6 +129,7 @@ function App() {
           { key: 'facturacion', label: 'Facturación', onClick: () => { setScreen('cajero-home'); setSelectedCajeroView('facturacion'); setIsSidebarOpen(false); } },
           { key: 'cierre', label: 'Cierre de Caja', onClick: () => { setScreen('cajero-home'); setSelectedCajeroView('cierre'); setIsSidebarOpen(false); } },
           { key: 'facturas-admin', label: 'Control de Facturas', onClick: () => { setScreen('admin-invoices'); setIsSidebarOpen(false); } },
+          { key: 'cupones', label: 'Gestión de Cupones', onClick: () => { setScreen('admin-coupons'); setIsSidebarOpen(false); } },
           { key: 'usuarios', label: 'Gestión de Usuarios', onClick: () => { setScreen('admin-users'); setIsSidebarOpen(false); } },
           { key: 'historial', label: 'Historial de Atención', onClick: () => { setScreen('service-history'); setIsSidebarOpen(false); } },
           { key: 'historial-caja', label: 'Historial de Caja', onClick: () => { setScreen('cash-history'); setIsSidebarOpen(false); } }
@@ -289,6 +291,7 @@ function App() {
               onOpenOrders={() => setScreen('admin-orders')} 
               onOpenCaja={() => setScreen('cajero-home')}
               onOpenInvoices={() => setScreen('admin-invoices')}
+              onOpenCoupons={() => setScreen('admin-coupons')}
             />
           )}
           {screenState === 'admin-reservations' && (
@@ -327,6 +330,10 @@ function App() {
 
           {screenState === 'admin-invoices' && (
             <AdminInvoicesPage onBack={() => setIsSidebarOpen(true)} />
+          )}
+
+          {screenState === 'admin-coupons' && (
+            <AdminCouponsPage onBack={() => setIsSidebarOpen(true)} />
           )}
 
           {screenState === 'cocina-home' && <MonitorCocinaPage onBack={() => setIsSidebarOpen(true)} />}

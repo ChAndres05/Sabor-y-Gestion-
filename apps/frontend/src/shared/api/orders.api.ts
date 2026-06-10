@@ -10,6 +10,7 @@ import type { KitchenOrder } from '../types/kitchen.types';
 import { listClientOrdersMock } from '../mocks/client-flow.mock';
 import { emitRestaurantStateChanged } from '../utils/events';
 import { cocinaApi } from '../../modules/cocina/api/cocina.api';
+import { saveIngredientsForKitchenItem } from '../mocks/cocinaMocks';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -368,6 +369,19 @@ export const ordersApi = {
       throw new Error('El producto se agregó, pero no se pudo recuperar el pedido actualizado.');
     }
 
+    // Save ingredients to localStorage for the kitchen monitor
+    if (payload.ingredientes && payload.ingredientes.length > 0) {
+      const addedItem = updatedTargetOrder.items.find(
+        (item) => item.productoId === payload.productoId
+      );
+      if (addedItem) {
+        saveIngredientsForKitchenItem(addedItem.id, payload.ingredientes.map((ing) => ({
+          nombre: ing.nombre,
+          incluido: ing.incluido,
+        })));
+      }
+    }
+
     return updatedTargetOrder;
   },
 
@@ -413,6 +427,14 @@ export const ordersApi = {
     const updatedTargetOrder = getTargetOrder(updatedOrders, targetOrder.id);
     if (!updatedTargetOrder) {
       throw new Error('El producto se actualizó, pero no se pudo recuperar el pedido actualizado.');
+    }
+
+    // Save ingredients to localStorage for the kitchen monitor
+    if (payload.ingredientes && payload.ingredientes.length > 0) {
+      saveIngredientsForKitchenItem(itemId, payload.ingredientes.map((ing) => ({
+        nombre: ing.nombre,
+        incluido: ing.incluido,
+      })));
     }
 
     return updatedTargetOrder;

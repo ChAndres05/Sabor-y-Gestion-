@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState, useRef } from 'react';
 import { pusherClient } from '../../shared/utils/pusher';
 import { RESTAURANT_STATE_CHANGED_EVENT, RESTAURANT_STATE_CHANGED_STORAGE_KEY } from '../../shared/utils/events';
 import { cocinaApi } from './api/cocina.api';
+import { getIngredientsForKitchenItem } from '../../shared/mocks/cocinaMocks';
+import { listKitchenOrdersMock } from '../../shared/mocks/kitchen.mock';
 
-interface OrderItem { id: number; name: string; quantity: number; checked: boolean; notes: string | null; prepTime: number; }
+interface OrderItem { id: number; name: string; quantity: number; checked: boolean; notes: string | null; prepTime: number; ingredientes?: Array<{ nombre: string; incluido: boolean }>; }
 type OrderStatus = 'pending' | 'preparing' | 'ready';
 interface Order { id: number; orderNumber: number; items: OrderItem[]; status: OrderStatus; isToggled: boolean; source?: 'mesa' | 'reserva'; tableNumber?: number; customerName?: string; reservationTime?: string; prepareFrom?: string; maxPrepTime?: number; }
 interface MonitorCocinaPageProps { onBack: () => void; user?: { id?: number; id_usuario?: number; nombre: string; rol: string }; }
@@ -133,6 +135,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
               notes: detalle.observaciones ?? null,
               checked: typeof backendChecked === 'boolean' ? backendChecked : existingItem?.checked ?? checkedData[storageKey] ?? false,
               prepTime: itemPrepTime,
+              ingredientes: getIngredientsForKitchenItem(detalle.id_detalle_pedido, name),
             };
           }).sort((a, b) => a.id - b.id);
 
@@ -163,9 +166,64 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
             maxPrepTime: orderPrepTime,
           });
         });
+        if (newOrders.length === 0) {
+          const storedMockOrders = typeof window !== 'undefined' ? localStorage.getItem('gestionysabor_kitchen_orders') : null;
+          const mockList = storedMockOrders ? JSON.parse(storedMockOrders) : [];
+          if (mockList.length > 0) {
+            return mockList.map((mo: any) => ({
+              id: mo.id,
+              orderNumber: mo.orderNumber,
+              status: mo.status,
+              items: mo.items.map((mi: any, idx: number) => ({
+                id: idx + 5000,
+                name: mi.name,
+                quantity: mi.quantity,
+                checked: mi.checked,
+                notes: null,
+                prepTime: 10,
+                ingredientes: mi.ingredientes
+              })),
+              isToggled: mo.isToggled,
+              source: mo.source,
+              tableNumber: mo.tableNumber,
+              customerName: mo.customerName,
+              prepareFrom: mo.prepareFrom,
+              maxPrepTime: 15
+            }));
+          }
+        }
         return newOrders;
       });
-    } catch (error) { console.error('Error cargando pedidos:', error); } finally { setIsLoading(false); }
+    } catch (error) {
+      console.error('Error cargando pedidos, usando mocks:', error);
+      try {
+        const mockOrders = await listKitchenOrdersMock();
+        setOrders(mockOrders.map(mo => ({
+          id: mo.id,
+          orderNumber: mo.orderNumber,
+          status: mo.status as OrderStatus,
+          items: mo.items.map((mi, idx) => ({
+            id: idx + 5000,
+            name: mi.name,
+            quantity: mi.quantity,
+            checked: mi.checked,
+            notes: null,
+            prepTime: 10,
+            ingredientes: mi.ingredientes
+          })),
+          isToggled: mo.isToggled,
+          source: mo.source,
+          tableNumber: mo.tableNumber,
+          customerName: mo.customerName,
+          prepareFrom: mo.prepareFrom,
+          maxPrepTime: 15
+        })));
+      } catch (mockErr) {
+        console.error('Error cargando mocks:', mockErr);
+      }
+    } finally {
+      setIsLoading(false);
+    }
   }, [API_URL]);
 
   const fetchPedidosRef = useRef(fetchPedidos);
@@ -395,6 +453,35 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
                         >
                           * {item.notes}
                         </span>
+                      )}
+
+                      {item.ingredientes && item.ingredientes.length > 0 && (
+                        <div className={`mt-1 pl-1 text-[11px] leading-tight font-medium ${
+                          item.checked ? 'text-gray-400 line-through' : 'text-gray-600'
+                        }`}>
+                          {item.ingredientes.filter((ing) => ing.incluido).length > 0 && (
+                            <div className="flex flex-wrap gap-1 items-center">
+                              <span className={`font-semibold ${item.checked ? 'text-gray-400' : 'text-green-700'}`}>Lleva:</span>
+                              <span>
+                                {item.ingredientes
+                                  .filter((ing) => ing.incluido)
+                                  .map((ing) => ing.nombre)
+                                  .join(', ')}
+                              </span>
+                            </div>
+                          )}
+                          {item.ingredientes.filter((ing) => !ing.incluido).length > 0 && (
+                            <div className="flex flex-wrap gap-1 items-center mt-0.5">
+                              <span className={`font-bold uppercase ${item.checked ? 'text-gray-400' : 'text-red-600'}`}>SIN:</span>
+                              <span className={item.checked ? 'text-gray-400 line-through' : 'text-red-700 font-semibold'}>
+                                {item.ingredientes
+                                  .filter((ing) => !ing.incluido)
+                                  .map((ing) => ing.nombre)
+                                  .join(', ')}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
 
