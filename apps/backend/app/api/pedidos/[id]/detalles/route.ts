@@ -80,8 +80,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const pedido = await tx.pedidos.findUnique({ where: { id_pedido } });
       const nuevoTotal = Number(pedido?.total || 0) + subtotal;
       
-      // Sumar tiempo estimado basico
-      const nuevoTiempo = (pedido?.tiempo_estimado_minutos || 0) + (presentacion.tiempo_preparacion_minutos || 0);
+      // Recalcular el tiempo estimado del pedido entero basándose en el tiempo de preparación máximo y cantidad de items
+      const todosDetalles = await tx.detalles_pedido.findMany({
+        where: { id_pedido },
+        include: {
+          presentacion_producto: true
+        }
+      });
+
+      const maxTime = todosDetalles.reduce((max, d) => {
+        const prepTime = Number(d.presentacion_producto.tiempo_preparacion_minutos || 0);
+        const itemTime = prepTime + (d.cantidad > 2 ? 5 : 0);
+        return itemTime > max ? itemTime : max;
+      }, 0);
+      const nuevoTiempo = maxTime + (todosDetalles.length > 2 ? 5 : 0);
 
       const actualizado = await tx.pedidos.update({
         where: { id_pedido },
