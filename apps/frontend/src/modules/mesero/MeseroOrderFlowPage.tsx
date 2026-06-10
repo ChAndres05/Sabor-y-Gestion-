@@ -716,24 +716,24 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
                   <p className="text-[16px] font-bold text-text">{selectedProduct ? `~${selectedProduct.tiempoPreparacion + (Number(quantity) > 1 ? 5 : 0)} min` : '0 min'}</p>
                 </div>
               </div>
-              <div>
-                <div className="mb-2">
-                  <p className="text-[13px] font-bold text-text">Ingredientes</p>
-                </div>
-                <div className="overflow-hidden rounded-xl border border-gray-200">
-                  {ingredientSelections.length === 0 ? (<p className="px-3 py-3 text-[12px] text-gray-500">Sin ingredientes configurados.</p>) : (
-                    ingredientSelections.map((ingredient) => (
+              {ingredientSelections.length > 0 && (
+                <div>
+                  <div className="mb-2">
+                    <p className="text-[13px] font-bold text-text">Ingredientes</p>
+                  </div>
+                  <div className="overflow-hidden rounded-xl border border-gray-200">
+                    {ingredientSelections.map((ingredient) => (
                       <div key={`${ingredient.id}-${ingredient.nombre}`} className="flex items-center justify-between gap-3 border-b border-gray-200 px-3 py-3 last:border-b-0">
                         <span className={`text-[13px] font-bold ${ingredient.incluido ? 'text-text' : 'text-gray-400 line-through'}`}>{ingredient.nombre}</span>
                         <button type="button" onClick={() => handleToggleIngredient(ingredient.id)} className={`relative inline-flex h-6 w-11 rounded-full ${ingredient.incluido ? 'bg-success' : 'bg-gray-300'}`}>
                           <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow ${ingredient.incluido ? 'translate-x-6' : 'translate-x-1'}`} />
                         </button>
                       </div>
-                    ))
-                  )}
+                    ))}
+                  </div>
+                  {removedFromCurrentSelection.length > 0 && <p className="text-[12px] font-bold text-alert mt-2">Cocina verá: {removedFromCurrentSelection.map((ingredient: IngredientSelection) => `sin ${ingredient.nombre.toLowerCase()}`).join(', ')}</p>}
                 </div>
-                {removedFromCurrentSelection.length > 0 && <p className="text-[12px] font-bold text-alert mt-2">Cocina verá: {removedFromCurrentSelection.map((ingredient: IngredientSelection) => `sin ${ingredient.nombre.toLowerCase()}`).join(', ')}</p>}
-              </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <button type="button" onClick={() => { setIsItemModalOpen(false); resetItemForm(); }} className="rounded-xl border border-text px-4 py-3 text-[13px] font-bold text-text">Cancelar</button>
