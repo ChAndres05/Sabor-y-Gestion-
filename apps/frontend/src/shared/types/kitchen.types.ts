@@ -2,6 +2,7 @@ export interface KitchenOrderItem {
   name: string;
   quantity: number;
   checked: boolean;
+  ingredientes?: Array<{ nombre: string; incluido: boolean }>;
 }
 
 export interface KitchenOrder {

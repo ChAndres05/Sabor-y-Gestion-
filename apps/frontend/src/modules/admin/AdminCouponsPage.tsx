@@ -1,0 +1,642 @@
+import { useState, useMemo } from 'react';
+import { FeedbackModal } from '../../shared/components/FeedbackModal';
+import { INITIAL_COUPONS } from '../../shared/mocks/cuponesMocks';
+import type { Coupon } from '../../shared/mocks/cuponesMocks';
+
+interface AdminCouponsPageProps {
+  onBack: () => void;
+}
+
+type FeedbackState = { type: 'success' | 'error' | 'info'; title: string; message: string; } | null;
+
+
+export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
+  const [coupons, setCoupons] = useState<Coupon[]>(INITIAL_COUPONS);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'expired'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'percentage' | 'fixed'>('all');
+  const [feedback, setFeedback] = useState<FeedbackState>(null);
+  
+  // Manual creation form state
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [newCode, setNewCode] = useState('');
+  const [newDiscountType, setNewDiscountType] = useState<'percentage' | 'fixed'>('percentage');
+  const [newDiscountValue, setNewDiscountValue] = useState<number>(10);
+  const [newMinPurchase, setNewMinPurchase] = useState<number>(50);
+  const [newExpirationDate, setNewExpirationDate] = useState<string>('2026-12-31');
+  const [newUsageLimit, setNewUsageLimit] = useState<number>(100);
+  const [newDescription, setNewDescription] = useState('');
+
+  // Statistics calculation
+  const stats = useMemo(() => {
+    const total = coupons.length;
+    const active = coupons.filter(c => c.status === 'active').length;
+    const inactive = coupons.filter(c => c.status === 'inactive').length;
+    const expired = coupons.filter(c => c.status === 'expired').length;
+    
+    return {
+      total,
+      active,
+      inactive,
+      expired
+    };
+  }, [coupons]);
+
+  // Filtering
+  const filteredCoupons = useMemo(() => {
+    return coupons.filter(coupon => {
+      const matchSearch = coupon.code.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          coupon.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchStatus = statusFilter === 'all' || coupon.status === statusFilter;
+      const matchType = typeFilter === 'all' || coupon.discountType === typeFilter;
+      return matchSearch && matchStatus && matchType;
+    });
+  }, [coupons, searchTerm, statusFilter, typeFilter]);
+
+  // Generate a random mock coupon
+  const handleGenerateMock = () => {
+    const prefixes = ['SABOR', 'GUSTO', 'PROMO', 'DESCUENTO', 'DELICIA', 'REDUCCION', 'MENU', 'MEGAPACK', 'VOUCHER', 'CHEFSPECIAL'];
+    const values = [5, 10, 15, 20, 25, 30, 40, 50, 75, 100];
+    const types: ('percentage' | 'fixed')[] = ['percentage', 'fixed'];
+    
+    const discountType = types[Math.floor(Math.random() * types.length)];
+    const rawValue = values[Math.floor(Math.random() * values.length)];
+    
+    // Cap percentages to reasonable rates
+    const discountValue = discountType === 'percentage' ? Math.min(rawValue, 50) : rawValue;
+    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    const code = `${prefix}${discountValue}`;
+    
+    // Check if code already exists
+    if (coupons.some(c => c.code.toUpperCase() === code.toUpperCase())) {
+      setFeedback({
+        type: 'info',
+        title: 'Cupón Existente',
+        message: `El código ${code} ya existe. ¡Intentemos generar otro!`
+      });
+      return;
+    }
+
+    const minPurchase = Math.floor(Math.random() * 5) * 20 + 40; // 40, 60, 80, 100, 120
+    
+    // Generate expiration date 1 to 6 months in the future
+    const today = new Date();
+    const futureDate = new Date();
+    futureDate.setMonth(today.getMonth() + Math.floor(Math.random() * 6) + 1);
+    const expirationDate = futureDate.toISOString().split('T')[0];
+    
+    const statusChoices: ('active' | 'inactive')[] = ['active', 'inactive'];
+    const status = statusChoices[Math.floor(Math.random() * statusChoices.length)];
+    const usageLimit = Math.floor(Math.random() * 10) * 10 + 20; // 20 to 110
+    
+    const descriptions = [
+      `Descuento especial de ${discountValue}${discountType === 'percentage' ? '%' : ' Bs.'} para clientes distinguidos`,
+      `Ahorra ${discountValue}${discountType === 'percentage' ? '%' : ' Bs.'} en tu siguiente consumo`,
+      `Promoción de temporada: ${discountValue}${discountType === 'percentage' ? '%' : ' Bs.'} de descuento en el total`,
+      `Descuento de ${discountValue}${discountType === 'percentage' ? '%' : ' Bs.'} para probar los nuevos platos del menú`
+    ];
+    
+    const newCoupon: Coupon = {
+      id: `coupon-${Date.now()}`,
+      code,
+      discountType,
+      discountValue,
+      minPurchase,
+      expirationDate,
+      status,
+      usageLimit,
+      usageCount: 0,
+      description: descriptions[Math.floor(Math.random() * descriptions.length)] + ` (Mínimo de compra: Bs. ${minPurchase})`
+    };
+
+    setCoupons(prev => [newCoupon, ...prev]);
+    setFeedback({
+      type: 'success',
+      title: 'Cupón Aleatorio Generado',
+      message: `Se ha generado el cupón "${code}" con valor de ${discountValue}${discountType === 'percentage' ? '%' : ' Bs.'} correctamente.`
+    });
+  };
+
+  // Create coupon manually (mock storage in state)
+  const handleCreateManual = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const code = newCode.toUpperCase().replace(/\s+/g, '');
+    if (!code) {
+      setFeedback({ type: 'error', title: 'Datos Inválidos', message: 'Por favor, ingrese un código para el cupón.' });
+      return;
+    }
+
+    if (coupons.some(c => c.code === code)) {
+      setFeedback({ type: 'error', title: 'Código Duplicado', message: `El código de cupón "${code}" ya está en uso.` });
+      return;
+    }
+
+    if (newDiscountValue <= 0 || (newDiscountType === 'percentage' && newDiscountValue > 100)) {
+      setFeedback({ type: 'error', title: 'Valor Inválidos', message: 'El descuento debe ser mayor que 0. En porcentaje no debe superar el 100%.' });
+      return;
+    }
+
+    const newCoupon: Coupon = {
+      id: `coupon-${Date.now()}`,
+      code,
+      discountType: newDiscountType,
+      discountValue: newDiscountValue,
+      minPurchase: newMinPurchase,
+      expirationDate: newExpirationDate,
+      status: 'active',
+      usageLimit: newUsageLimit,
+      usageCount: 0,
+      description: newDescription || `Descuento del ${newDiscountValue}${newDiscountType === 'percentage' ? '%' : ' Bs.'} en consumos mínimos de Bs. ${newMinPurchase}.`
+    };
+
+    setCoupons(prev => [newCoupon, ...prev]);
+    setIsFormOpen(false);
+    
+    // Reset fields
+    setNewCode('');
+    setNewDiscountType('percentage');
+    setNewDiscountValue(10);
+    setNewMinPurchase(50);
+    setNewExpirationDate('2026-12-31');
+    setNewUsageLimit(100);
+    setNewDescription('');
+
+    setFeedback({
+      type: 'success',
+      title: 'Cupón Creado',
+      message: `El cupón "${code}" ha sido creado con éxito.`
+    });
+  };
+
+  // Toggle active/inactive status
+  const handleToggleStatus = (id: string) => {
+    setCoupons(prev => prev.map(coupon => {
+      if (coupon.id === id) {
+        let nextStatus: 'active' | 'inactive' = 'active';
+        if (coupon.status === 'active') {
+          nextStatus = 'inactive';
+        }
+        return {
+          ...coupon,
+          status: nextStatus
+        };
+      }
+      return coupon;
+    }));
+  };
+
+  // Delete coupon
+  const handleDeleteCoupon = (id: string, code: string) => {
+    if (window.confirm(`¿Está seguro de que desea eliminar el cupón "${code}"?`)) {
+      setCoupons(prev => prev.filter(c => c.id !== id));
+      setFeedback({
+        type: 'info',
+        title: 'Cupón Eliminado',
+        message: `El cupón "${code}" ha sido eliminado de la lista local.`
+      });
+    }
+  };
+
+  // Copy coupon code to clipboard
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setFeedback({
+      type: 'success',
+      title: 'Copiado',
+      message: `El código "${code}" ha sido copiado al portapapeles.`
+    });
+  };
+
+  const formatCurrency = (value: number) => {
+    return `Bs. ${value.toFixed(2)}`;
+  };
+
+  const formatDate = (dateString: string) => {
+    const [year, month, day] = dateString.split('-');
+    return `${day}/${month}/${year}`;
+  };
+
+  return (
+    <main className="min-h-full bg-background px-3 py-5 text-text md:px-6 md:py-8 font-sans">
+      <div className="mx-auto w-full max-w-6xl">
+        {/* Header */}
+        <div className="mb-6 flex items-center gap-4">
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-[28px] leading-none text-text hover:opacity-85 transition-opacity"
+            aria-label="Menú"
+          >
+            ☰
+          </button>
+          <div className="flex-1">
+            <h1 className="text-title font-bold text-gray-900">Gestión de Cupones</h1>
+            <p className="text-gray-500 text-[14px]">Genera, personaliza y simula cupones de descuento para tus clientes (Simulado localmente).</p>
+          </div>
+        </div>
+
+        {/* KPI metrics cards */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+          <div className="rounded-[1.5rem] bg-white p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+            <span className="text-[12px] font-bold text-gray-400 uppercase tracking-wider">Total Cupones</span>
+            <span className="text-[26px] font-extrabold text-primary mt-2">
+              {stats.total}
+            </span>
+            <span className="text-[11px] text-gray-500 mt-1">Registrados en sesión</span>
+          </div>
+
+          <div className="rounded-[1.5rem] bg-white p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+            <span className="text-[12px] font-bold text-gray-400 uppercase tracking-wider">Cupones Activos</span>
+            <span className="text-[26px] font-extrabold text-success mt-2">
+              {stats.active}
+            </span>
+            <span className="text-[11px] text-success/80 mt-1">Disponibles para canje</span>
+          </div>
+
+          <div className="rounded-[1.5rem] bg-white p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+            <span className="text-[12px] font-bold text-gray-400 uppercase tracking-wider">Inactivos / Pausados</span>
+            <span className="text-[26px] font-extrabold text-process mt-2">
+              {stats.inactive}
+            </span>
+            <span className="text-[11px] text-process/80 mt-1">Deshabilitados temporalmente</span>
+          </div>
+
+          <div className="rounded-[1.5rem] bg-white p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+            <span className="text-[12px] font-bold text-gray-400 uppercase tracking-wider">Expirados</span>
+            <span className="text-[26px] font-extrabold text-alert mt-2">
+              {stats.expired}
+            </span>
+            <span className="text-[11px] text-alert/80 mt-1">Fecha límite superada</span>
+          </div>
+        </div>
+
+        {/* Buttons / Actions Bar */}
+        <div className="mb-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={handleGenerateMock}
+            className="flex items-center gap-2 px-6 py-3.5 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white font-bold rounded-2xl shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all text-xs uppercase tracking-wider cursor-pointer"
+          >
+            <span>✨</span> Generar Cupón Aleatorio
+          </button>
+          
+          <button
+            type="button"
+            onClick={() => setIsFormOpen(true)}
+            className="flex items-center gap-2 px-6 py-3.5 border-2 border-[var(--color-primary)] text-[var(--color-primary)] font-bold rounded-2xl hover:bg-[var(--color-primary)] hover:text-white transition-all text-xs uppercase tracking-wider cursor-pointer"
+          >
+            <span>➕</span> Crear Cupón Manual
+          </button>
+        </div>
+
+        {/* Filters and Controls */}
+        <div className="rounded-[1.5rem] bg-white p-5 shadow-sm border border-gray-100 mb-6">
+          <h2 className="text-[15px] font-bold mb-3 text-gray-700">Filtros y Búsqueda</h2>
+          
+          <div className="grid gap-4 md:grid-cols-12">
+            {/* Search Input */}
+            <div className="md:col-span-6">
+              <label className="text-[11px] font-bold text-gray-400 block mb-1">Buscar por código o descripción</label>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                placeholder="Ej. SABOR20, Bienvenida..."
+                className="w-full rounded-xl border border-gray-200 px-4 py-2 text-[13px] outline-none focus:border-primary transition-colors"
+              />
+            </div>
+
+            {/* Status Filter */}
+            <div className="md:col-span-3">
+              <label className="text-[11px] font-bold text-gray-400 block mb-1">Estado</label>
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive' | 'expired')}
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-[13px] outline-none bg-white focus:border-primary transition-colors"
+              >
+                <option value="all">Todos los estados</option>
+                <option value="active">Activos</option>
+                <option value="inactive">Inactivos</option>
+                <option value="expired">Expirados</option>
+              </select>
+            </div>
+
+            {/* Type Filter */}
+            <div className="md:col-span-3">
+              <label className="text-[11px] font-bold text-gray-400 block mb-1">Tipo de Descuento</label>
+              <select
+                value={typeFilter}
+                onChange={e => setTypeFilter(e.target.value as 'all' | 'percentage' | 'fixed')}
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-[13px] outline-none bg-white focus:border-primary transition-colors"
+              >
+                <option value="all">Todos los tipos</option>
+                <option value="percentage">Porcentaje (%)</option>
+                <option value="fixed">Monto Fijo (Bs.)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Reset Filters button */}
+          {(searchTerm !== '' || statusFilter !== 'all' || typeFilter !== 'all') && (
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setStatusFilter('all');
+                  setTypeFilter('all');
+                }}
+                className="text-[12px] font-bold text-primary hover:underline"
+              >
+                Limpiar filtros
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Coupons list */}
+        {filteredCoupons.length === 0 ? (
+          <div className="rounded-[1.5rem] bg-white p-12 text-center shadow-sm border border-gray-100">
+            <span className="text-[40px] block mb-2">🎟️</span>
+            <p className="font-semibold text-gray-600">No se encontraron cupones</p>
+            <p className="text-gray-400 text-[13px] mt-1">Pruebe generando un nuevo cupón mock o cambiando los filtros.</p>
+          </div>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredCoupons.map((coupon) => (
+              <div 
+                key={coupon.id}
+                className="relative rounded-[2rem] bg-white shadow-md border border-gray-150 overflow-hidden flex flex-col transition-all hover:shadow-lg hover:-translate-y-0.5"
+              >
+                {/* Status Indicator Bar */}
+                <div className={`h-2 w-full ${
+                  coupon.status === 'active' ? 'bg-success' : 
+                  coupon.status === 'inactive' ? 'bg-process' : 'bg-alert'
+                }`} />
+
+                <div className="p-6 flex-1 flex flex-col justify-between">
+                  {/* Top Header Card */}
+                  <div>
+                    <div className="flex justify-between items-start mb-4">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                        coupon.status === 'active' ? 'bg-success/10 text-success' :
+                        coupon.status === 'inactive' ? 'bg-process/10 text-process' : 'bg-alert/10 text-alert'
+                      }`}>
+                        {coupon.status === 'active' ? 'Activo' : coupon.status === 'inactive' ? 'Inactivo' : 'Expirado'}
+                      </span>
+                      
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyCode(coupon.code)}
+                          title="Copiar código"
+                          className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-250 flex items-center justify-center text-[14px] transition-colors"
+                        >
+                          📋
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCoupon(coupon.id, coupon.code)}
+                          title="Eliminar"
+                          className="w-8 h-8 rounded-full bg-alert/10 hover:bg-alert/20 text-alert flex items-center justify-center text-[14px] transition-colors"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Promo Value */}
+                    <div className="mb-3 text-center py-2 bg-gray-50/70 rounded-2xl border border-dashed border-gray-200">
+                      <span className="block text-[11px] font-bold text-gray-400 uppercase">DESCUENTO</span>
+                      <span className="text-[24px] font-extrabold text-primary">
+                        {coupon.discountType === 'percentage' ? `${coupon.discountValue}%` : `Bs. ${coupon.discountValue}`}
+                      </span>
+                    </div>
+
+                    {/* Promo Code Display */}
+                    <div className="flex items-center justify-between bg-gray-100 px-4 py-2.5 rounded-xl font-mono text-[14px] font-bold text-gray-800 mb-4 select-all">
+                      <span>{coupon.code}</span>
+                      <span className="text-[10px] text-gray-400 font-sans uppercase">Código</span>
+                    </div>
+
+                    <p className="text-[13px] text-gray-650 mb-4 min-h-[40px] leading-relaxed">
+                      {coupon.description}
+                    </p>
+                  </div>
+
+                  {/* Metadata and Toggles */}
+                  <div className="border-t border-gray-100 pt-4 mt-auto space-y-3">
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-500">
+                      <div>
+                        <b>Min. Compra:</b> {formatCurrency(coupon.minPurchase)}
+                      </div>
+                      <div>
+                        <b>Vence:</b> {formatDate(coupon.expirationDate)}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-500">
+                      <div>
+                        <b>Límite Uso:</b> {coupon.usageLimit}
+                      </div>
+                      <div>
+                        <b>Canjeados:</b> {coupon.usageCount}
+                      </div>
+                    </div>
+
+                    {/* Progress Bar for usage */}
+                    <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                      <div 
+                        className="bg-primary h-full transition-all duration-300"
+                        style={{ width: `${Math.min((coupon.usageCount / coupon.usageLimit) * 100, 100)}%` }}
+                      />
+                    </div>
+
+                    {/* Toggle Switch */}
+                    {coupon.status !== 'expired' && (
+                      <div className="flex justify-between items-center pt-2">
+                        <span className="text-[12px] font-semibold text-gray-600">Habilitar / Pausar</span>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStatus(coupon.id)}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none ${
+                            coupon.status === 'active' ? 'bg-success' : 'bg-gray-200'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              coupon.status === 'active' ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Manual Creation Side-Drawer Modal */}
+      {isFormOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in overflow-y-auto">
+          <div className="w-full max-w-md rounded-[2.5rem] bg-white p-6 md:p-8 shadow-2xl border border-gray-100 flex flex-col my-8 animate-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-4 mb-6">
+              <h2 className="text-[20px] font-black text-gray-800">
+                Crear Nuevo Cupón
+              </h2>
+              <button 
+                onClick={() => setIsFormOpen(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-250 flex items-center justify-center text-lg font-bold"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateManual} className="space-y-4">
+              {/* Promo Code */}
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 block mb-1">CÓDIGO DE CUPÓN</label>
+                <input
+                  type="text"
+                  required
+                  value={newCode}
+                  onChange={e => setNewCode(e.target.value)}
+                  placeholder="Ej. DESCUENTOPATRIA"
+                  className="w-full bg-gray-55 p-3 rounded-xl text-sm font-bold focus:ring-4 ring-primary/10 outline-none transition-all border border-gray-200 focus:border-primary uppercase"
+                />
+              </div>
+
+              {/* Discount Type */}
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 block mb-1">TIPO DE DESCUENTO</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewDiscountType('percentage');
+                      if (newDiscountValue > 100) setNewDiscountValue(50);
+                    }}
+                    className={`p-3 rounded-xl border-2 text-center text-xs font-bold transition-all ${
+                      newDiscountType === 'percentage' 
+                        ? 'border-primary bg-primary/5 text-primary' 
+                        : 'border-gray-100 text-gray-500'
+                    }`}
+                  >
+                    Porcentaje (%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewDiscountType('fixed')}
+                    className={`p-3 rounded-xl border-2 text-center text-xs font-bold transition-all ${
+                      newDiscountType === 'fixed' 
+                        ? 'border-primary bg-primary/5 text-primary' 
+                        : 'border-gray-100 text-gray-500'
+                    }`}
+                  >
+                    Monto Fijo (Bs.)
+                  </button>
+                </div>
+              </div>
+
+              {/* Discount Value */}
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 block mb-1">
+                  VALOR DEL DESCUENTO {newDiscountType === 'percentage' ? '(%)' : '(Bs.)'}
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max={newDiscountType === 'percentage' ? 100 : undefined}
+                  required
+                  value={newDiscountValue}
+                  onChange={e => setNewDiscountValue(Number(e.target.value))}
+                  className="w-full bg-gray-55 p-3 rounded-xl text-sm font-bold focus:ring-4 ring-primary/10 outline-none transition-all border border-gray-200 focus:border-primary"
+                />
+              </div>
+
+              {/* Min Purchase & Expiration */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[11px] font-bold text-gray-400 block mb-1">COMPRA MÍNIMA (Bs.)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={newMinPurchase}
+                    onChange={e => setNewMinPurchase(Number(e.target.value))}
+                    className="w-full bg-gray-55 p-3 rounded-xl text-sm font-bold focus:ring-4 ring-primary/10 outline-none transition-all border border-gray-200 focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-gray-400 block mb-1">FECHA EXPIRACIÓN</label>
+                  <input
+                    type="date"
+                    required
+                    value={newExpirationDate}
+                    onChange={e => setNewExpirationDate(e.target.value)}
+                    className="w-full bg-gray-55 p-3 rounded-xl text-sm font-semibold focus:ring-4 ring-primary/10 outline-none transition-all border border-gray-200 focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              {/* Usage Limit */}
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 block mb-1">LÍMITE TOTAL DE USOS</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={newUsageLimit}
+                  onChange={e => setNewUsageLimit(Number(e.target.value))}
+                  className="w-full bg-gray-55 p-3 rounded-xl text-sm font-bold focus:ring-4 ring-primary/10 outline-none transition-all border border-gray-200 focus:border-primary"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 block mb-1">DESCRIPCIÓN (OPCIONAL)</label>
+                <textarea
+                  value={newDescription}
+                  onChange={e => setNewDescription(e.target.value)}
+                  placeholder="Ej. Ahorra 10% en consumos superiores a 50 Bs."
+                  rows={2}
+                  className="w-full bg-gray-55 p-3 rounded-xl text-sm font-semibold focus:ring-4 ring-primary/10 outline-none transition-all border border-gray-200 focus:border-primary resize-none"
+                />
+              </div>
+
+              {/* Submit / Cancel Buttons */}
+              <div className="flex gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setIsFormOpen(false)}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 py-3.5 rounded-2xl font-bold text-gray-700 transition-colors text-xs uppercase"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white py-3.5 rounded-2xl font-bold transition-colors shadow-md text-xs uppercase"
+                >
+                  Crear Cupón
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Feedback Alert Modal */}
+      <FeedbackModal 
+        open={Boolean(feedback)} 
+        title={feedback?.title || ''} 
+        message={feedback?.message || ''} 
+        type={feedback?.type || 'info'} 
+        onClose={() => setFeedback(null)} 
+      />
+    </main>
+  );
+}
