@@ -121,17 +121,95 @@ export async function POST(request: Request) {
                 data: { estado: 'LIBRE' }
             });
 
-            return mesaActualizada;
+            return {
+                mesa: mesaActualizada,
+                pedidosPagadosIds: pedidosActivos.map(p => p.id_pedido)
+            };
         }, { maxWait: 5000, timeout: 10000 });
 
+        const { mesa, pedidosPagadosIds } = resultadoTransaccion;
+
         // Emitimos los eventos por WebSockets (Pusher) para actualizar el salón y monitores en tiempo real
-        await pusherServer.trigger('tables-channel', 'table-updated', resultadoTransaccion);
+        await pusherServer.trigger('tables-channel', 'table-updated', mesa);
 
         // Simulación de actualización de pedidos para limpiar la vista de meseros
         await pusherServer.trigger('tables-channel', 'table-order-updated', { id_mesa, estado: 'PAGADO' });
 
         // Notificar actualización de caja en tiempo real
         await pusherServer.trigger('caja-channel', 'caja-updated', { tipo: 'PAGO_PROCESADO' });
+
+        // Trigger pusher event for newly created invoices
+        try {
+            const newInvoices = await prisma.facturas.findMany({
+                where: {
+                    id_pedido: { in: pedidosPagadosIds }
+                },
+                include: {
+                    usuario_emision: { select: { nombre: true, apellido: true } },
+                    pedido: {
+                        include: {
+                            detalles_pedido: {
+                                include: {
+                                    presentacion_producto: { include: { producto: true } }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            for (const invoice of newInvoices) {
+                let cliente_nombre = 'Cliente General';
+                let cliente_ci = '0';
+                if (invoice.observaciones) {
+                    const match = invoice.observaciones.match(/Facturado a:\s*(.*?),\s*CI\/NIT:\s*([^\s-]*)/);
+                    if (match) {
+                        cliente_nombre = match[1].trim();
+                        cliente_ci = match[2].trim();
+                    }
+                }
+                const items = invoice.pedido?.detalles_pedido?.map(detalle => {
+                    const prodNombre = detalle.presentacion_producto?.producto?.nombre || 'Producto';
+                    const presNombre = detalle.presentacion_producto?.nombre;
+                    const nombre = (!presNombre || presNombre === 'Predeterminada') 
+                        ? prodNombre 
+                        : `${prodNombre} (${presNombre})`;
+                    return {
+                        nombre,
+                        cantidad: detalle.cantidad,
+                        precio_unitario: Number(detalle.precio_unitario),
+                        subtotal: Number(detalle.subtotal)
+                    };
+                }) || [];
+
+                const nombre_usuario_emision = invoice.usuario_emision 
+                    ? `${invoice.usuario_emision.nombre} ${invoice.usuario_emision.apellido || ''}`.trim()
+                    : 'Usuario';
+
+                const mappedInvoice = {
+                    id_factura: invoice.id_factura,
+                    id_pedido: invoice.id_pedido,
+                    id_usuario_emision: invoice.id_usuario_emision,
+                    nombre_usuario_emision,
+                    tipo_documento: invoice.tipo_documento,
+                    numero_documento: invoice.numero_documento,
+                    subtotal: Number(invoice.subtotal),
+                    impuesto: Number(invoice.impuesto),
+                    descuento: Number(invoice.descuento),
+                    total: Number(invoice.total),
+                    fecha_emision: invoice.fecha_emision.toISOString(),
+                    estado_documento: invoice.estado_documento,
+                    observaciones: invoice.observaciones,
+                    cliente_nombre,
+                    cliente_ci,
+                    items
+                };
+
+                await pusherServer.trigger('facturas-channel', 'factura-creada', mappedInvoice);
+            }
+        } catch (pusherError) {
+            console.error("Error sending invoice created event to Pusher:", pusherError);
+        }
 
         if (enviar_recibo && correo_cliente) {
             try {
@@ -160,7 +238,7 @@ export async function POST(request: Request) {
                                 
                                 <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 15px 0;">
                                 
-                                <h3 style="margin-top: 0; color: #374151;">Detalle del Consumo (Mesa ${resultadoTransaccion.numero || id_mesa})</h3>
+                                <h3 style="margin-top: 0; color: #374151;">Detalle del Consumo (Mesa ${mesa.numero || id_mesa})</h3>
                                 ${detalles_consumidos && detalles_consumidos.length > 0 ? 
                                     `<table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 14px;">
                                         <thead>
@@ -206,7 +284,7 @@ export async function POST(request: Request) {
             }
         }
 
-        return NextResponse.json({ message: "PAGO_PROCESADO_EXITOSAMENTE", mesa: resultadoTransaccion });
+        return NextResponse.json({ message: "PAGO_PROCESADO_EXITOSAMENTE", mesa: mesa });
 
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : "Error desconocido";

@@ -130,8 +130,7 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
   const canEditItems = Boolean(order) && !isBillRequested && order?.estado === 'REGISTRADO';
   const canSaveCustomer = table?.estado !== 'FUERA_DE_SERVICIO' && !isBillRequested;
   const hasItems = (order?.items?.length ?? 0) > 0;
-  const removedFromCurrentSelection = ingredientSelections.filter((ingredient) => !ingredient.incluido);
-  const hasCustomIngredients = ingredientSelections.some((ingredient) => ingredient.incluido !== ingredient.incluidoPorDefecto);
+  const removedFromCurrentSelection = ingredientSelections.filter((ingredient: IngredientSelection) => !ingredient.incluido);
 
   // 🛑 NUEVA VARIABLE DE CONTROL: Verifica si hay ALGÚN pedido activo que NO esté entregado
   const hasPendingOrders = activeOrders.some((o) => o.estado !== 'ENTREGADO');
@@ -855,7 +854,7 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
                     ))
                   )}
                 </div>
-                {removedFromCurrentSelection.length > 0 && <p className="text-[12px] font-bold text-alert mt-2">Cocina verá: {removedFromCurrentSelection.map((ingredient) => `sin ${ingredient.nombre.toLowerCase()}`).join(', ')}</p>}
+                {removedFromCurrentSelection.length > 0 && <p className="text-[12px] font-bold text-alert mt-2">Cocina verá: {removedFromCurrentSelection.map((ingredient: IngredientSelection) => `sin ${ingredient.nombre.toLowerCase()}`).join(', ')}</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-2">
