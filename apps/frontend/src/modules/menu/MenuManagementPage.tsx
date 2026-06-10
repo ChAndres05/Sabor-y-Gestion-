@@ -4,7 +4,8 @@ import { CategoryCard } from './components/CategoryCard';
 import { CategoryFormModal } from './components/CategoryFormModal';
 import { ProductCard } from './components/ProductCard';
 import { ProductFormModal } from './components/ProductFormModal';
-import { mockInsumos } from '../../shared/mocks/inventario';
+import { inventarioApi } from '../../shared/api/inventario.api';
+import type { Insumo } from '../../shared/mocks/inventario';
 
 import type {
   CategoryStatusFilter,
@@ -56,6 +57,7 @@ export default function MenuManagementPage({
 
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [products, setProducts] = useState<MenuProduct[]>([]);
+  const [insumos, setInsumos] = useState<Insumo[]>([]);
 
   const [isCategoriesLoading, setIsCategoriesLoading] = useState(true);
   const [isProductsLoading, setIsProductsLoading] = useState(true);
@@ -121,20 +123,31 @@ export default function MenuManagementPage({
 
     try {
       const data = await menuApi.getProductos();
-      // Mapeamos las propiedades del backend al formato MenuProduct esperado
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mappedProducts: MenuProduct[] = data.map((p: any) => ({
-        id: p.id_producto || p.id,
-        categoryId: p.id_categoria || p.categoryId,
-        nombre: p.nombre,
-        descripcion: p.descripcion || '',
-        precio: Number(p.precio) || 0,
-        tiempoPreparacion: Number(p.tiempo_preparacion) || 0,
-        imagen: p.imagen_url || p.imagen || null,
-        activo: p.activo ?? true,
-        disponible: p.disponible ?? true,
-        ingredientes: [],
-      }));
+      const mappedProducts: MenuProduct[] = data.map((p: any) => {
+        const pres = p.presentaciones?.find((pres: any) => pres.es_predeterminada) || p.presentaciones?.[0];
+        const ingredientes = pres?.recetas_presentaciones
+          ?.filter((rp: any) => rp.insumo && rp.insumo.activo)
+          .map((rp: any) => ({
+            id_insumo: String(rp.id_insumo),
+            nombre: rp.insumo.nombre,
+            cantidad: Number(rp.cantidad_insumo),
+            unidad: rp.insumo.unidad_medida,
+            incluidoPorDefecto: true
+          })) || [];
+
+        return {
+          id: p.id_producto || p.id,
+          categoryId: p.id_categoria || p.categoryId,
+          nombre: p.nombre,
+          descripcion: p.descripcion || '',
+          precio: Number(p.precio) || 0,
+          tiempoPreparacion: Number(p.tiempo_preparacion) || 0,
+          imagen: p.imagen_url || p.imagen || null,
+          activo: p.activo ?? true,
+          disponible: p.disponible ?? true,
+          ingredientes,
+        };
+      });
       setProducts(mappedProducts);
     } catch (error) {
       setFeedback({
@@ -157,9 +170,19 @@ export default function MenuManagementPage({
     return () => clearTimeout(timeout);
   }, [loadCategories, searchTerm, statusFilter]);
 
+  const loadInsumos = useCallback(async () => {
+    try {
+      const data = await inventarioApi.getInsumos();
+      setInsumos(data);
+    } catch (error) {
+      console.error('Error al cargar insumos:', error);
+    }
+  }, []);
+
   useEffect(() => {
     void loadProducts();
-  }, [loadProducts]);
+    void loadInsumos();
+  }, [loadProducts, loadInsumos]);
 
   useEffect(() => {
     if (!feedback) return;
@@ -255,7 +278,7 @@ export default function MenuManagementPage({
 
     try {
       // Adaptamos los datos del formulario al formato esperado por tu backend Prisma
-      await menuApi.createProducto({
+      const nuevoProd = await menuApi.createProducto({
         nombre: values.nombre,
         descripcion: values.descripcion,
         id_categoria: values.categoryId,
@@ -264,6 +287,19 @@ export default function MenuManagementPage({
         precio: values.precio,
         tiempo_preparacion: values.tiempoPreparacion,
       });
+
+      // Guardamos la receta en la base de datos si tiene ingredientes
+      const newProductId = nuevoProd?.id_producto || nuevoProd?.id;
+      if (newProductId && values.ingredientes && values.ingredientes.length > 0) {
+        await inventarioApi.guardarReceta(
+          String(newProductId),
+          values.ingredientes.map((ing) => ({
+            id_insumo: String(ing.id_insumo),
+            cantidad: Number(ing.cantidad)
+          }))
+        );
+      }
+
       setIsCreateProductOpen(false);
       await Promise.all([loadProducts(), loadCategories(searchTerm, statusFilter)]);
       setFeedback({
@@ -301,6 +337,18 @@ export default function MenuManagementPage({
         precio: values.precio,
         tiempo_preparacion: values.tiempoPreparacion,
       });
+
+      // Guardamos/actualizamos la receta en la base de datos si tiene ingredientes
+      if (values.ingredientes) {
+        await inventarioApi.guardarReceta(
+          String(editingProduct.id),
+          values.ingredientes.map((ing) => ({
+            id_insumo: String(ing.id_insumo),
+            cantidad: Number(ing.cantidad)
+          }))
+        );
+      }
+
       setEditingProduct(null);
       await Promise.all([loadProducts(), loadCategories(searchTerm, statusFilter)]);
       setFeedback({
@@ -725,7 +773,7 @@ export default function MenuManagementPage({
         open={isCreateProductOpen}
         mode="create"
         categories={categories}
-        insumos={mockInsumos} 
+        insumos={insumos}
         selectedCategoryId={selectedCategoryId}
         isSubmitting={isSubmittingProductForm}
         onClose={() => setIsCreateProductOpen(false)}
@@ -737,7 +785,7 @@ export default function MenuManagementPage({
         open={Boolean(editingProduct)}
         mode="edit"
         categories={categories}
-        insumos={mockInsumos} 
+        insumos={insumos}
         initialProduct={editingProduct}
         isSubmitting={isSubmittingProductForm}
         onClose={() => setEditingProduct(null)}
