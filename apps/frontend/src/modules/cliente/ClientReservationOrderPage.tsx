@@ -372,13 +372,11 @@ export default function ClientReservationOrderPage({
                 </div>
               </div>
 
-              <div>
-                <label className="mb-3 block text-xs font-bold text-gray-400 uppercase">Ingredientes incluidos</label>
-                <div className="max-h-48 space-y-2 overflow-y-auto pr-2">
-                  {ingredientSelections.length === 0 ? (
-                    <p className="text-xs text-gray-400 italic">No hay ingredientes ajustables.</p>
-                  ) : (
-                    ingredientSelections.map((i) => (
+              {ingredientSelections.length > 0 && (
+                <div>
+                  <label className="mb-3 block text-xs font-bold text-gray-400 uppercase">Ingredientes incluidos</label>
+                  <div className="max-h-48 space-y-2 overflow-y-auto pr-2">
+                    {ingredientSelections.map((i) => (
                       <div key={i.nombre} className="flex items-center justify-between rounded-2xl border border-gray-100 px-4 py-3">
                         <span className={`text-sm font-medium ${i.incluido ? 'text-text' : 'text-gray-300 line-through'}`}>{i.nombre}</span>
                         <button
@@ -388,15 +386,15 @@ export default function ClientReservationOrderPage({
                           <span className={`absolute top-1 h-4 w-4 bg-white rounded-full shadow transition-all ${i.incluido ? 'left-6' : 'left-1'}`} />
                         </button>
                       </div>
-                    ))
+                    ))}
+                  </div>
+                  {ingredientSelections.filter(i => !i.incluido).length > 0 && (
+                    <p className="mt-2 text-[11px] text-alert font-bold">
+                      Cocina verá: {ingredientSelections.filter(i => !i.incluido).map(i => `sin ${i.nombre.toLowerCase()}`).join(', ')}
+                    </p>
                   )}
                 </div>
-                {ingredientSelections.filter(i => !i.incluido).length > 0 && (
-                  <p className="mt-2 text-[11px] text-alert font-bold">
-                    Cocina verá: {ingredientSelections.filter(i => !i.incluido).map(i => `sin ${i.nombre.toLowerCase()}`).join(', ')}
-                  </p>
-                )}
-              </div>
+              )}
 
               <button
                 type="button"
