@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { FeedbackModal } from '../../shared/components/FeedbackModal';
-import { INITIAL_COUPONS } from '../../shared/mocks/cuponesMocks';
-import type { Coupon } from '../../shared/mocks/cuponesMocks';
+import { cajaApi } from '../../shared/api/caja.api';
+import type { Coupon } from '../../shared/api/caja.api';
 
 interface AdminCouponsPageProps {
   onBack: () => void;
@@ -11,7 +11,28 @@ type FeedbackState = { type: 'success' | 'error' | 'info'; title: string; messag
 
 
 export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
-  const [coupons, setCoupons] = useState<Coupon[]>(INITIAL_COUPONS);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadCoupons = async () => {
+    setIsLoading(true);
+    try {
+      const list = await cajaApi.listCoupons();
+      setCoupons(list);
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        title: 'Error',
+        message: 'No se pudieron cargar los cupones desde el servidor.'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCoupons();
+  }, []);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'expired'>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'percentage' | 'fixed'>('all');
@@ -26,6 +47,19 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
   const [newExpirationDate, setNewExpirationDate] = useState<string>('2026-12-31');
   const [newUsageLimit, setNewUsageLimit] = useState<number>(100);
   const [newDescription, setNewDescription] = useState('');
+
+  // Delete confirmation state
+  const [couponToDelete, setCouponToDelete] = useState<{ id: string; code: string } | null>(null);
+
+  // Edit form state
+  const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
+  const [editCode, setEditCode] = useState('');
+  const [editDiscountType, setEditDiscountType] = useState<'percentage' | 'fixed'>('percentage');
+  const [editDiscountValue, setEditDiscountValue] = useState<number>(10);
+  const [editMinPurchase, setEditMinPurchase] = useState<number>(50);
+  const [editExpirationDate, setEditExpirationDate] = useState<string>('2026-12-31');
+  const [editUsageLimit, setEditUsageLimit] = useState<number>(100);
+  const [editDescription, setEditDescription] = useState('');
 
   // Statistics calculation
   const stats = useMemo(() => {
@@ -54,7 +88,7 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
   }, [coupons, searchTerm, statusFilter, typeFilter]);
 
   // Generate a random mock coupon
-  const handleGenerateMock = () => {
+  const handleGenerateMock = async () => {
     const prefixes = ['SABOR', 'GUSTO', 'PROMO', 'DESCUENTO', 'DELICIA', 'REDUCCION', 'MENU', 'MEGAPACK', 'VOUCHER', 'CHEFSPECIAL'];
     const values = [5, 10, 15, 20, 25, 30, 40, 50, 75, 100];
     const types: ('percentage' | 'fixed')[] = ['percentage', 'fixed'];
@@ -62,12 +96,10 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
     const discountType = types[Math.floor(Math.random() * types.length)];
     const rawValue = values[Math.floor(Math.random() * values.length)];
     
-    // Cap percentages to reasonable rates
     const discountValue = discountType === 'percentage' ? Math.min(rawValue, 50) : rawValue;
     const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
     const code = `${prefix}${discountValue}`;
     
-    // Check if code already exists
     if (coupons.some(c => c.code.toUpperCase() === code.toUpperCase())) {
       setFeedback({
         type: 'info',
@@ -77,17 +109,14 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
       return;
     }
 
-    const minPurchase = Math.floor(Math.random() * 5) * 20 + 40; // 40, 60, 80, 100, 120
+    const minPurchase = Math.floor(Math.random() * 5) * 20 + 40;
     
-    // Generate expiration date 1 to 6 months in the future
     const today = new Date();
     const futureDate = new Date();
     futureDate.setMonth(today.getMonth() + Math.floor(Math.random() * 6) + 1);
     const expirationDate = futureDate.toISOString().split('T')[0];
     
-    const statusChoices: ('active' | 'inactive')[] = ['active', 'inactive'];
-    const status = statusChoices[Math.floor(Math.random() * statusChoices.length)];
-    const usageLimit = Math.floor(Math.random() * 10) * 10 + 20; // 20 to 110
+    const usageLimit = Math.floor(Math.random() * 10) * 10 + 20;
     
     const descriptions = [
       `Descuento especial de ${discountValue}${discountType === 'percentage' ? '%' : ' Bs.'} para clientes distinguidos`,
@@ -96,29 +125,35 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
       `Descuento de ${discountValue}${discountType === 'percentage' ? '%' : ' Bs.'} para probar los nuevos platos del menú`
     ];
     
-    const newCoupon: Coupon = {
-      id: `coupon-${Date.now()}`,
+    const couponData = {
       code,
       discountType,
       discountValue,
       minPurchase,
       expirationDate,
-      status,
       usageLimit,
-      usageCount: 0,
       description: descriptions[Math.floor(Math.random() * descriptions.length)] + ` (Mínimo de compra: Bs. ${minPurchase})`
     };
 
-    setCoupons(prev => [newCoupon, ...prev]);
-    setFeedback({
-      type: 'success',
-      title: 'Cupón Aleatorio Generado',
-      message: `Se ha generado el cupón "${code}" con valor de ${discountValue}${discountType === 'percentage' ? '%' : ' Bs.'} correctamente.`
-    });
+    try {
+      const newCoupon = await cajaApi.createCoupon(couponData);
+      setCoupons(prev => [newCoupon, ...prev]);
+      setFeedback({
+        type: 'success',
+        title: 'Cupón Aleatorio Generado',
+        message: `Se ha generado el cupón "${code}" con valor de ${discountValue}${discountType === 'percentage' ? '%' : ' Bs.'} correctamente.`
+      });
+    } catch (error: any) {
+      setFeedback({
+        type: 'error',
+        title: 'Error al generar cupón',
+        message: error.message || 'Error en el servidor.'
+      });
+    }
   };
 
-  // Create coupon manually (mock storage in state)
-  const handleCreateManual = (e: React.FormEvent) => {
+  // Create coupon manually
+  const handleCreateManual = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const code = newCode.toUpperCase().replace(/\s+/g, '');
@@ -127,73 +162,128 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
       return;
     }
 
-    if (coupons.some(c => c.code === code)) {
-      setFeedback({ type: 'error', title: 'Código Duplicado', message: `El código de cupón "${code}" ya está en uso.` });
-      return;
-    }
-
     if (newDiscountValue <= 0 || (newDiscountType === 'percentage' && newDiscountValue > 100)) {
       setFeedback({ type: 'error', title: 'Valor Inválidos', message: 'El descuento debe ser mayor que 0. En porcentaje no debe superar el 100%.' });
       return;
     }
 
-    const newCoupon: Coupon = {
-      id: `coupon-${Date.now()}`,
+    const couponData = {
       code,
       discountType: newDiscountType,
       discountValue: newDiscountValue,
       minPurchase: newMinPurchase,
       expirationDate: newExpirationDate,
-      status: 'active',
       usageLimit: newUsageLimit,
-      usageCount: 0,
       description: newDescription || `Descuento del ${newDiscountValue}${newDiscountType === 'percentage' ? '%' : ' Bs.'} en consumos mínimos de Bs. ${newMinPurchase}.`
     };
 
-    setCoupons(prev => [newCoupon, ...prev]);
-    setIsFormOpen(false);
-    
-    // Reset fields
-    setNewCode('');
-    setNewDiscountType('percentage');
-    setNewDiscountValue(10);
-    setNewMinPurchase(50);
-    setNewExpirationDate('2026-12-31');
-    setNewUsageLimit(100);
-    setNewDescription('');
+    try {
+      const newCoupon = await cajaApi.createCoupon(couponData);
+      setCoupons(prev => [newCoupon, ...prev]);
+      setIsFormOpen(false);
+      
+      // Reset fields
+      setNewCode('');
+      setNewDiscountType('percentage');
+      setNewDiscountValue(10);
+      setNewMinPurchase(50);
+      setNewExpirationDate('2026-12-31');
+      setNewUsageLimit(100);
+      setNewDescription('');
 
-    setFeedback({
-      type: 'success',
-      title: 'Cupón Creado',
-      message: `El cupón "${code}" ha sido creado con éxito.`
-    });
+      setFeedback({
+        type: 'success',
+        title: 'Cupón Creado',
+        message: `El cupón "${code}" ha sido creado con éxito.`
+      });
+    } catch (error: any) {
+      setFeedback({
+        type: 'error',
+        title: 'Error al crear cupón',
+        message: error.message || 'Error en el servidor.'
+      });
+    }
   };
 
   // Toggle active/inactive status
-  const handleToggleStatus = (id: string) => {
-    setCoupons(prev => prev.map(coupon => {
-      if (coupon.id === id) {
-        let nextStatus: 'active' | 'inactive' = 'active';
-        if (coupon.status === 'active') {
-          nextStatus = 'inactive';
-        }
-        return {
-          ...coupon,
-          status: nextStatus
-        };
-      }
-      return coupon;
-    }));
+  const handleToggleStatus = async (id: string) => {
+    const coupon = coupons.find(c => c.id === id);
+    if (!coupon) return;
+
+    let nextStatus: 'active' | 'inactive' = 'active';
+    if (coupon.status === 'active') {
+      nextStatus = 'inactive';
+    }
+
+    try {
+      const updated = await cajaApi.updateCoupon(id, { status: nextStatus });
+      setCoupons(prev => prev.map(c => c.id === id ? updated : c));
+    } catch (error: any) {
+      setFeedback({
+        type: 'error',
+        title: 'Error al cambiar estado',
+        message: error.message || 'No se pudo cambiar el estado del cupón.'
+      });
+    }
   };
 
-  // Delete coupon
+  // Delete coupon confirmation trigger
   const handleDeleteCoupon = (id: string, code: string) => {
-    if (window.confirm(`¿Está seguro de que desea eliminar el cupón "${code}"?`)) {
-      setCoupons(prev => prev.filter(c => c.id !== id));
+    setCouponToDelete({ id, code });
+  };
+
+  // Start editing coupon
+  const handleStartEdit = (coupon: Coupon) => {
+    setEditingCoupon(coupon);
+    setEditCode(coupon.code);
+    setEditDiscountType(coupon.discountType);
+    setEditDiscountValue(coupon.discountValue);
+    setEditMinPurchase(coupon.minPurchase);
+    setEditExpirationDate(coupon.expirationDate);
+    setEditUsageLimit(coupon.usageLimit);
+    setEditDescription(coupon.description);
+  };
+
+  // Update coupon
+  const handleUpdateCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCoupon) return;
+
+    const code = editCode.toUpperCase().replace(/\s+/g, '');
+    if (!code) {
+      setFeedback({ type: 'error', title: 'Datos Inválidos', message: 'Por favor, ingrese un código para el cupón.' });
+      return;
+    }
+
+    if (editDiscountValue <= 0 || (editDiscountType === 'percentage' && editDiscountValue > 100)) {
+      setFeedback({ type: 'error', title: 'Valor Inválido', message: 'El descuento debe ser mayor que 0. En porcentaje no debe superar el 100%.' });
+      return;
+    }
+
+    const updateData = {
+      code,
+      discountType: editDiscountType,
+      discountValue: editDiscountValue,
+      minPurchase: editMinPurchase,
+      expirationDate: editExpirationDate,
+      usageLimit: editUsageLimit,
+      description: editDescription || `Descuento del ${editDiscountValue}${editDiscountType === 'percentage' ? '%' : ' Bs.'} en consumos mínimos de Bs. ${editMinPurchase}.`
+    };
+
+    try {
+      const updated = await cajaApi.updateCoupon(editingCoupon.id, updateData);
+      setCoupons(prev => prev.map(c => c.id === editingCoupon.id ? updated : c));
+      setEditingCoupon(null);
       setFeedback({
-        type: 'info',
-        title: 'Cupón Eliminado',
-        message: `El cupón "${code}" ha sido eliminado de la lista local.`
+        type: 'success',
+        title: 'Cupón Actualizado',
+        message: `El cupón "${code}" ha sido actualizado con éxito.`
+      });
+    } catch (error: any) {
+      setFeedback({
+        type: 'error',
+        title: 'Error al actualizar cupón',
+        message: error.message || 'Error en el servidor.'
       });
     }
   };
@@ -213,6 +303,7 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
   };
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return '';
     const [year, month, day] = dateString.split('-');
     return `${day}/${month}/${year}`;
   };
@@ -356,11 +447,15 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
         </div>
 
         {/* Coupons list */}
-        {filteredCoupons.length === 0 ? (
+        {isLoading ? (
+          <div className="rounded-[1.5rem] bg-white p-12 text-center shadow-sm border border-gray-100 animate-pulse text-gray-400 font-bold">
+            Cargando cupones desde el servidor...
+          </div>
+        ) : filteredCoupons.length === 0 ? (
           <div className="rounded-[1.5rem] bg-white p-12 text-center shadow-sm border border-gray-100">
             <span className="text-[40px] block mb-2">🎟️</span>
-            <p className="font-semibold text-gray-600">No se encontraron cupones</p>
-            <p className="text-gray-400 text-[13px] mt-1">Pruebe generando un nuevo cupón mock o cambiando los filtros.</p>
+            <p className="font-semibold text-gray-650">No se encontraron cupones</p>
+            <p className="text-gray-400 text-[13px] mt-1">Pruebe generando un nuevo cupón aleatorio o cambiando los filtros.</p>
           </div>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -394,6 +489,14 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
                           className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-250 flex items-center justify-center text-[14px] transition-colors"
                         >
                           📋
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleStartEdit(coupon)}
+                          title="Editar"
+                          className="w-8 h-8 rounded-full bg-primary/10 hover:bg-primary/20 text-primary flex items-center justify-center text-[14px] transition-colors"
+                        >
+                          ✏️
                         </button>
                         <button
                           type="button"
@@ -622,6 +725,204 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
                   className="flex-1 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white py-3.5 rounded-2xl font-bold transition-colors shadow-md text-xs uppercase"
                 >
                   Crear Cupón
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {couponToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in overflow-y-auto">
+          <div className="w-full max-w-md rounded-[2.5rem] bg-white p-6 md:p-8 shadow-2xl border border-gray-100 flex flex-col my-8 animate-in zoom-in-95 text-center">
+            <span className="text-[48px] mb-4 block">⚠️</span>
+            <h2 className="text-[20px] font-black text-gray-800 mb-2">
+              ¿Eliminar Cupón?
+            </h2>
+            <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+              ¿Está seguro de que desea eliminar el cupón <strong className="text-gray-800 font-bold">"{couponToDelete.code}"</strong>? Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-3 w-full">
+              <button
+                type="button"
+                onClick={() => setCouponToDelete(null)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 py-3 rounded-xl font-bold text-gray-700 transition-colors text-xs uppercase"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await cajaApi.deleteCoupon(couponToDelete.id);
+                    setCoupons(prev => prev.filter(c => c.id !== couponToDelete.id));
+                    setFeedback({
+                      type: 'info',
+                      title: 'Cupón Eliminado',
+                      message: `El cupón "${couponToDelete.code}" ha sido eliminado con éxito.`
+                    });
+                  } catch (error: any) {
+                    setFeedback({
+                      type: 'error',
+                      title: 'Error al eliminar cupón',
+                      message: error.message || 'No se pudo eliminar el cupón.'
+                    });
+                  } finally {
+                    setCouponToDelete(null);
+                  }
+                }}
+                className="flex-1 bg-alert hover:bg-red-650 text-white py-3 rounded-xl font-bold transition-colors shadow-md text-xs uppercase"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Coupon Modal */}
+      {editingCoupon && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in overflow-y-auto">
+          <div className="w-full max-w-md rounded-[2.5rem] bg-white p-6 md:p-8 shadow-2xl border border-gray-100 flex flex-col my-8 animate-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-4 mb-6">
+              <h2 className="text-[20px] font-black text-gray-800">
+                Editar Cupón
+              </h2>
+              <button 
+                onClick={() => setEditingCoupon(null)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-250 flex items-center justify-center text-lg font-bold"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateCoupon} className="space-y-4">
+              {/* Promo Code */}
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 block mb-1">CÓDIGO DE CUPÓN</label>
+                <input
+                  type="text"
+                  required
+                  value={editCode}
+                  onChange={e => setEditCode(e.target.value)}
+                  placeholder="Ej. DESCUENTOPATRIA"
+                  className="w-full bg-gray-55 p-3 rounded-xl text-sm font-bold focus:ring-4 ring-primary/10 outline-none transition-all border border-gray-200 focus:border-primary uppercase"
+                />
+              </div>
+
+              {/* Discount Type */}
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 block mb-1">TIPO DE DESCUENTO</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditDiscountType('percentage');
+                      if (editDiscountValue > 100) setEditDiscountValue(50);
+                    }}
+                    className={`p-3 rounded-xl border-2 text-center text-xs font-bold transition-all ${
+                      editDiscountType === 'percentage' 
+                        ? 'border-primary bg-primary/5 text-primary' 
+                        : 'border-gray-100 text-gray-500'
+                    }`}
+                  >
+                    Porcentaje (%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditDiscountType('fixed')}
+                    className={`p-3 rounded-xl border-2 text-center text-xs font-bold transition-all ${
+                      editDiscountType === 'fixed' 
+                        ? 'border-primary bg-primary/5 text-primary' 
+                        : 'border-gray-100 text-gray-500'
+                    }`}
+                  >
+                    Monto Fijo (Bs.)
+                  </button>
+                </div>
+              </div>
+
+              {/* Discount Value */}
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 block mb-1">
+                  VALOR DEL DESCUENTO {editDiscountType === 'percentage' ? '(%)' : '(Bs.)'}
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max={editDiscountType === 'percentage' ? 100 : undefined}
+                  required
+                  value={editDiscountValue}
+                  onChange={e => setEditDiscountValue(Number(e.target.value))}
+                  className="w-full bg-gray-55 p-3 rounded-xl text-sm font-bold focus:ring-4 ring-primary/10 outline-none transition-all border border-gray-200 focus:border-primary"
+                />
+              </div>
+
+              {/* Min Purchase & Expiration */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[11px] font-bold text-gray-400 block mb-1">COMPRA MÍNIMA (Bs.)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={editMinPurchase}
+                    onChange={e => setEditMinPurchase(Number(e.target.value))}
+                    className="w-full bg-gray-55 p-3 rounded-xl text-sm font-bold focus:ring-4 ring-primary/10 outline-none transition-all border border-gray-200 focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-gray-400 block mb-1">FECHA EXPIRACIÓN</label>
+                  <input
+                    type="date"
+                    required
+                    value={editExpirationDate}
+                    onChange={e => setEditExpirationDate(e.target.value)}
+                    className="w-full bg-gray-55 p-3 rounded-xl text-sm font-semibold focus:ring-4 ring-primary/10 outline-none transition-all border border-gray-200 focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              {/* Usage Limit */}
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 block mb-1">LÍMITE TOTAL DE USOS</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={editUsageLimit}
+                  onChange={e => setEditUsageLimit(Number(e.target.value))}
+                  className="w-full bg-gray-55 p-3 rounded-xl text-sm font-bold focus:ring-4 ring-primary/10 outline-none transition-all border border-gray-200 focus:border-primary"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 block mb-1">DESCRIPCIÓN (OPCIONAL)</label>
+                <textarea
+                  value={editDescription}
+                  onChange={e => setEditDescription(e.target.value)}
+                  placeholder="Ej. Ahorra 10% en consumos superiores a 50 Bs."
+                  rows={2}
+                  className="w-full bg-gray-55 p-3 rounded-xl text-sm font-semibold focus:ring-4 ring-primary/10 outline-none transition-all border border-gray-200 focus:border-primary resize-none"
+                />
+              </div>
+
+              {/* Submit / Cancel Buttons */}
+              <div className="flex gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingCoupon(null)}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 py-3.5 rounded-2xl font-bold text-gray-700 transition-colors text-xs uppercase"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white py-3.5 rounded-2xl font-bold transition-colors shadow-md text-xs uppercase"
+                >
+                  Guardar Cambios
                 </button>
               </div>
             </form>

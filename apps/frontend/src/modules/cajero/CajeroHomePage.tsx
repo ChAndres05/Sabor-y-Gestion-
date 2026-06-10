@@ -205,7 +205,8 @@ export const CajeroHomePage: React.FC<CajeroHomeProps> = ({ user, onOpenSidebar,
         enviar_recibo: datos.enviar_recibo,
         ci_cliente: datos.ci_cliente,
         nombre_cliente: datos.nombre_cliente,
-        detalles_consumidos: Array.isArray(mesaSeleccionada.pedidosRaw) ? mesaSeleccionada.pedidosRaw.flatMap(p => p.items || []).map(i => ({ cantidad: i.cantidad, nombre: i.nombreProducto, subtotal: i.subtotal })) : []
+        detalles_consumidos: Array.isArray(mesaSeleccionada.pedidosRaw) ? mesaSeleccionada.pedidosRaw.flatMap(p => p.items || []).map(i => ({ cantidad: i.cantidad, nombre: i.nombreProducto, subtotal: i.subtotal })) : [],
+        codigo_cupon: datos.codigo_cupon
       });
 
       const trx = {

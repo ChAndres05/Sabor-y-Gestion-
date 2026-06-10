@@ -5,7 +5,7 @@ import { pusherServer } from "../../../../../lib/pusher";
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
         const { id } = await params;
-        const numeroMesa = parseInt(id);
+        const idMesa = parseInt(id);
         const body = await req.json();
         const { estado, numero, capacidad, id_zona } = body;
 
@@ -14,8 +14,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         }
 
         const mesaActualizada = await prisma.$transaction(async (tx) => {
-            const mesaActual = await tx.mesas.findFirst({
-                where: { numero: numeroMesa }
+            const mesaActual = await tx.mesas.findUnique({
+                where: { id_mesa: idMesa }
             });
 
             if (!mesaActual) throw new Error("MESA_NO_ENCONTRADA");
@@ -99,18 +99,32 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
         const resolvedParams = await params;
-        const parametroNumeroUrl = parseInt(resolvedParams.id);
+        const idMesa = parseInt(resolvedParams.id);
 
-        const mesaActual = await prisma.mesas.findFirst({
-            where: { numero: parametroNumeroUrl }
+        const mesaActual = await prisma.mesas.findUnique({
+            where: { id_mesa: idMesa }
         });
 
         if (!mesaActual) {
             return NextResponse.json({ error: "La mesa especificada no existe." }, { status: 404 });
         }
 
-        const mesaBorrada = await prisma.mesas.delete({
-            where: { id_mesa: mesaActual.id_mesa },
+        const mesaBorrada = await prisma.$transaction(async (tx) => {
+            // 1. Desasociar pedidos (set id_mesa = null)
+            await tx.pedidos.updateMany({
+                where: { id_mesa: mesaActual.id_mesa },
+                data: { id_mesa: null }
+            });
+
+            // 2. Eliminar reservaciones asociadas
+            await tx.reservas.deleteMany({
+                where: { id_mesa: mesaActual.id_mesa }
+            });
+
+            // 3. Eliminar la mesa físicamente
+            return await tx.mesas.delete({
+                where: { id_mesa: mesaActual.id_mesa }
+            });
         });
 
         await pusherServer.trigger('tables-channel', 'table-updated', { ...mesaBorrada, activa: false });
