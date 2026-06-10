@@ -1,47 +1,14 @@
 import { useState, useMemo } from 'react';
-import { mockInsumos, formatUnidad, type Insumo } from '../../../shared/mocks/inventario';
+import { mockInsumos, formatUnidad, type Insumo, mockProductosRecetas, saveInsumosToStorage, saveProductosRecetasToStorage } from '../../../shared/mocks/inventario';
 import BaseButton from '../../../shared/components/BaseButton';
 import { Input } from '../../../shared/components/Input';
 import CrearInsumoModal, { type CrearInsumoFormData } from './components/CrearInsumoModal';
 import AsociarInsumosModal, { type MockProductoReceta } from './components/AsociarInsumosModal';
 
-const initialMockProductosRecetas: MockProductoReceta[] = [
-  {
-    id_producto: 'PROD-001',
-    nombre: 'Pique Macho Especial',
-    ingredientes: [
-      { id_insumo: 'INS-004', nombre_insumo: 'Carne Molida Especial', cantidad: 0.35, unidad: 'KG' },
-      { id_insumo: 'INS-003', nombre_insumo: 'Tomate Perita', cantidad: 0.15, unidad: 'KG' }
-    ]
-  },
-  {
-    id_producto: 'PROD-002',
-    nombre: 'Hamburguesa clásica',
-    ingredientes: [
-      { id_insumo: 'INS-005', nombre_insumo: 'Pan de Hamburguesa Brioche', cantidad: 1.0, unidad: 'Unidades' },
-      { id_insumo: 'INS-007', nombre_insumo: 'Queso Cheddar', cantidad: 0.05, unidad: 'KG' }
-    ]
-  },
-  {
-    id_producto: 'PROD-003',
-    nombre: 'Pechuga a la Plancha',
-    ingredientes: [
-      { id_insumo: 'INS-001', nombre_insumo: 'Pechuga de Pollo', cantidad: 0.25, unidad: 'KG' }
-    ]
-  },
-  {
-    id_producto: 'PROD-004',
-    nombre: 'Agua Mineral Helada',
-    ingredientes: [
-      { id_insumo: 'INS-002', nombre_insumo: 'Agua San Luis 2L', cantidad: 1.0, unidad: 'Litros' }
-    ]
-  }
-];
-
 export default function CatalogoInsumos() {
   const [insumos, setInsumos] = useState<Insumo[]>(mockInsumos);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [productosRecetas, setProductosRecetas] = useState<MockProductoReceta[]>(initialMockProductosRecetas);
+  const [productosRecetas, setProductosRecetas] = useState<MockProductoReceta[]>(mockProductosRecetas);
   const [isAsociarOpen, setIsAsociarOpen] = useState<boolean>(false);
 
   const [busqueda, setBusqueda] = useState<string>('');
@@ -78,7 +45,10 @@ export default function CatalogoInsumos() {
       stock_minimo: nuevoDato.stock_minimo === '' ? 0 : Number(nuevoDato.stock_minimo),
       activo: true,
     };
-    setInsumos([nuevoInsumo, ...insumos]);
+    const updated = [nuevoInsumo, ...insumos];
+    setInsumos(updated);
+    mockInsumos.unshift(nuevoInsumo);
+    saveInsumosToStorage();
   };
 
   return (
@@ -226,7 +196,12 @@ export default function CatalogoInsumos() {
         onClose={() => setIsAsociarOpen(false)}
         insumos={insumos}
         productosRecetas={productosRecetas}
-        onUpdateRecetas={setProductosRecetas}
+        onUpdateRecetas={(nuevasRecetas) => {
+          setProductosRecetas(nuevasRecetas);
+          mockProductosRecetas.length = 0;
+          mockProductosRecetas.push(...nuevasRecetas);
+          saveProductosRecetasToStorage();
+        }}
       />
     </div>
   );
