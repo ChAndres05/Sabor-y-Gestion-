@@ -68,8 +68,13 @@ export function mapBackendOrderToWaiterFrontend(
     };
   });
 
-  // 2. MAGIA MATEMÁTICA: Calculamos el tiempo total correcto (Tiempo Base * Cantidad)
-  const tiempoTotalCalculado = mappedItems.reduce((acc, item) => acc + (item.tiempoPreparacion * item.cantidad), 0);
+  // 2. MAGIA MATEMÁTICA: Calculamos el tiempo total estimado correcto
+  const maxItemTime = mappedItems.reduce((max, item) => {
+    const itemTime = item.tiempoPreparacion + (item.cantidad > 2 ? 5 : 0);
+    return itemTime > max ? itemTime : max;
+  }, 0);
+  const tiempoTotalCalculado = maxItemTime + (mappedItems.length > 2 ? 5 : 0);
+
 
   return {
     id: orderId,
