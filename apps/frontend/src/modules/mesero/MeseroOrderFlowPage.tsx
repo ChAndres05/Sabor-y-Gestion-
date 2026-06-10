@@ -713,7 +713,7 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
                 <div className="rounded-xl bg-background p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Precio</p><p className="text-[16px] font-bold text-text">{selectedProduct ? formatCurrency(selectedProduct.precio * (Number(quantity) || 1)) : 'Bs 0.00'}</p></div>
                 <div className="rounded-xl bg-background p-3">
                   <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Tiempo estimado</p>
-                  <p className="text-[16px] font-bold text-text">{selectedProduct ? `~${selectedProduct.tiempoPreparacion + (Number(quantity) > 1 ? 5 : 0)} min` : '0 min'}</p>
+                  <p className="text-[16px] font-bold text-text">{selectedProduct ? `~${selectedProduct.tiempoPreparacion + (Number(quantity) > 2 ? 5 : 0)} min` : '0 min'}</p>
                 </div>
               </div>
               {ingredientSelections.length > 0 && (
