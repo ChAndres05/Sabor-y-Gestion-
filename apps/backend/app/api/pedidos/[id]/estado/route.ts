@@ -31,6 +31,42 @@ export async function PATCH(
         if (pedidoOriginal.estado !== 'REGISTRADO') {
           throw new Error("SOLO_REGISTRADOS_PUEDEN_CANCELARSE");
         }
+
+        // Restaurar stock de todos los ítems en el pedido
+        const detalles = await tx.detalles_pedido.findMany({
+          where: { id_pedido }
+        });
+
+        for (const detalle of detalles) {
+          const recetaIngredientes = await tx.recetas_presentaciones_producto.findMany({
+            where: { id_presentacion_producto: detalle.id_presentacion_producto }
+          });
+
+          for (const ing of recetaIngredientes) {
+            const cantRestore = Number(ing.cantidad_insumo) * detalle.cantidad;
+
+            const insumo = await tx.insumos.findUnique({
+              where: { id_insumo: ing.id_insumo }
+            });
+
+            if (insumo) {
+              await tx.insumos.update({
+                where: { id_insumo: ing.id_insumo },
+                data: { stock_actual: { increment: cantRestore } }
+              });
+
+              await tx.movimientos_stock.create({
+                data: {
+                  id_insumo: ing.id_insumo,
+                  tipo_movimiento: 'ENTRADA',
+                  cantidad: cantRestore,
+                  motivo: `Restauración por cancelación de Pedido #${id_pedido}`,
+                  fecha_registro: new Date()
+                }
+              });
+            }
+          }
+        }
       }
 
       // 🛑 OPTIMIZACIÓN DE VELOCIDAD: Cálculo Nativo en Base de Datos
