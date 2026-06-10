@@ -3,6 +3,11 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+interface RecetaIngredienteInput {
+  id_insumo: string | number;
+  cantidad: number;
+}
+
 const formatUnidad = (unidad: string): string => {
   const map: Record<string, string> = {
     KILOGRAMO: 'KG',
@@ -72,10 +77,16 @@ export async function POST(request: Request) {
 
     const prodId = Number(id_producto);
 
-    // Buscar presentación
+    // Buscar presentación predeterminada primero, si no hay, la primera activa
     let pres = await prisma.presentaciones_producto.findFirst({
-      where: { id_producto: prodId, activo: true }
+      where: { id_producto: prodId, activo: true, es_predeterminada: true }
     });
+
+    if (!pres) {
+      pres = await prisma.presentaciones_producto.findFirst({
+        where: { id_producto: prodId, activo: true }
+      });
+    }
 
     if (!pres) {
       const product = await prisma.productos.findUnique({
@@ -111,7 +122,7 @@ export async function POST(request: Request) {
       // 2. Crear nuevos registros de receta
       if (ingredientes.length > 0) {
         await tx.recetas_presentaciones_producto.createMany({
-          data: ingredientes.map((ing: any) => ({
+          data: ingredientes.map((ing: RecetaIngredienteInput) => ({
             id_presentacion_producto: idPresentacion,
             id_insumo: Number(ing.id_insumo),
             cantidad_insumo: Number(ing.cantidad)

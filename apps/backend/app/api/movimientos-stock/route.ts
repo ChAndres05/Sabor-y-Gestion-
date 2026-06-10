@@ -3,6 +3,19 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+interface ComputedMovimiento {
+  id_movimiento: string;
+  id_insumo: string;
+  nombre_insumo: string;
+  tipo_movimiento: string;
+  cantidad: number;
+  unidad_medida: string;
+  stock_anterior: number;
+  stock_actual: number;
+  fecha_hora: string;
+  usuario: string;
+}
+
 export async function GET() {
   try {
     // 1. Obtener todos los movimientos y sus insumos y usuarios asociados
@@ -30,7 +43,7 @@ export async function GET() {
       movsPorInsumo[mov.id_insumo].push(mov);
     }
 
-    const computedMovs: any[] = [];
+    const computedMovs: ComputedMovimiento[] = [];
 
     // 3. Para cada insumo, hacer el backtracking matemático del stock
     for (const idInsumoStr of Object.keys(movsPorInsumo)) {
@@ -137,12 +150,13 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ success: true, movimiento: resultado });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error al registrar movimiento de stock:', error);
-    if (error.message === 'INSUMO_NO_ENCONTRADO') {
+    const message = error instanceof Error ? error.message : '';
+    if (message === 'INSUMO_NO_ENCONTRADO') {
       return NextResponse.json({ error: 'Insumo no encontrado' }, { status: 404 });
     }
-    if (error.message === 'STOCK_INSUFICIENTE') {
+    if (message === 'STOCK_INSUFICIENTE') {
       return NextResponse.json({ error: 'Stock insuficiente para realizar esta salida' }, { status: 400 });
     }
     return NextResponse.json({ error: 'Error al registrar movimiento' }, { status: 500 });

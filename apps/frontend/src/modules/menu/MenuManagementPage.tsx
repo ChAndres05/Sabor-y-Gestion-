@@ -17,6 +17,38 @@ import type {
   ProductStatusFilter,
 } from './types/menu.types';
 import { menuApi } from './menu.api';
+interface ApiInsumo {
+  nombre: string;
+  activo: boolean;
+  unidad_medida: string;
+}
+
+interface ApiRecetaPresentacion {
+  id_insumo: string | number;
+  cantidad_insumo: string | number;
+  insumo: ApiInsumo;
+}
+
+interface ApiPresentacion {
+  es_predeterminada?: boolean | null;
+  recetas_presentaciones?: ApiRecetaPresentacion[] | null;
+}
+
+interface ApiProduct {
+  id_producto?: string | number | null;
+  id?: string | number | null;
+  id_categoria?: string | number | null;
+  categoryId?: string | number | null;
+  nombre: string;
+  descripcion?: string | null;
+  precio?: string | number | null;
+  tiempo_preparacion?: string | number | null;
+  imagen_url?: string | null;
+  imagen?: string | null;
+  activo?: boolean | null;
+  disponible?: boolean | null;
+  presentaciones?: ApiPresentacion[] | null;
+}
 
 interface MenuManagementPageProps {
   onBack: () => void;
@@ -123,11 +155,11 @@ export default function MenuManagementPage({
 
     try {
       const data = await menuApi.getProductos();
-      const mappedProducts: MenuProduct[] = data.map((p: any) => {
-        const pres = p.presentaciones?.find((pres: any) => pres.es_predeterminada) || p.presentaciones?.[0];
+      const mappedProducts: MenuProduct[] = (data as unknown as ApiProduct[]).map((p) => {
+        const pres = p.presentaciones?.find((pres) => pres.es_predeterminada) || p.presentaciones?.[0];
         const ingredientes = pres?.recetas_presentaciones
-          ?.filter((rp: any) => rp.insumo && rp.insumo.activo)
-          .map((rp: any) => ({
+          ?.filter((rp) => rp.insumo && rp.insumo.activo)
+          .map((rp) => ({
             id_insumo: String(rp.id_insumo),
             nombre: rp.insumo.nombre,
             cantidad: Number(rp.cantidad_insumo),
@@ -136,8 +168,8 @@ export default function MenuManagementPage({
           })) || [];
 
         return {
-          id: p.id_producto || p.id,
-          categoryId: p.id_categoria || p.categoryId,
+          id: Number(p.id_producto || p.id) || 0,
+          categoryId: Number(p.id_categoria || p.categoryId) || 0,
           nombre: p.nombre,
           descripcion: p.descripcion || '',
           precio: Number(p.precio) || 0,

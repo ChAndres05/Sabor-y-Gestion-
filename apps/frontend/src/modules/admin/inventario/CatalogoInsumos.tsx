@@ -68,9 +68,10 @@ export default function CatalogoInsumos() {
         stock_minimo: nuevoDato.stock_minimo
       });
       await cargarDatos();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error al guardar el insumo:', error);
-      alert(error.message || 'No se pudo crear el insumo.');
+      const message = error instanceof Error ? error.message : 'No se pudo crear el insumo.';
+      alert(message);
     } finally {
       setLoading(false);
     }
