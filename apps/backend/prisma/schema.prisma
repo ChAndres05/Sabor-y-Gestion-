@@ -75,6 +75,7 @@ model detalles_pedido {
   subtotal                 Decimal                 @db.Decimal
   observaciones            String?
   preparado                Boolean                 @default(false)
+  ingredientes             Json?
   pedido                   pedidos                 @relation(fields: [id_pedido], references: [id_pedido], onDelete: NoAction, onUpdate: NoAction)
   presentacion_producto    presentaciones_producto @relation(fields: [id_presentacion_producto], references: [id_presentacion_producto], onDelete: NoAction, onUpdate: NoAction)
 
