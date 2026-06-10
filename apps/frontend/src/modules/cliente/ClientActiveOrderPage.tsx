@@ -465,7 +465,7 @@ export default function ClientActiveOrderPage({ user, tableId, onBack }: ClientA
                   <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Tiempo estimado</p>
                   <p className="text-[16px] font-bold text-text">
                     {selectedProduct 
-                      ? `~${selectedProduct.tiempoPreparacion + (Number(quantity) > 1 ? 5 : 0)} min` 
+                      ? `~${selectedProduct.tiempoPreparacion + (Number(quantity) > 2 ? 5 : 0)} min` 
                       : '0 min'}
                   </p>
                 </div>
