@@ -143,6 +143,14 @@ export default function ClientProductDetailPage({
                 </p>
               </div>
 
+              {product.ingredientes && product.ingredientes.length > 0 && (
+                <div className="mt-5">
+                  <h2 className="text-[16px] font-bold text-text">Ingredientes</h2>
+                  <p className="mt-2 text-[14px] leading-7 text-gray-600">
+                    {product.ingredientes.map((ing) => ing.nombre).join(', ')}
+                  </p>
+                </div>
+              )}
 
               <button
                 type="button"
