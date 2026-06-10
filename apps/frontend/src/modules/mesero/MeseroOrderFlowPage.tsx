@@ -12,7 +12,8 @@ import { pusherClient } from '../../shared/utils/pusher';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { RestaurantTable } from '../tables/types/table.types';
 import type { AddOrderItemPayload, OrderCatalogCategory, OrderCatalogProduct, TableOrder, TableOrderItem, TableOrderStatus } from '../tables/types/table-order.types';
-import { mockInsumos, mockProductosRecetas, saveInsumosToStorage, saveMovimientosToStorage, mockMovimientos } from '../../shared/mocks/inventario';
+import { type Insumo, type MockProductoReceta } from '../../shared/mocks/inventario';
+import { inventarioApi } from '../../shared/api/inventario.api';
 
 type FlowStep = 'cliente' | 'menu' | 'pedido';
 
@@ -86,6 +87,8 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
   const [isChangingStatus, setIsChangingStatus] = useState(false);
   const [isRequestingBill, setIsRequestingBill] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
+  const [insumos, setInsumos] = useState<Insumo[]>([]);
+  const [productosRecetas, setProductosRecetas] = useState<MockProductoReceta[]>([]);
   const skipNextIngredientHydration = useRef(false);
   const refreshPageStateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -93,7 +96,7 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
 
   const currentRecipe = useMemo(() => {
     if (!selectedProduct) return null;
-    const found = mockProductosRecetas.find(
+    const found = productosRecetas.find(
       (recipe) => recipe.nombre.toLowerCase() === selectedProduct.nombre.toLowerCase()
     );
     if (found) return found;
@@ -104,11 +107,11 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
       id_producto: String(selectedProduct.id),
       nombre: selectedProduct.nombre,
       ingredientes: [
-        { id_insumo: 'INS-003', nombre_insumo: 'Tomate Perita', cantidad: 0.10, unidad: 'KG' },
-        { id_insumo: 'INS-007', nombre_insumo: 'Queso Cheddar', cantidad: 0.02, unidad: 'KG' }
+        { id_insumo: '3', nombre_insumo: 'Tomate Perita', cantidad: 0.10, unidad: 'KG' },
+        { id_insumo: '7', nombre_insumo: 'Queso Cheddar', cantidad: 0.02, unidad: 'KG' }
       ]
     };
-  }, [selectedProduct]);
+  }, [selectedProduct, productosRecetas]);
 
   const hasInsufficientStock = useMemo(() => {
     if (!currentRecipe) return false;
@@ -119,12 +122,15 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
       const isIncluded = selection ? selection.incluido : true;
       if (!isIncluded) return false;
 
-      const insumoStock = mockInsumos.find((i) => i.id_insumo === ing.id_insumo);
+      // Buscar insumo por nombre para mayor robustez
+      const insumoStock = insumos.find(
+        (i) => i.nombre.toLowerCase() === ing.nombre_insumo.toLowerCase()
+      );
       const totalNeeded = ing.cantidad * (Number(quantity) || 1);
       const stockActual = insumoStock ? insumoStock.stock_actual : 0;
       return stockActual < totalNeeded;
     });
-  }, [currentRecipe, quantity, ingredientSelections]);
+  }, [currentRecipe, quantity, ingredientSelections, insumos]);
 
   const isBillRequested = table?.estado === 'CUENTA_SOLICITADA';
   const canEditItems = Boolean(order) && !isBillRequested && order?.estado === 'REGISTRADO';
@@ -165,7 +171,11 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
   const refreshPageState = useCallback((preferredOrderId?: number) => {
     if (refreshPageStateTimer.current) clearTimeout(refreshPageStateTimer.current);
     refreshPageStateTimer.current = setTimeout(() => {
-      void Promise.all([refreshOrders(preferredOrderId), refreshTable()]);
+      void Promise.all([
+        refreshOrders(preferredOrderId), 
+        refreshTable(),
+        inventarioApi.getInsumos().then(setInsumos)
+      ]);
     }, 300);
   }, [refreshOrders, refreshTable]);
 
@@ -190,16 +200,20 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
     const loadInitialData = async () => {
       setIsLoading(true);
       try {
-        const [tableData, categoriesData, ordersData, productsDataRaw] = await Promise.all([
+        const [tableData, categoriesData, ordersData, productsDataRaw, dataInsumos, dataRecetas] = await Promise.all([
           tablesApi.getTableById(tableId),
           menuApi.getCategories('', 'activas'),
           ordersApi.getOpenOrdersByTable(tableId),
-          menuApi.getProductos()
+          menuApi.getProductos(),
+          inventarioApi.getInsumos(),
+          inventarioApi.getProductosRecetas()
         ]);
 
         setTable(tableData);
         setCategories(categoriesData);
         setActiveOrders(ordersData);
+        setInsumos(dataInsumos);
+        setProductosRecetas(dataRecetas);
 
         const mappedAllProducts: OrderCatalogProduct[] = (productsDataRaw as BackendProduct[])
           .map(mapProductFromBackend)
@@ -317,80 +331,7 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
         ...(selectedProduct ? { precioUnitario: selectedProduct.precio, tiempoPreparacion: selectedProduct.tiempoPreparacion, imagen: selectedProduct.imagen ?? null } : {}),
       };
 
-      // 1. Restaurar stock del item anterior si estamos editando
-      if (editingItemId && order?.items) {
-        const oldItem = order.items.find(item => item.id === editingItemId);
-        if (oldItem) {
-          const oldRecipe = mockProductosRecetas.find(
-            (r) => r.nombre.toLowerCase() === oldItem.nombreProducto.toLowerCase()
-          );
-          if (oldRecipe) {
-            oldRecipe.ingredientes.forEach((ing) => {
-              // Verificar si el ingrediente estaba incluido en el ítem anterior
-              const wasIncluded = oldItem.ingredientes?.find(
-                (itemIng) => itemIng.nombre.toLowerCase() === ing.nombre_insumo.toLowerCase()
-              )?.incluido ?? true;
-
-              if (wasIncluded) {
-                const insumo = mockInsumos.find((i) => i.id_insumo === ing.id_insumo);
-                if (insumo) {
-                  const qtyToRestore = ing.cantidad * oldItem.cantidad;
-                  insumo.stock_actual += qtyToRestore;
-
-                  mockMovimientos.unshift({
-                    id_movimiento: `MOV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-                    id_insumo: insumo.id_insumo,
-                    nombre_insumo: insumo.nombre,
-                    tipo_movimiento: 'ENTRADA',
-                    cantidad: qtyToRestore,
-                    unidad_medida: insumo.unidad_medida,
-                    stock_anterior: insumo.stock_actual - qtyToRestore,
-                    stock_actual: insumo.stock_actual,
-                    fecha_hora: new Date().toISOString(),
-                    usuario: `${user.nombre} (${user.rol}) - Edición Reversa`
-                  });
-                }
-              }
-            });
-          }
-        }
-      }
-
-      // 2. Descontar stock para el nuevo item/cantidad
-      if (currentRecipe) {
-        currentRecipe.ingredientes.forEach((ing) => {
-          // Verificar si el ingrediente está activo/incluido en la selección actual
-          const selection = ingredientSelections.find(
-            (sel) => sel.nombre.toLowerCase() === ing.nombre_insumo.toLowerCase()
-          );
-          const isIncluded = selection ? selection.incluido : true;
-
-          if (isIncluded) {
-            const insumo = mockInsumos.find((i) => i.id_insumo === ing.id_insumo);
-            if (insumo) {
-              const qtyToDeduct = ing.cantidad * Number(quantity);
-              insumo.stock_actual -= qtyToDeduct;
-
-              mockMovimientos.unshift({
-                id_movimiento: `MOV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-                id_insumo: insumo.id_insumo,
-                nombre_insumo: insumo.nombre,
-                tipo_movimiento: 'SALIDA',
-                cantidad: qtyToDeduct,
-                unidad_medida: insumo.unidad_medida,
-                stock_anterior: insumo.stock_actual + qtyToDeduct,
-                stock_actual: insumo.stock_actual,
-                fecha_hora: new Date().toISOString(),
-                usuario: `${user.nombre} (${user.rol})`
-              });
-            }
-          }
-        });
-      }
-
-      // Guardar cambios del inventario mockeado a localStorage
-      saveInsumosToStorage();
-      saveMovimientosToStorage();
+      // La deducción y ajuste de stock ahora la maneja el backend automáticamente de forma transaccional
 
       if (editingItemId) {
         await ordersApi.updateOrderItem(tableId, editingItemId, payload, targetOrderId);
@@ -431,39 +372,7 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
 
   const handleRemoveItem = async (itemId: number) => {
     try {
-      // Intentar restaurar el stock del item que se va a eliminar
-      if (order && order.items) {
-        const itemToRemove = order.items.find(item => item.id === itemId);
-        if (itemToRemove) {
-          const recipe = mockProductosRecetas.find(
-            (r) => r.nombre.toLowerCase() === itemToRemove.nombreProducto.toLowerCase()
-          );
-          if (recipe) {
-            recipe.ingredientes.forEach((ing) => {
-              const insumo = mockInsumos.find((i) => i.id_insumo === ing.id_insumo);
-              if (insumo) {
-                const qtyToRestore = ing.cantidad * itemToRemove.cantidad;
-                insumo.stock_actual += qtyToRestore;
-
-                mockMovimientos.unshift({
-                  id_movimiento: `MOV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-                  id_insumo: insumo.id_insumo,
-                  nombre_insumo: insumo.nombre,
-                  tipo_movimiento: 'ENTRADA',
-                  cantidad: qtyToRestore,
-                  unidad_medida: insumo.unidad_medida,
-                  stock_anterior: insumo.stock_actual - qtyToRestore,
-                  stock_actual: insumo.stock_actual,
-                  fecha_hora: new Date().toISOString(),
-                  usuario: `${user.nombre} (${user.rol}) - Item Eliminado`
-                });
-              }
-            });
-            saveInsumosToStorage();
-            saveMovimientosToStorage();
-          }
-        }
-      }
+      // La restauración de stock por ítem eliminado ahora la maneja el backend automáticamente de forma transaccional
 
       if (order) await ordersApi.removeOrderItem(order.id, itemId, tableId);
       else await ordersApi.removeOrderItem(0, itemId, tableId);
@@ -492,38 +401,7 @@ export default function MeseroOrderFlowPage({ user, tableId, onBack, onOpenOrder
     if (!confirmCancel) return;
 
     try {
-      // Restaurar el stock de todos los items en el pedido cancelado
-      if (order.items && order.items.length > 0) {
-        order.items.forEach((item) => {
-          const recipe = mockProductosRecetas.find(
-            (r) => r.nombre.toLowerCase() === item.nombreProducto.toLowerCase()
-          );
-          if (recipe) {
-            recipe.ingredientes.forEach((ing) => {
-              const insumo = mockInsumos.find((i) => i.id_insumo === ing.id_insumo);
-              if (insumo) {
-                const qtyToRestore = ing.cantidad * item.cantidad;
-                insumo.stock_actual += qtyToRestore;
-
-                mockMovimientos.unshift({
-                  id_movimiento: `MOV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-                  id_insumo: insumo.id_insumo,
-                  nombre_insumo: insumo.nombre,
-                  tipo_movimiento: 'ENTRADA',
-                  cantidad: qtyToRestore,
-                  unidad_medida: insumo.unidad_medida,
-                  stock_anterior: insumo.stock_actual - qtyToRestore,
-                  stock_actual: insumo.stock_actual,
-                  fecha_hora: new Date().toISOString(),
-                  usuario: `${user.nombre} (${user.rol}) - Cancelación`
-                });
-              }
-            });
-          }
-        });
-        saveInsumosToStorage();
-        saveMovimientosToStorage();
-      }
+      // La restauración de stock por cancelación ahora la maneja el backend automáticamente de forma transaccional
 
       await ordersApi.updateOrderStatus(order.id, 'CANCELADO', tableId);
       setFeedback({ type: 'success', title: 'Pedido Cancelado', message: 'El pedido ha sido cancelado y los insumos se devolvieron al inventario.' });
