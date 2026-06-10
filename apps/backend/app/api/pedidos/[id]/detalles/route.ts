@@ -29,7 +29,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const precio_unitario = Number(presentacion.precio);
     const subtotal = precio_unitario * cantidad;
 
-    // Crear el detalle y actualizar el total del pedido en una transacción
+    // Crear el detalle, deducir stock y actualizar el total del pedido en una transacción
     const [nuevoDetalle, pedidoActualizado] = await prisma.$transaction(async (tx) => {
       const detalle = await tx.detalles_pedido.create({
         data: {
@@ -41,6 +41,41 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           observaciones
         }
       });
+
+      // Deducir stock para cada insumo en la receta de esta presentación
+      const recetaIngredientes = await tx.recetas_presentaciones_producto.findMany({
+        where: { id_presentacion_producto }
+      });
+
+      for (const ing of recetaIngredientes) {
+        const cantInsumo = Number(ing.cantidad_insumo) * cantidad;
+        
+        const insumo = await tx.insumos.findUnique({
+          where: { id_insumo: ing.id_insumo }
+        });
+
+        if (insumo) {
+          await tx.insumos.update({
+            where: { id_insumo: ing.id_insumo },
+            data: {
+              stock_actual: {
+                decrement: cantInsumo
+              }
+            }
+          });
+
+          // Registrar movimiento de salida
+          await tx.movimientos_stock.create({
+            data: {
+              id_insumo: ing.id_insumo,
+              tipo_movimiento: 'SALIDA',
+              cantidad: cantInsumo,
+              motivo: `Consumo por Pedido #${id_pedido}`,
+              fecha_registro: new Date()
+            }
+          });
+        }
+      }
 
       const pedido = await tx.pedidos.findUnique({ where: { id_pedido } });
       const nuevoTotal = Number(pedido?.total || 0) + subtotal;
