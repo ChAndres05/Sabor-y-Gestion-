@@ -126,9 +126,12 @@ model insumos {
   stock_actual                    Decimal                           @default(0) @db.Decimal
   stock_minimo                    Decimal                           @default(0) @db.Decimal
   activo                          Boolean                           @default(true)
+  id_categoria_insumo             Int?
+  categorias_insumos              categorias_insumos?               @relation(fields: [id_categoria_insumo], references: [id_categoria_insumo], onDelete: NoAction, onUpdate: NoAction)
   movimientos_stock               movimientos_stock[]
   recetas_presentaciones_producto recetas_presentaciones_producto[]
 
+  @@index([id_categoria_insumo], map: "idx_insumos_id_categoria_insumo")
   @@map("insumos")
 }
 
@@ -441,4 +444,12 @@ model tipos_cliente {
   nombre_tipo     String     @unique @db.VarChar
   descripcion     String?    @db.VarChar
   usuarios        usuarios[]
+}
+
+model categorias_insumos {
+  id_categoria_insumo Int       @id @default(autoincrement())
+  nombre              String    @unique @db.VarChar
+  descripcion         String?
+  activo              Boolean   @default(true)
+  insumos             insumos[]
 }
