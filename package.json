@@ -10,10 +10,18 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "dev:frontend": "pnpm --filter frontend dev",
-    "dev:backend": "pnpm --filter backend dev"
+    "dev:backend": "pnpm --filter backend dev",
+    "test:qa": "pnpm --filter qa test",
+    "test:qa:ui": "pnpm --filter qa test:ui",
+    "test:qa:headed": "pnpm --filter qa test:headed",
+    "test:qa:report": "pnpm --filter qa test:report"
   },
   "devDependencies": {
     "prettier": "^3.8.1",
     "turbo": "^2.9.1"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.8.0",
+    "prisma": "^7.8.0"
   }
 }
