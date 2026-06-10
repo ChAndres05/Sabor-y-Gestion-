@@ -1,19 +1,41 @@
-import { useState, useMemo } from 'react';
-import { mockInsumos, formatUnidad, type Insumo, mockProductosRecetas, saveInsumosToStorage, saveProductosRecetasToStorage } from '../../../shared/mocks/inventario';
+import { useState, useMemo, useEffect } from 'react';
+import { formatUnidad, type Insumo, type MockProductoReceta } from '../../../shared/mocks/inventario';
 import BaseButton from '../../../shared/components/BaseButton';
 import { Input } from '../../../shared/components/Input';
 import CrearInsumoModal, { type CrearInsumoFormData } from './components/CrearInsumoModal';
-import AsociarInsumosModal, { type MockProductoReceta } from './components/AsociarInsumosModal';
+import AsociarInsumosModal from './components/AsociarInsumosModal';
+import { inventarioApi } from '../../../shared/api/inventario.api';
 
 export default function CatalogoInsumos() {
-  const [insumos, setInsumos] = useState<Insumo[]>(mockInsumos);
+  const [insumos, setInsumos] = useState<Insumo[]>([]);
+  const [productosRecetas, setProductosRecetas] = useState<MockProductoReceta[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [productosRecetas, setProductosRecetas] = useState<MockProductoReceta[]>(mockProductosRecetas);
   const [isAsociarOpen, setIsAsociarOpen] = useState<boolean>(false);
 
   const [busqueda, setBusqueda] = useState<string>('');
   const [filtroCategoria, setFiltroCategoria] = useState<string>('');
   const [filtroEstado, setFiltroEstado] = useState<string>('');
+
+  const cargarDatos = async () => {
+    try {
+      setLoading(true);
+      const [dataInsumos, dataRecetas] = await Promise.all([
+        inventarioApi.getInsumos(),
+        inventarioApi.getProductosRecetas()
+      ]);
+      setInsumos(dataInsumos);
+      setProductosRecetas(dataRecetas);
+    } catch (error) {
+      console.error('Error cargando catálogo de insumos:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    cargarDatos();
+  }, []);
 
   const determinarEstado = (actual: number, minimo: number) => {
     if (actual === 0 || actual <= minimo * 0.2) return { label: 'Crítico', color: 'bg-alert text-white' };
@@ -35,20 +57,51 @@ export default function CatalogoInsumos() {
     });
   }, [insumos, busqueda, filtroCategoria, filtroEstado]);
 
-  const handleGuardarInsumo = (nuevoDato: CrearInsumoFormData) => {
-    const nuevoInsumo: Insumo = {
-      id_insumo: `INS-00${insumos.length + 1}`,
-      nombre: nuevoDato.nombre,
-      categoria: nuevoDato.categoria,
-      unidad_medida: nuevoDato.unidad_medida,
-      stock_actual: nuevoDato.stock_inicial === '' ? 0 : Number(nuevoDato.stock_inicial),
-      stock_minimo: nuevoDato.stock_minimo === '' ? 0 : Number(nuevoDato.stock_minimo),
-      activo: true,
-    };
-    const updated = [nuevoInsumo, ...insumos];
-    setInsumos(updated);
-    mockInsumos.unshift(nuevoInsumo);
-    saveInsumosToStorage();
+  const handleGuardarInsumo = async (nuevoDato: CrearInsumoFormData) => {
+    try {
+      setLoading(true);
+      await inventarioApi.crearInsumo({
+        nombre: nuevoDato.nombre,
+        categoria: nuevoDato.categoria,
+        unidad_medida: nuevoDato.unidad_medida,
+        stock_inicial: nuevoDato.stock_inicial,
+        stock_minimo: nuevoDato.stock_minimo
+      });
+      await cargarDatos();
+    } catch (error: any) {
+      console.error('Error al guardar el insumo:', error);
+      alert(error.message || 'No se pudo crear el insumo.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateRecetas = async (nuevasRecetas: MockProductoReceta[]) => {
+    // Identificar qué producto cambió en sus ingredientes
+    const changedProduct = nuevasRecetas.find((newRec) => {
+      const oldRec = productosRecetas.find((oldRec) => oldRec.id_producto === newRec.id_producto);
+      return JSON.stringify(oldRec?.ingredientes) !== JSON.stringify(newRec.ingredientes);
+    });
+
+    if (changedProduct) {
+      try {
+        setLoading(true);
+        await inventarioApi.guardarReceta(
+          changedProduct.id_producto,
+          changedProduct.ingredientes.map((ing) => ({
+            id_insumo: ing.id_insumo,
+            cantidad: ing.cantidad
+          }))
+        );
+        const dataRecetas = await inventarioApi.getProductosRecetas();
+        setProductosRecetas(dataRecetas);
+      } catch (error) {
+        console.error('Error al guardar la receta:', error);
+        alert('No se pudo guardar la receta en la base de datos.');
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   return (
@@ -104,6 +157,7 @@ export default function CatalogoInsumos() {
             variant="outline" 
             onClick={() => setIsAsociarOpen(true)}
             className="h-[46px] w-full md:w-auto"
+            disabled={loading || insumos.length === 0 || productosRecetas.length === 0}
           >
             Asociar con Productos
           </BaseButton>
@@ -111,6 +165,7 @@ export default function CatalogoInsumos() {
             variant="primary" 
             onClick={() => setIsModalOpen(true)}
             className="h-[46px] w-full md:w-auto"
+            disabled={loading}
           >
             + Nuevo insumo
           </BaseButton>
@@ -119,90 +174,91 @@ export default function CatalogoInsumos() {
 
       {/* Tabla Responsiva */}
       <div className="overflow-hidden rounded-2xl border border-gray-50 bg-white shadow-sm">
-        <div className="no-scrollbar overflow-x-auto">
-          <table className="min-w-[800px] w-full border-collapse text-left">
-            <thead>
-              <tr className="border-b border-gray-100 bg-white">
-                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Código</th>
-                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Insumo</th>
-                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Categoría</th>
-                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Productos</th>
-                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Unidad</th>
-                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Stock Actual</th>
-                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Min.</th>
-                <th className="px-6 py-4 text-center text-[11px] font-black uppercase tracking-wider text-gray-400">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {insumosFiltrados.length > 0 ? (
-                insumosFiltrados.map((insumo) => {
-                  const estado = determinarEstado(insumo.stock_actual, insumo.stock_minimo);
-                  const filaClase = estado.label === 'Crítico' ? 'bg-red-50/30 hover:bg-red-50' : 'hover:bg-gray-50';
-
-                  return (
-                    <tr key={insumo.id_insumo} className={`${filaClase} transition-colors`}>
-                      <td className="px-6 py-4 text-sm text-gray-500">{insumo.id_insumo}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-gray-900">{insumo.nombre}</td>
-                       <td className="px-6 py-4 text-sm text-gray-500">{insumo.categoria}</td>
-                      <td className="px-6 py-4 text-sm">
-                        <div className="flex flex-wrap gap-1 max-w-[200px]">
-                          {(() => {
-                            const asociados = productosRecetas.filter((p) =>
-                              p.ingredientes.some((ing) => ing.id_insumo === insumo.id_insumo)
-                            );
-                            return asociados.length > 0 ? (
-                              asociados.map((p) => (
-                                <span
-                                  key={p.id_producto}
-                                  className="rounded-lg bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600"
-                                >
-                                  {p.nombre}
-                                </span>
-                              ))
-                            ) : (
-                              <span className="text-gray-400 text-xs italic">Ninguno</span>
-                            );
-                          })()}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{formatUnidad(insumo.unidad_medida)}</td>
-                      <td className={`px-6 py-4 text-sm font-bold ${estado.label === 'Crítico' ? 'text-alert' : 'text-gray-900'}`}>
-                        {insumo.stock_actual}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{insumo.stock_minimo}</td>
-                      <td className="px-6 py-4 text-center text-sm">
-                        <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider ${estado.color} bg-opacity-90`}>
-                          {estado.label}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={8} className="py-8 text-center text-gray-500">
-                    No se encontraron insumos.
-                  </td>
+        {loading && insumos.length === 0 ? (
+          <div className="py-8 text-center text-gray-500">Cargando insumos...</div>
+        ) : (
+          <div className="no-scrollbar overflow-x-auto">
+            <table className="min-w-[800px] w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-gray-100 bg-white">
+                  <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Código</th>
+                  <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Insumo</th>
+                  <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Categoría</th>
+                  <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Productos</th>
+                  <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Unidad</th>
+                  <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Stock Actual</th>
+                  <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Min.</th>
+                  <th className="px-6 py-4 text-center text-[11px] font-black uppercase tracking-wider text-gray-400">Estado</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {insumosFiltrados.length > 0 ? (
+                  insumosFiltrados.map((insumo) => {
+                    const estado = determinarEstado(insumo.stock_actual, insumo.stock_minimo);
+                    const filaClase = estado.label === 'Crítico' ? 'bg-red-50/30 hover:bg-red-50' : 'hover:bg-gray-50';
+
+                    return (
+                      <tr key={insumo.id_insumo} className={`${filaClase} transition-colors`}>
+                        <td className="px-6 py-4 text-sm text-gray-500">{`INS-${String(insumo.id_insumo).padStart(3, '0')}`}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-gray-900">{insumo.nombre}</td>
+                        <td className="px-6 py-4 text-sm text-gray-500">{insumo.categoria}</td>
+                        <td className="px-6 py-4 text-sm">
+                          <div className="flex flex-wrap gap-1 max-w-[200px]">
+                            {(() => {
+                              const asociados = productosRecetas.filter((p) =>
+                                p.ingredientes.some((ing) => ing.id_insumo === insumo.id_insumo)
+                              );
+                              return asociados.length > 0 ? (
+                                asociados.map((p) => (
+                                  <span
+                                    key={p.id_producto}
+                                    className="rounded-lg bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600"
+                                  >
+                                    {p.nombre}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-gray-400 text-xs italic">Ninguno</span>
+                              );
+                            })()}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">{formatUnidad(insumo.unidad_medida)}</td>
+                        <td className={`px-6 py-4 text-sm font-bold ${estado.label === 'Crítico' ? 'text-alert' : 'text-gray-900'}`}>
+                          {insumo.stock_actual}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">{insumo.stock_minimo}</td>
+                        <td className="px-6 py-4 text-center text-sm">
+                          <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider ${estado.color} bg-opacity-90`}>
+                            {estado.label}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-gray-500">
+                      No se encontraron insumos.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <CrearInsumoModal open={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleGuardarInsumo} />
-      <AsociarInsumosModal
-        open={isAsociarOpen}
-        onClose={() => setIsAsociarOpen(false)}
-        insumos={insumos}
-        productosRecetas={productosRecetas}
-        onUpdateRecetas={(nuevasRecetas) => {
-          setProductosRecetas(nuevasRecetas);
-          mockProductosRecetas.length = 0;
-          mockProductosRecetas.push(...nuevasRecetas);
-          saveProductosRecetasToStorage();
-        }}
-      />
+      {isAsociarOpen && (
+        <AsociarInsumosModal
+          open={isAsociarOpen}
+          onClose={() => setIsAsociarOpen(false)}
+          insumos={insumos}
+          productosRecetas={productosRecetas}
+          onUpdateRecetas={handleUpdateRecetas}
+        />
+      )}
     </div>
   );
 }
