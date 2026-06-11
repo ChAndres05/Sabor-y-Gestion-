@@ -168,7 +168,7 @@ Sabor-y-Gestion/
 │   ├── backend/                 # API & Servidor (Next.js + Prisma)
 │   │   ├── app/                 # App Router de Next.js
 │   │   │   ├── api/             # Endpoints de la API
-│   │   │   │   ├── admin/       # Gestión de mesas, usuarios y zonas
+│   │   │   │   ├── admin/       # Gestión de mesas, usuarios, zonas y cupones
 │   │   │   │   ├── busqueda/    # Endpoint de búsqueda global
 │   │   │   │   ├── cajero/      # Gestión de caja (apertura, asignación, cierre, movimientos)
 │   │   │   │   ├── categorias/  # CRUD y servicios de categorías
@@ -211,7 +211,7 @@ Sabor-y-Gestion/
 │       │   ├── components/      
 │       │   │   └── client/      # Componentes aislados (ClientLayout, Card)
 │       │   ├── modules/         # Lógica de negocio dividida por dominio/rol
-│       │   │   ├── admin/       # Vistas de menú y reservaciones
+│       │   │   ├── admin/       # Vistas de menú, reservaciones y cupones
 │       │   │   ├── auth/        # (api, types, formularios y vistas)
 │       │   │   ├── cajero/      # Vista central y gestión de caja
 │       │   │   ├── cliente/     # Vistas públicas: menú, detalle, pedidos activos
@@ -427,9 +427,29 @@ A continuación se detallan los endpoints disponibles en el backend (`apps/backe
 | `GET` | `/api/admin/mesas` | Listado completo de mesas y su asignación a nivel de zonas del local para tareas de gestión. |
 | `GET` | `/api/admin/zonas` | Obtiene el listado de zonas del restaurante (ej. Terraza, Salón Principal). |
 | `POST` | `/api/admin/zonas` | Crea una nueva zona en el mapa de distribución física del restaurante. |
+| `PATCH` | `/api/zonas/[id]` | Modifica el nombre o la descripción de una zona específica. |
+| `DELETE` | `/api/zonas/[id]` | Desactiva (soft-delete) una zona del restaurante, verificando que no tenga mesas asociadas activas. |
 | `PATCH` | `/api/admin/usuarios` | Actualiza la información laboral del personal (roles de usuario, estado activo/inactivo). |
 | `POST` | `/api/admin/pagos` | Registra el pago final de una cuenta de mesa, emite el recibo/comprobante y libera la mesa para nuevos clientes. |
 | `GET` | `/api/admin/historial-caja` | Consolidado totalizador de transacciones de pago e ingresos/egresos de caja para auditoría administrativa. |
 | `GET` | `/api/admin/seed` | Proceso especial para poblar la base de datos de desarrollo y pruebas con datos semilla. |
+| `GET` | `/api/admin/cupones` | Obtiene el listado completo de cupones registrados. |
+| `POST` | `/api/admin/cupones` | Crea un nuevo cupón de descuento (tipo porcentaje o monto fijo). |
+| `PUT` | `/api/admin/cupones/[id]` | Edita y actualiza los parámetros o el estado de un cupón existente. |
+| `DELETE` | `/api/admin/cupones/[id]` | Elimina físicamente un cupón de descuento del sistema. |
+| `GET` | `/api/admin/cupones/validar` | Valida la vigencia y condiciones de un cupón dado su código y el monto de compra. |
+| `GET` | `/api/admin/facturas` | Obtiene el historial detallado de todas las facturas emitidas por el sistema en orden cronológico descendente. |
+| `PATCH` | `/api/admin/facturas/[id]/anular` | Anula una factura emitida actualizando su estado a 'ANULADA' y notificando el cambio en tiempo real vía WebSockets (Pusher). |
+
+### 13.10 Gestión de Inventario y Recetas
+
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/insumos` | Obtiene el listado de todos los insumos activos en el inventario con sus cantidades y límites mínimos de stock. |
+| `POST` | `/api/insumos` | Registra un nuevo insumo en el inventario con su unidad de medida y stock inicial. |
+| `GET` | `/api/movimientos-stock` | Obtiene el historial completo de movimientos de stock (entradas, salidas, mermas, ajustes) y calcula retrospectivamente los balances de stock. |
+| `POST` | `/api/movimientos-stock` | Registra una nueva transacción de stock (entrada, salida, ajuste, merma) actualizando la cantidad del insumo correspondiente. |
+| `GET` | `/api/recetas` | Obtiene el listado de productos del menú con sus respectivos ingredientes e insumos necesarios (recetas). |
+| `POST` | `/api/recetas` | Crea o actualiza la receta de un producto en el menú, vinculando o reemplazando los insumos requeridos. |
 
 
