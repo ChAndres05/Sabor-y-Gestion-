@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import BaseModal from '../../../../shared/components/BaseModal';
 import BaseButton from '../../../../shared/components/BaseButton';
 import { Input } from '../../../../shared/components/Input';
-import type { UnidadMedida } from '../../../../shared/mocks/inventario';
+import type { UnidadMedida, CategoriaInsumo } from '../../../../shared/mocks/inventario';
 
 export interface CrearInsumoFormData {
   nombre: string;
@@ -16,6 +16,7 @@ interface CrearInsumoModalProps {
   open: boolean;
   onClose: () => void;
   onSave: (data: CrearInsumoFormData) => void;
+  categorias: CategoriaInsumo[];
 }
 
 const valoresIniciales: CrearInsumoFormData = {
@@ -30,6 +31,7 @@ export default function CrearInsumoModal({
   open,
   onClose,
   onSave,
+  categorias,
 }: CrearInsumoModalProps) {
   const [formData, setFormData] = useState<CrearInsumoFormData>(valoresIniciales);
   const [errores, setErrores] = useState<Partial<Record<keyof CrearInsumoFormData, string>>>({});
@@ -133,11 +135,11 @@ export default function CrearInsumoModal({
               }`}
             >
               <option value="">Selecciona...</option>
-              <option value="Carnes y Aves">Carnes y Aves</option>
-              <option value="Verduras">Verduras</option>
-              <option value="Lácteos">Lácteos</option>
-              <option value="Bebidas">Bebidas</option>
-              <option value="Abarrotes / Secos">Abarrotes / Secos</option>
+              {categorias.map((cat) => (
+                <option key={cat.id_categoria_insumo} value={cat.nombre}>
+                  {cat.nombre}
+                </option>
+              ))}
             </select>
             {errores.categoria && <span className="text-xs italic text-alert">{errores.categoria}</span>}
           </div>

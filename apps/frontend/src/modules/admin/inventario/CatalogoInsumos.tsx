@@ -1,16 +1,19 @@
 import { useState, useMemo, useEffect } from 'react';
-import { formatUnidad, type Insumo, type MockProductoReceta } from '../../../shared/mocks/inventario';
+import { formatUnidad, type Insumo, type MockProductoReceta, type CategoriaInsumo } from '../../../shared/mocks/inventario';
 import BaseButton from '../../../shared/components/BaseButton';
 import { Input } from '../../../shared/components/Input';
 import CrearInsumoModal, { type CrearInsumoFormData } from './components/CrearInsumoModal';
+import CrearCategoriaModal from './components/CrearCategoriaModal';
 import AsociarInsumosModal from './components/AsociarInsumosModal';
 import { inventarioApi } from '../../../shared/api/inventario.api';
 
 export default function CatalogoInsumos() {
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [productosRecetas, setProductosRecetas] = useState<MockProductoReceta[]>([]);
+  const [categorias, setCategorias] = useState<CategoriaInsumo[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [isCategoriaModalOpen, setIsCategoriaModalOpen] = useState<boolean>(false);
   const [isAsociarOpen, setIsAsociarOpen] = useState<boolean>(false);
 
   const [busqueda, setBusqueda] = useState<string>('');
@@ -20,17 +23,25 @@ export default function CatalogoInsumos() {
   const cargarDatos = async () => {
     try {
       setLoading(true);
-      const [dataInsumos, dataRecetas] = await Promise.all([
+      const [dataInsumos, dataRecetas, dataCategorias] = await Promise.all([
         inventarioApi.getInsumos(),
-        inventarioApi.getProductosRecetas()
+        inventarioApi.getProductosRecetas(),
+        inventarioApi.getCategoriasInsumos()
       ]);
       setInsumos(dataInsumos);
       setProductosRecetas(dataRecetas);
+      setCategorias(dataCategorias);
     } catch (error) {
       console.error('Error cargando catálogo de insumos:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGuardarCategoria = async (nombre: string, descripcion?: string) => {
+    await inventarioApi.crearCategoriaInsumo(nombre, descripcion);
+    const dataCategorias = await inventarioApi.getCategoriasInsumos();
+    setCategorias(dataCategorias);
   };
 
   useEffect(() => {
@@ -131,11 +142,11 @@ export default function CatalogoInsumos() {
             className="mt-2 w-full rounded-xl border border-gray-100 bg-background p-3 text-[14px] outline-none focus:border-primary"
           >
             <option value="">Todas</option>
-            <option value="Carnes y Aves">Carnes y Aves</option>
-            <option value="Verduras">Verduras</option>
-            <option value="Bebidas">Bebidas</option>
-            <option value="Lácteos">Lácteos</option>
-            <option value="Abarrotes / Secos">Abarrotes / Secos</option>
+            {categorias.map((cat) => (
+              <option key={cat.id_categoria_insumo} value={cat.nombre}>
+                {cat.nombre}
+              </option>
+            ))}
           </select>
         </label>
 
@@ -161,6 +172,14 @@ export default function CatalogoInsumos() {
             disabled={loading || insumos.length === 0 || productosRecetas.length === 0}
           >
             Asociar con Productos
+          </BaseButton>
+          <BaseButton 
+            variant="outline" 
+            onClick={() => setIsCategoriaModalOpen(true)}
+            className="h-[46px] w-full md:w-auto"
+            disabled={loading}
+          >
+            + Nueva categoría
           </BaseButton>
           <BaseButton 
             variant="primary" 
@@ -250,7 +269,8 @@ export default function CatalogoInsumos() {
         )}
       </div>
 
-      <CrearInsumoModal open={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleGuardarInsumo} />
+      <CrearInsumoModal open={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleGuardarInsumo} categorias={categorias} />
+      <CrearCategoriaModal open={isCategoriaModalOpen} onClose={() => setIsCategoriaModalOpen(false)} onSave={handleGuardarCategoria} />
       {isAsociarOpen && (
         <AsociarInsumosModal
           open={isAsociarOpen}
