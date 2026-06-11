@@ -34,6 +34,29 @@ export const inventarioApi = {
     return res.json() as Promise<CategoriaInsumo>;
   },
 
+  async editarCategoriaInsumo(id: number, nombre: string, descripcion?: string): Promise<CategoriaInsumo> {
+    const res = await fetch(`${API_URL}/api/insumos/categorias/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre, descripcion })
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.message || errData.error || 'Error al actualizar la categoría');
+    }
+    return res.json() as Promise<CategoriaInsumo>;
+  },
+
+  async eliminarCategoriaInsumo(id: number): Promise<void> {
+    const res = await fetch(`${API_URL}/api/insumos/categorias/${id}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.message || errData.error || 'Error al eliminar la categoría');
+    }
+  },
+
   async crearInsumo(data: {
     nombre: string;
     categoria: string;
