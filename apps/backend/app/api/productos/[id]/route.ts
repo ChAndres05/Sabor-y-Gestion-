@@ -26,18 +26,39 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
     }
 
-    const productoActualizado = await prisma.productos.update({
-      where: { id_producto: id },
-      data: {
-        ...(nombre && { nombre: nombre.trim() }),
-        ...(descripcion !== undefined && { descripcion: descripcion ? descripcion.trim() : descripcion }),
-        ...(id_categoria && { id_categoria: Number(id_categoria) }),
-        ...(precio !== undefined && { precio: precio ? Number(precio) : null }),
-        ...(tiempo_preparacion !== undefined && { tiempo_preparacion: tiempo_preparacion !== null ? Number(tiempo_preparacion) : null }),
-        ...(imagen_url !== undefined && { imagen_url }),
-        ...(disponible !== undefined && { disponible }),
-        ...(activo !== undefined && { activo }) // Para la función "Desactivar" desde el frontend
+    const productoActualizado = await prisma.$transaction(async (tx) => {
+      const prod = await tx.productos.update({
+        where: { id_producto: id },
+        data: {
+          ...(nombre && { nombre: nombre.trim() }),
+          ...(descripcion !== undefined && { descripcion: descripcion ? descripcion.trim() : descripcion }),
+          ...(id_categoria && { id_categoria: Number(id_categoria) }),
+          ...(precio !== undefined && { precio: precio ? Number(precio) : null }),
+          ...(tiempo_preparacion !== undefined && { tiempo_preparacion: tiempo_preparacion !== null ? Number(tiempo_preparacion) : null }),
+          ...(imagen_url !== undefined && { imagen_url }),
+          ...(disponible !== undefined && { disponible }),
+          ...(activo !== undefined && { activo }) // Para la función "Desactivar" desde el frontend
+        }
+      });
+
+      // Actualizar la presentación predeterminada si existe
+      const pred = await tx.presentaciones_producto.findFirst({
+        where: { id_producto: id, es_predeterminada: true }
+      });
+
+      if (pred) {
+        await tx.presentaciones_producto.update({
+          where: { id_presentacion_producto: pred.id_presentacion_producto },
+          data: {
+            ...(precio !== undefined && { precio: precio ? Number(precio) : 0 }),
+            ...(tiempo_preparacion !== undefined && { tiempo_preparacion_minutos: tiempo_preparacion !== null ? Number(tiempo_preparacion) : 10 }),
+            ...(disponible !== undefined && { disponible }),
+            ...(activo !== undefined && { activo })
+          }
+        });
       }
+
+      return prod;
     });
     return NextResponse.json(productoActualizado);
   } catch {

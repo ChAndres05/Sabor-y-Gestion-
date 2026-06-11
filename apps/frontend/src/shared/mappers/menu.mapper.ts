@@ -90,11 +90,11 @@ export function mapProductFromBackend(product: BackendProduct) {
     ),
     nombre: product.nombre,
     descripcion: product.descripcion || '',
-    precio: numberValue(product.precio ?? presentation?.precio),
+    precio: numberValue(presentation?.precio ?? product.precio),
     tiempoPreparacion: numberValue(
-      product.tiempo_preparacion ??
-        product.tiempoPreparacion ??
-        presentation?.tiempo_preparacion_minutos
+      presentation?.tiempo_preparacion_minutos ??
+        product.tiempo_preparacion ??
+        product.tiempoPreparacion
     ),
     imagen:
       product.imagen_url ||

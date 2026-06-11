@@ -106,6 +106,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       });
 
       return [detalle, actualizado];
+    }, {
+      maxWait: 10000,
+      timeout: 20000
     });
 
     // Notify clients via Pusher

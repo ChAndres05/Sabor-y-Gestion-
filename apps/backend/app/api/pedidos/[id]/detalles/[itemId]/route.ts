@@ -131,6 +131,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       });
 
       return { updatedItem, updatedPedido };
+    }, {
+      maxWait: 10000,
+      timeout: 20000
     });
 
     // Notify clients via Pusher
@@ -227,6 +230,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       });
 
       return { deletedItem, updatedPedido };
+    }, {
+      maxWait: 10000,
+      timeout: 20000
     });
 
     // Notify clients via Pusher

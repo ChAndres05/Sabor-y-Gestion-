@@ -68,11 +68,11 @@ function normalizeProductFromMenu(
       id_categoria: categoryId,
       nombre: category.nombre,
     },
-    precio: product.precio ?? defaultPresentation?.precio ?? 0,
+    precio: defaultPresentation?.precio ?? product.precio ?? 0,
     tiempo_preparacion:
+      defaultPresentation?.tiempo_preparacion_minutos ??
       product.tiempo_preparacion ??
       product.tiempoPreparacion ??
-      defaultPresentation?.tiempo_preparacion_minutos ??
       0,
     disponible: product.disponible ?? product.activo ?? true,
     activo: product.activo ?? true,

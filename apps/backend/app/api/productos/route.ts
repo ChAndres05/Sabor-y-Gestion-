@@ -7,7 +7,12 @@ export async function GET() {
   try {
     const productos = await prisma.productos.findMany({
       where: { activo: true }, // Solo traemos los que no han sido "eliminados"
-      include: { categoria: true } // Incluimos los datos de la categoría para mostrar el nombre
+      include: { 
+        categoria: true, // Incluimos los datos de la categoría para mostrar el nombre
+        presentaciones: {
+          where: { activo: true }
+        }
+      }
     });
     return NextResponse.json(productos);
   } catch {
