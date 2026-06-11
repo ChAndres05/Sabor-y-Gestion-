@@ -452,4 +452,47 @@ A continuación se detallan los endpoints disponibles en el backend (`apps/backe
 | `GET` | `/api/recetas` | Obtiene el listado de productos del menú con sus respectivos ingredientes e insumos necesarios (recetas). |
 | `POST` | `/api/recetas` | Crea o actualiza la receta de un producto en el menú, vinculando o reemplazando los insumos requeridos. |
 
+---
+
+## 14. FLUJOS DE TRABAJO Y PROCESOS DE NEGOCIO (FRONTEND)
+
+El frontend (`apps/frontend`) está diseñado con base en roles y vistas independientes que coordinan los procesos operativos del restaurante. A continuación se detallan los principales flujos y las acciones que cada rol realiza:
+
+### 14.1 Flujo del Cliente (Auto-servicio / Consulta)
+* **Acceso y Autenticación**: El cliente inicia sesión en la plataforma desde su dispositivo móvil o tablet.
+* **Consulta de la Carta Digital**: Visualiza el menú estructurado por categorías de alimentos y bebidas actualizadas en tiempo real.
+* **Carrito y Pedido**: Selecciona los productos de su preferencia, especifica notas/observaciones especiales y envía el pedido directamente al sistema.
+* **Seguimiento del Estado**: Monitorea el progreso de su orden (si está en preparación o lista para retirar) desde la vista de seguimiento.
+
+### 14.2 Flujo del Mesero (Atención en Mesa)
+* **Gestión Visual de Mesas**: Accede al plano o listado de mesas del restaurante, filtrando por estado (disponible, ocupada, reservada).
+* **Asignación del Cliente**: Selecciona una mesa libre, ingresa el número de Cédula de Identidad (CI/NIT) del cliente para validar o registrar sus datos.
+* **Toma de Pedido**: Abre el pedido de la mesa, agrega los platos solicitados, incrementa cantidades, y escribe notas de preparación (validándose en tiempo real).
+* **Envío a Cocina**: Confirma el pedido y lo envía al monitor de preparación de la cocina.
+* **Atención y Cuenta**: Hace seguimiento de los platos listos para servirlos a la mesa. Posteriormente, solicita la pre-cuenta del cliente desde el panel.
+
+### 14.3 Flujo de la Cocina (Monitor en Tiempo Real)
+* **Monitor de Preparación**: El personal de cocina visualiza las órdenes entrantes en una pantalla táctil o monitor dedicada, actualizada en tiempo real mediante WebSockets (Pusher).
+* **Cambio de Estado a "En Preparación"**: Al iniciar un plato, el cocinero hace clic sobre él en la pantalla para cambiar el estado a "PREPARÁNDOSE".
+* **Control de Ítems (Switches)**: Marca de forma individual la terminación de cada ítem de un pedido.
+* **Notificación de Listo**: Cuando se completan todos los platos de una orden, pulsa el botón "LISTO", lo cual notifica inmediatamente al mesero para la entrega.
+
+### 14.4 Flujo del Cajero (Gestión de Caja y Pagos)
+* **Apertura de Turno**: Al iniciar la jornada, el cajero realiza la "Apertura de Caja" declarando el saldo inicial en efectivo en la caja física.
+* **Registro de Movimientos**: Puede registrar ingresos y egresos manuales con justificación (ej. pago a proveedores).
+* **Procesamiento de Pagos**:
+  * Visualiza las mesas que han solicitado cuenta.
+  * Valida y aplica **cupones de descuento** (con validación de vigencia y monto mínimo).
+  * Selecciona el método de pago (Efectivo, Tarjeta, Transferencia / QR).
+  * En efectivo, calcula el cambio a entregar de acuerdo al monto recibido.
+* **Cierre de Caja**: Al finalizar el turno, efectúa el arqueo de caja. El sistema compara los montos computados por el sistema con los montos reales declarados y calcula las discrepancias.
+
+### 14.5 Flujo del Administrador (Gestión y Control)
+* **Administración de Personal**: Actualiza los roles, datos y estados de activación del personal del restaurante.
+* **Configuración del Mapa de Zonas y Mesas**: Crea o edita las zonas del local (ej. Terraza, Salón) y distribuye/asigna mesas a cada una.
+* **Auditoría e Infracciones**: Visualiza el historial acumulado de cierres de caja y movimientos financieros.
+* **Auditoría de Invoices / Facturas**: Consulta el registro de facturas emitidas y posee permisos para anular facturas (anulación en caliente con restablecimiento visual en tiempo real).
+* **Gestión de Cupones**: Crea, edita, desactiva o elimina cupones promocionales con topes de uso y fechas de expiración.
+* **Gestión de Inventario y Recetas**: Registra materias primas (insumos), realiza ajustes de stock y mapea recetas a los productos para el descuento automático de ingredientes.
+
 
