@@ -4,10 +4,12 @@ import { pusherServer } from '@/lib/pusher';
 import nodemailer from 'nodemailer';
 import { nowBolivia } from '@/lib/timezone';
 
+import type { cupones } from '@/app/generated/prisma/client';
+
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { id_mesa, monto_pagado, monto_recibido, monto_cambio, referencia_pago, id_usuario_cajero, correo_cliente, enviar_recibo, ci_cliente, nombre_cliente, detalles_consumidos } = body;
+        const { id_mesa, monto_pagado, monto_recibido, monto_cambio, referencia_pago, id_usuario_cajero, correo_cliente, enviar_recibo, ci_cliente, nombre_cliente, detalles_consumidos, codigo_cupon } = body;
         let { metodo_pago } = body;
 
         // Normalizar TRANSFERENCIA a QR para backend y facturación
@@ -56,9 +58,72 @@ export async function POST(request: Request) {
 
             const fechaActualLocal = nowBolivia();
 
+            // Validar y procesar cupón si existe
+            let id_cupon: number | null = null;
+            let cuponObj: cupones | null = null;
+
+            if (codigo_cupon) {
+                cuponObj = await tx.cupones.findUnique({
+                    where: { codigo: codigo_cupon.toUpperCase() }
+                });
+
+                if (cuponObj) {
+                    if (cuponObj.estado !== 'ACTIVO' || cuponObj.fecha_expiracion < fechaActualLocal) {
+                        throw new Error("CUPON_NO_VALIDO");
+                    }
+                    if (cuponObj.limite_uso !== null && cuponObj.contador_uso >= cuponObj.limite_uso) {
+                        throw new Error("CUPON_LIMITE_ALCANZADO");
+                    }
+                    id_cupon = cuponObj.id_cupon;
+                }
+            }
+
+            // Incrementar contador de usos del cupón
+            if (id_cupon) {
+                await tx.cupones.update({
+                    where: { id_cupon },
+                    data: {
+                        contador_uso: {
+                            increment: 1
+                        }
+                    }
+                });
+            }
+
+            const totalSubtotal = pedidosActivos.reduce((sum, p) => sum + Number(p.subtotal), 0);
+
+            if (cuponObj && totalSubtotal < Number(cuponObj.monto_minimo_compra)) {
+                throw new Error("CUPON_MINIMO_NO_ALCANZADO");
+            }
+
             // 4. Registrar de forma normalizada un pago en la tabla "pagos" por cada pedido consolidado
             for (const pedido of pedidosActivos) {
-                const total_sin_iva = Number(pedido.subtotal) - Number(pedido.descuento);
+                let descuento_pedido = Number(pedido.descuento);
+
+                if (cuponObj) {
+                    if (cuponObj.tipo_descuento === 'PERCENTAGE') {
+                        const desc = Number(pedido.subtotal) * (Number(cuponObj.valor_descuento) / 100);
+                        descuento_pedido += desc;
+                    } else if (cuponObj.tipo_descuento === 'FIXED') {
+                        const desc = Number(cuponObj.valor_descuento) * (Number(pedido.subtotal) / totalSubtotal);
+                        descuento_pedido += desc;
+                    }
+                }
+
+                if (descuento_pedido > Number(pedido.subtotal)) {
+                    descuento_pedido = Number(pedido.subtotal);
+                }
+
+                const total_sin_iva = Number(pedido.subtotal) - descuento_pedido;
+
+                // Actualizar descuento y total en el pedido
+                await tx.pedidos.update({
+                    where: { id_pedido: pedido.id_pedido },
+                    data: {
+                        descuento: descuento_pedido,
+                        total: total_sin_iva
+                    }
+                });
                 
                 await tx.pagos.create({
                     data: {
@@ -71,7 +136,8 @@ export async function POST(request: Request) {
                         monto_cambio: metodo_pago === 'EFECTIVO' ? Number(monto_cambio) : 0,
                         referencia_pago: referencia_pago || null,
                         estado_pago: 'CONFIRMADO',
-                        fecha_hora_pago: fechaActualLocal
+                        fecha_hora_pago: fechaActualLocal,
+                        id_cupon: id_cupon
                     }
                 });
 
@@ -84,8 +150,8 @@ export async function POST(request: Request) {
                         numero_documento: `FAC-${Date.now()}-${pedido.id_pedido}`,
                         subtotal: pedido.subtotal,
                         impuesto: 0,
-                        descuento: pedido.descuento,
-                        total: Number(pedido.subtotal) - Number(pedido.descuento),
+                        descuento: descuento_pedido,
+                        total: total_sin_iva,
                         estado_documento: "EMITIDA",
                         observaciones: `Facturado a: ${nombre_cliente || 'S/N'}, CI/NIT: ${ci_cliente || '0'}${(enviar_recibo && correo_cliente) ? ` - Enviado a: ${correo_cliente}` : ''}`,
                         fecha_emision: fechaActualLocal
@@ -298,6 +364,15 @@ export async function POST(request: Request) {
         }
         if (errorMessage === "NO_HAY_PEDIDOS_ACTIVOS") {
             return NextResponse.json({ error: "Esta mesa ya no tiene cuentas pendientes por cobrar." }, { status: 400 });
+        }
+        if (errorMessage === "CUPON_NO_VALIDO") {
+            return NextResponse.json({ error: "El cupón especificado no es válido o ya ha expirado." }, { status: 400 });
+        }
+        if (errorMessage === "CUPON_LIMITE_ALCANZADO") {
+            return NextResponse.json({ error: "El cupón especificado ha alcanzado su límite de usos." }, { status: 400 });
+        }
+        if (errorMessage === "CUPON_MINIMO_NO_ALCANZADO") {
+            return NextResponse.json({ error: "El subtotal no cumple con el monto mínimo de compra para este cupón." }, { status: 400 });
         }
 
         return NextResponse.json({ error: "Error interno del servidor al procesar el pago transaccional." }, { status: 500 });

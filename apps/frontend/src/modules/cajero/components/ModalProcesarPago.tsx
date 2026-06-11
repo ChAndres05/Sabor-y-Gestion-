@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { MOCK_CUPONES } from '../../../shared/mocks/cuponesMocks';
+import React, { useState, useEffect } from 'react';
+import { cajaApi, type Coupon } from '../../../shared/api/caja.api';
 import type { PagoConfirmacion } from '../types';
 import type { TableOrderItem } from '../../tables/types/table-order.types';
 
@@ -10,7 +10,7 @@ interface ModalProcesarPagoProps {
   numeroMesa: number;
   detalles: TableOrderItem[];
   onClose: () => void;
-  onConfirmarPago: (datos: PagoConfirmacion) => void;
+  onConfirmarPago: (datos: PagoConfirmacion) => void | Promise<void>;
   ci_cliente?: string;
   nombre_cliente?: string;
   correo_cliente?: string;
@@ -35,10 +35,52 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
   const [correoCliente, setCorreoCliente] = useState(correo_cliente || '');
   const [enviarCorreo, setEnviarCorreo] = useState(false);
 
+  const [cuponAplicado, setCuponAplicado] = useState<Coupon | null>(null);
+  const [errorCupon, setErrorCupon] = useState<string | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+
   // 2. Lógica de validación de cupones y cálculo de totales
   const subtotal = detalles.reduce((acc, item) => acc + item.subtotal, 0);
-  const cuponEncontrado = MOCK_CUPONES.find(c => c.codigo === codigoDescuento.toUpperCase());
-  const montoDescuento = cuponEncontrado ? subtotal * cuponEncontrado.descuento : 0;
+
+  useEffect(() => {
+    if (!codigoDescuento) {
+      setCuponAplicado(null);
+      setErrorCupon(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsValidating(true);
+      setErrorCupon(null);
+      try {
+        const res = await cajaApi.validateCoupon(codigoDescuento, subtotal);
+        if (res.valido && res.cupon) {
+          setCuponAplicado(res.cupon);
+          setErrorCupon(null);
+        } else {
+          setCuponAplicado(null);
+          setErrorCupon(res.error || 'Cupón inválido');
+        }
+      } catch {
+        setCuponAplicado(null);
+        setErrorCupon('Error al validar el cupón');
+      } finally {
+        setIsValidating(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [codigoDescuento, subtotal]);
+
+  let montoDescuento = 0;
+  if (cuponAplicado) {
+    if (cuponAplicado.discountType === 'percentage') {
+      montoDescuento = subtotal * (cuponAplicado.discountValue / 100);
+    } else {
+      montoDescuento = cuponAplicado.discountValue;
+    }
+  }
 
   const subtotalConDescuento = subtotal - montoDescuento;
   const totalFinal = subtotalConDescuento;
@@ -84,22 +126,29 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
 
   const puedeConfirmar = metodoPago !== 'EFECTIVO' || montoRecibido >= totalFinal;
 
-  const handleConfirmar = (): void => {
-    const datos: PagoConfirmacion = {
-      monto_pagado: totalFinal,
-      metodo_pago: metodoPago,
-      monto_recibido: metodoPago === 'EFECTIVO' ? montoRecibido : undefined,
-      monto_cambio: metodoPago === 'EFECTIVO' ? cambio : 0,
-      descuento_aplicado: montoDescuento,
-      codigo_cupon: cuponEncontrado ? codigoDescuento.toUpperCase() : undefined,
-      referencia_pago: metodoPago === 'TRANSFERENCIA' ? referenciaPago : undefined,
-      ci_cliente: ciCliente,
-      nombre_cliente: nombreCliente,
-      correo_cliente: correoCliente,
-      enviar_recibo: enviarCorreo
-    };
+  const handleConfirmar = async (): Promise<void> => {
+    if (isConfirming) return;
+    setIsConfirming(true);
+    try {
+      const datos: PagoConfirmacion = {
+        monto_pagado: totalFinal,
+        metodo_pago: metodoPago,
+        monto_recibido: metodoPago === 'EFECTIVO' ? montoRecibido : undefined,
+        monto_cambio: metodoPago === 'EFECTIVO' ? cambio : 0,
+        descuento_aplicado: montoDescuento,
+        codigo_cupon: cuponAplicado ? codigoDescuento.toUpperCase() : undefined,
+        referencia_pago: metodoPago === 'TRANSFERENCIA' ? referenciaPago : undefined,
+        ci_cliente: ciCliente,
+        nombre_cliente: nombreCliente,
+        correo_cliente: correoCliente,
+        enviar_recibo: enviarCorreo
+      };
 
-    onConfirmarPago(datos);
+      await onConfirmarPago(datos);
+    } catch (err) {
+      console.error(err);
+      setIsConfirming(false);
+    }
   };
 
   return (
@@ -243,14 +292,29 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
           {/* Cupón */}
           <div className="relative">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Cupón de Descuento</label>
-            <input
-              type="text"
-              placeholder="Ingresa un código..."
-              className={`w-full p-4 bg-gray-50 rounded-2xl text-sm font-bold outline-none transition-all border-2 ${cuponEncontrado ? 'border-[var(--color-success)] bg-[var(--color-success)]/5' : 'border-transparent focus:border-gray-200'}`}
-              onChange={(e) => setCodigoDescuento(e.target.value)}
-            />
-            {cuponEncontrado && (
-              <span className="absolute right-4 bottom-4 text-[var(--color-success)] font-black text-[10px] tracking-widest">✓ APLICADO</span>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Ingresa un código..."
+                value={codigoDescuento}
+                className={`w-full p-4 bg-gray-50 rounded-2xl text-sm font-bold outline-none transition-all border-2 ${
+                  cuponAplicado 
+                    ? 'border-[var(--color-success)] bg-[var(--color-success)]/5' 
+                    : errorCupon 
+                      ? 'border-[var(--color-alert)] bg-[var(--color-alert)]/5' 
+                      : 'border-transparent focus:border-gray-200'
+                }`}
+                onChange={(e) => setCodigoDescuento(e.target.value)}
+              />
+              {isValidating && (
+                <span className="absolute right-4 bottom-4 text-gray-400 font-bold text-[10px] tracking-widest animate-pulse">VALIDANDO...</span>
+              )}
+              {cuponAplicado && !isValidating && (
+                <span className="absolute right-4 bottom-4 text-[var(--color-success)] font-black text-[10px] tracking-widest">✓ APLICADO</span>
+              )}
+            </div>
+            {errorCupon && !isValidating && (
+              <p className="text-[var(--color-alert)] text-xs font-bold mt-1 ml-2">{errorCupon}</p>
             )}
           </div>
         </div>
@@ -271,11 +335,11 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
           </div>
 
           <button
-            disabled={!puedeConfirmar}
+            disabled={!puedeConfirmar || isConfirming}
             className="w-full py-5 bg-[var(--color-primary)] text-white font-black rounded-[2rem] shadow-xl hover:bg-[var(--color-primary-hover)] transition-all uppercase tracking-widest disabled:opacity-30 disabled:grayscale"
             onClick={handleConfirmar}
           >
-            Confirmar Pago
+            {isConfirming ? 'Procesando...' : 'Confirmar Pago'}
           </button>
         </div>
       </div>
