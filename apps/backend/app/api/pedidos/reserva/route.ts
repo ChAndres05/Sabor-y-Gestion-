@@ -54,7 +54,7 @@ export async function POST(request: Request) {
 
     // Calcular el total a partir de los detalles
     let total = 0;
-    type DetalleInput = { id_presentacion_producto: number; cantidad: number; precio_unitario: number; observaciones?: string | null; };
+    type DetalleInput = { id_presentacion_producto: number; cantidad: number; precio_unitario: number; observaciones?: string | null; ingredientes?: unknown; };
     const detallesData = detalles.map((d: DetalleInput) => {
       const cantidad = Number(d.cantidad);
       const precioUnitario = Number(d.precio_unitario);
@@ -65,7 +65,8 @@ export async function POST(request: Request) {
         cantidad: cantidad,
         precio_unitario: precioUnitario,
         subtotal: subtotal,
-        observaciones: d.observaciones || null
+        observaciones: d.observaciones || null,
+        ingredientes: d.ingredientes || undefined
       };
     });
 

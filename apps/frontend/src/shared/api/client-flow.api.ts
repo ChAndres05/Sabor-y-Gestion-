@@ -106,6 +106,10 @@ export const clientFlowApi = {
           precio_unitario: item.unitPrice,
           subtotal: item.subtotal,
           observaciones: item.notes,
+          ingredientes: item.ingredients?.map((ing) => ({
+            nombre: ing.name,
+            incluido: ing.included,
+          })),
         })),
       }),
     });

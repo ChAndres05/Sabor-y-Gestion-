@@ -11,7 +11,7 @@ type OrderStatus = 'pending' | 'preparing' | 'ready';
 interface Order { id: number; orderNumber: number; items: OrderItem[]; status: OrderStatus; isToggled: boolean; source?: 'mesa' | 'reserva'; tableNumber?: number; customerName?: string; reservationTime?: string; prepareFrom?: string; maxPrepTime?: number; }
 interface MonitorCocinaPageProps { onBack: () => void; user?: { id?: number; id_usuario?: number; nombre: string; rol: string }; }
 
-type BackendDetallePedido = { id_detalle_pedido: number; cantidad: number; observaciones?: string | null; preparado?: boolean; esta_preparado?: boolean; preparado_cocina?: boolean; presentacion_producto?: { tiempo_preparacion_minutos?: number; producto?: { nombre?: string; tiempo_preparacion?: number; }; }; };
+type BackendDetallePedido = { id_detalle_pedido: number; cantidad: number; observaciones?: string | null; preparado?: boolean; esta_preparado?: boolean; preparado_cocina?: boolean; presentacion_producto?: { tiempo_preparacion_minutos?: number; producto?: { nombre?: string; tiempo_preparacion?: number; }; }; ingredientes?: unknown; };
 type BackendPedido = {
   id_pedido: number;
   estado?: string;
@@ -133,7 +133,9 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
               notes: detalle.observaciones ?? null,
               checked: typeof backendChecked === 'boolean' ? backendChecked : existingItem?.checked ?? checkedData[storageKey] ?? false,
               prepTime: itemPrepTime,
-              ingredientes: getIngredientsForKitchenItem(detalle.id_detalle_pedido, name),
+              ingredientes: (detalle.ingredientes && Array.isArray(detalle.ingredientes))
+                ? (detalle.ingredientes as Array<{ nombre: string; incluido: boolean }>)
+                : getIngredientsForKitchenItem(detalle.id_detalle_pedido, name),
             };
           }).sort((a, b) => a.id - b.id);
 
