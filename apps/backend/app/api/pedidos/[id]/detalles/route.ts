@@ -11,7 +11,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const body = await request.json();
-    const { id_presentacion_producto, cantidad, observaciones } = body;
+    const { id_presentacion_producto, cantidad, observaciones, ingredientes } = body;
 
     if (!id_presentacion_producto || !cantidad || cantidad <= 0) {
       return NextResponse.json({ error: 'Datos de detalle inválidos' }, { status: 400 });
@@ -38,7 +38,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           cantidad,
           precio_unitario,
           subtotal,
-          observaciones
+          observaciones,
+          ingredientes: ingredientes || undefined
         }
       });
 

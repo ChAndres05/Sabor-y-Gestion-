@@ -13,7 +13,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     const body = await request.json();
-    const { cantidad, observaciones } = body;
+    const { cantidad, observaciones, ingredientes } = body;
 
     if (cantidad !== undefined && (isNaN(Number(cantidad)) || Number(cantidad) <= 0)) {
       return NextResponse.json({ error: 'La cantidad debe ser mayor a 0' }, { status: 400 });
@@ -93,7 +93,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         data: {
           cantidad: nuevaCantidad,
           subtotal: nuevoSubtotalDetalle,
-          observaciones: observaciones !== undefined ? observaciones : detalleExistente.observaciones
+          observaciones: observaciones !== undefined ? observaciones : detalleExistente.observaciones,
+          ingredientes: ingredientes !== undefined ? ingredientes : undefined
         }
       });
 
