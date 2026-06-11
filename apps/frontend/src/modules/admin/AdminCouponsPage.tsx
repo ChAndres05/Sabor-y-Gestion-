@@ -19,7 +19,7 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
     try {
       const list = await cajaApi.listCoupons();
       setCoupons(list);
-    } catch (err) {
+    } catch {
       setFeedback({
         type: 'error',
         title: 'Error',
@@ -143,11 +143,12 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
         title: 'Cupón Aleatorio Generado',
         message: `Se ha generado el cupón "${code}" con valor de ${discountValue}${discountType === 'percentage' ? '%' : ' Bs.'} correctamente.`
       });
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as Error;
       setFeedback({
         type: 'error',
         title: 'Error al generar cupón',
-        message: error.message || 'Error en el servidor.'
+        message: err.message || 'Error en el servidor.'
       });
     }
   };
@@ -196,11 +197,12 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
         title: 'Cupón Creado',
         message: `El cupón "${code}" ha sido creado con éxito.`
       });
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as Error;
       setFeedback({
         type: 'error',
         title: 'Error al crear cupón',
-        message: error.message || 'Error en el servidor.'
+        message: err.message || 'Error en el servidor.'
       });
     }
   };
@@ -218,11 +220,12 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
     try {
       const updated = await cajaApi.updateCoupon(id, { status: nextStatus });
       setCoupons(prev => prev.map(c => c.id === id ? updated : c));
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as Error;
       setFeedback({
         type: 'error',
         title: 'Error al cambiar estado',
-        message: error.message || 'No se pudo cambiar el estado del cupón.'
+        message: err.message || 'No se pudo cambiar el estado del cupón.'
       });
     }
   };
@@ -279,11 +282,12 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
         title: 'Cupón Actualizado',
         message: `El cupón "${code}" ha sido actualizado con éxito.`
       });
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as Error;
       setFeedback({
         type: 'error',
         title: 'Error al actualizar cupón',
-        message: error.message || 'Error en el servidor.'
+        message: err.message || 'Error en el servidor.'
       });
     }
   };
@@ -762,11 +766,12 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
                       title: 'Cupón Eliminado',
                       message: `El cupón "${couponToDelete.code}" ha sido eliminado con éxito.`
                     });
-                  } catch (error: any) {
+                  } catch (error) {
+                    const err = error as Error;
                     setFeedback({
                       type: 'error',
                       title: 'Error al eliminar cupón',
-                      message: error.message || 'No se pudo eliminar el cupón.'
+                      message: err.message || 'No se pudo eliminar el cupón.'
                     });
                   } finally {
                     setCouponToDelete(null);

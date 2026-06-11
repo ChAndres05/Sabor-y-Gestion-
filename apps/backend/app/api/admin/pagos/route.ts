@@ -4,6 +4,8 @@ import { pusherServer } from '@/lib/pusher';
 import nodemailer from 'nodemailer';
 import { nowBolivia } from '@/lib/timezone';
 
+import type { cupones } from '@/app/generated/prisma/client';
+
 export async function POST(request: Request) {
     try {
         const body = await request.json();
@@ -58,7 +60,7 @@ export async function POST(request: Request) {
 
             // Validar y procesar cupón si existe
             let id_cupon: number | null = null;
-            let cuponObj: any = null;
+            let cuponObj: cupones | null = null;
 
             if (codigo_cupon) {
                 cuponObj = await tx.cupones.findUnique({

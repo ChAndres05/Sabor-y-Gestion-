@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { cajaApi } from '../../../shared/api/caja.api';
+import { cajaApi, type Coupon } from '../../../shared/api/caja.api';
 import type { PagoConfirmacion } from '../types';
 import type { TableOrderItem } from '../../tables/types/table-order.types';
 
@@ -35,7 +35,7 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
   const [correoCliente, setCorreoCliente] = useState(correo_cliente || '');
   const [enviarCorreo, setEnviarCorreo] = useState(false);
 
-  const [cuponAplicado, setCuponAplicado] = useState<any | null>(null);
+  const [cuponAplicado, setCuponAplicado] = useState<Coupon | null>(null);
   const [errorCupon, setErrorCupon] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -62,7 +62,7 @@ export const ModalProcesarPago: React.FC<ModalProcesarPagoProps> = ({
           setCuponAplicado(null);
           setErrorCupon(res.error || 'Cupón inválido');
         }
-      } catch (err) {
+      } catch {
         setCuponAplicado(null);
         setErrorCupon('Error al validar el cupón');
       } finally {

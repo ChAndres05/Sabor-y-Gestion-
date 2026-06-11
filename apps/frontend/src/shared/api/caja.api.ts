@@ -109,12 +109,12 @@ export const cajaApi = {
         if (!res.ok) throw new Error('Error al eliminar cupón');
     },
 
-    async validateCoupon(codigo: string, monto: number): Promise<{ valido: boolean; cupon?: any; error?: string }> {
+    async validateCoupon(codigo: string, monto: number): Promise<{ valido: boolean; cupon?: Coupon; error?: string }> {
         const res = await fetch(`${API_URL}/api/admin/cupones/validar?codigo=${encodeURIComponent(codigo)}&monto=${monto}`);
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
             return { valido: false, error: data.error || 'Error al validar el cupón' };
         }
-        return res.json() as Promise<{ valido: boolean; cupon?: any; error?: string }>;
+        return res.json() as Promise<{ valido: boolean; cupon?: Coupon; error?: string }>;
     }
 };

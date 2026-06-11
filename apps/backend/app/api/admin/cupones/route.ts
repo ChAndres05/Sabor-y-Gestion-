@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { nowBolivia } from '@/lib/timezone';
+import type { cupones } from '@/app/generated/prisma/client';
 
 // Function to map DB model to Frontend expected interface
-function mapCupon(cupon: any) {
+function mapCupon(cupon: cupones) {
     return {
         id: cupon.id_cupon.toString(),
         code: cupon.codigo,

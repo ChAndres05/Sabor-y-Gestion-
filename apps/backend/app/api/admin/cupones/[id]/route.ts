@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { nowBolivia } from '@/lib/timezone';
+import { Prisma, type cupones } from '@/app/generated/prisma/client';
 
 // Function to map DB model to Frontend expected interface
-function mapCupon(cupon: any) {
+function mapCupon(cupon: cupones) {
     return {
         id: cupon.id_cupon.toString(),
         code: cupon.codigo,
@@ -35,7 +36,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             return NextResponse.json({ error: 'CUPON_NO_ENCONTRADO' }, { status: 404 });
         }
 
-        const updateData: any = {};
+        const updateData: Prisma.cuponesUpdateInput = {};
 
         if (code !== undefined) {
             const codigoNormalizado = code.toUpperCase().replace(/\s+/g, '');
@@ -80,7 +81,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             updateData.estado = status === 'active' ? 'ACTIVO' : (status === 'inactive' ? 'INACTIVO' : 'EXPIRADO');
         } else if (expirationDate !== undefined) {
             // Recalculate status based on new expiration date
-            const expDate = updateData.fecha_expiracion;
+            const expDate = updateData.fecha_expiracion as Date;
             const today = nowBolivia();
             if (expDate < today) {
                 updateData.estado = 'EXPIRADO';
