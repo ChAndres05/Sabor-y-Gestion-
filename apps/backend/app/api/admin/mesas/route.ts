@@ -9,6 +9,7 @@ export async function GET(req: Request) {
 
         const mesas = await prisma.mesas.findMany({
             where: {
+                activa: true,
                 id_zona: id_zona_filtro ? parseInt(id_zona_filtro) : undefined
             },
             include: { zona: true },
@@ -32,6 +33,29 @@ export async function POST(req: Request) {
 
         if (Number(capacidad) > 10) {
             return NextResponse.json({ error: "LA_CAPACIDAD_NO_PUEDE_SER_MAYOR_A_10" }, { status: 400 });
+        }
+
+        const mesaExistente = await prisma.mesas.findFirst({
+            where: { numero: Number(numero) }
+        });
+
+        if (mesaExistente) {
+            if (!mesaExistente.activa) {
+                const mesaReactivada = await prisma.mesas.update({
+                    where: { id_mesa: mesaExistente.id_mesa },
+                    data: {
+                        activa: true,
+                        capacidad: Number(capacidad),
+                        id_zona: id_zona ? Number(id_zona) : null,
+                        estado: estado || "LIBRE",
+                        forma: forma || "CUADRADA",
+                    }
+                });
+                await pusherServer.trigger('tables-channel', 'table-updated', mesaReactivada);
+                return NextResponse.json(mesaReactivada, { status: 201 });
+            } else {
+                return NextResponse.json({ error: "EL_NUMERO_DE_MESA_YA_EXISTE" }, { status: 400 });
+            }
         }
 
         const nuevaMesa = await prisma.mesas.create({

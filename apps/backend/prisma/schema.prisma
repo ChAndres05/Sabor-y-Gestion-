@@ -230,6 +230,8 @@ model pagos {
   estado_pago       String         @default("CONFIRMADO") @db.VarChar
   observacion       String?
   fecha_hora_pago   DateTime       @default(now()) @db.Timestamp(6)
+  id_cupon          Int?
+  cupones           cupones?       @relation(fields: [id_cupon], references: [id_cupon], onDelete: NoAction, onUpdate: NoAction)
   jornada_caja      jornadas_caja? @relation(fields: [id_jornada_caja], references: [id_jornada_caja], onDelete: NoAction, onUpdate: NoAction)
   metodo_pago       metodos_pago   @relation(fields: [id_metodo_pago], references: [id_metodo_pago], onDelete: NoAction, onUpdate: NoAction)
   pedido            pedidos        @relation(fields: [id_pedido], references: [id_pedido], onDelete: NoAction, onUpdate: NoAction)
@@ -239,6 +241,7 @@ model pagos {
   @@index([id_metodo_pago], map: "idx_pagos_id_metodo_pago")
   @@index([id_pedido], map: "idx_pagos_id_pedido")
   @@index([id_usuario_cajero], map: "idx_pagos_id_usuario_cajero")
+  @@index([id_cupon], map: "idx_pagos_id_cupon")
   @@map("pagos")
 }
 
@@ -453,4 +456,19 @@ model categorias_insumos {
   descripcion         String?
   activo              Boolean   @default(true)
   insumos             insumos[]
+}
+
+model cupones {
+  id_cupon            Int      @id @default(autoincrement())
+  codigo              String   @unique @db.VarChar(50)
+  tipo_descuento      String   @db.VarChar(20)
+  valor_descuento     Decimal  @db.Decimal(10, 2)
+  monto_minimo_compra Decimal  @default(0) @db.Decimal(10, 2)
+  fecha_expiracion    DateTime @db.Timestamp(6)
+  estado              String   @default("ACTIVO") @db.VarChar(20)
+  limite_uso          Int?
+  contador_uso        Int      @default(0)
+  descripcion         String?  @db.VarChar(255)
+  fecha_creacion      DateTime @default(now()) @db.Timestamp(6)
+  pagos               pagos[]
 }
