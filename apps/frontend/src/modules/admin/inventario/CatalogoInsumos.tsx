@@ -3,7 +3,7 @@ import { formatUnidad, type Insumo, type MockProductoReceta, type CategoriaInsum
 import BaseButton from '../../../shared/components/BaseButton';
 import { Input } from '../../../shared/components/Input';
 import CrearInsumoModal, { type CrearInsumoFormData } from './components/CrearInsumoModal';
-import CrearCategoriaModal from './components/CrearCategoriaModal';
+import GestionarCategoriasModal from './components/GestionarCategoriasModal';
 import AsociarInsumosModal from './components/AsociarInsumosModal';
 import { inventarioApi } from '../../../shared/api/inventario.api';
 
@@ -42,6 +42,26 @@ export default function CatalogoInsumos() {
     await inventarioApi.crearCategoriaInsumo(nombre, descripcion);
     const dataCategorias = await inventarioApi.getCategoriasInsumos();
     setCategorias(dataCategorias);
+  };
+
+  const handleEditarCategoria = async (id: number, nombre: string, descripcion?: string) => {
+    await inventarioApi.editarCategoriaInsumo(id, nombre, descripcion);
+    const [dataCategorias, dataInsumos] = await Promise.all([
+      inventarioApi.getCategoriasInsumos(),
+      inventarioApi.getInsumos()
+    ]);
+    setCategorias(dataCategorias);
+    setInsumos(dataInsumos);
+  };
+
+  const handleEliminarCategoria = async (id: number) => {
+    await inventarioApi.eliminarCategoriaInsumo(id);
+    const [dataCategorias, dataInsumos] = await Promise.all([
+      inventarioApi.getCategoriasInsumos(),
+      inventarioApi.getInsumos()
+    ]);
+    setCategorias(dataCategorias);
+    setInsumos(dataInsumos);
   };
 
   useEffect(() => {
@@ -185,7 +205,7 @@ export default function CatalogoInsumos() {
             className="h-[46px] w-full sm:w-auto whitespace-nowrap px-4"
             disabled={loading}
           >
-            + Nueva categoría
+            Gestionar categorías
           </BaseButton>
           <BaseButton 
             variant="primary" 
@@ -276,7 +296,14 @@ export default function CatalogoInsumos() {
       </div>
 
       <CrearInsumoModal open={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleGuardarInsumo} categorias={categorias} />
-      <CrearCategoriaModal open={isCategoriaModalOpen} onClose={() => setIsCategoriaModalOpen(false)} onSave={handleGuardarCategoria} />
+      <GestionarCategoriasModal 
+        open={isCategoriaModalOpen} 
+        onClose={() => setIsCategoriaModalOpen(false)} 
+        categorias={categorias}
+        onSave={handleGuardarCategoria} 
+        onEdit={handleEditarCategoria}
+        onDelete={handleEliminarCategoria}
+      />
       {isAsociarOpen && (
         <AsociarInsumosModal
           open={isAsociarOpen}
