@@ -1,6 +1,13 @@
 // Define de forma estricta los valores permitidos según la base de datos
 export type UnidadMedida = 'UNIDAD' | 'GRAMO' | 'KILOGRAMO' | 'MILILITRO' | 'LITRO';
 
+export interface CategoriaInsumo {
+  id_categoria_insumo: number;
+  nombre: string;
+  descripcion?: string | null;
+  activo: boolean;
+}
+
 export interface Insumo {
   id_insumo: string;
   nombre: string;

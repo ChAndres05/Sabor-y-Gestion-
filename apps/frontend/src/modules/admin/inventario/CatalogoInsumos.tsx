@@ -1,16 +1,19 @@
 import { useState, useMemo, useEffect } from 'react';
-import { formatUnidad, type Insumo, type MockProductoReceta } from '../../../shared/mocks/inventario';
+import { formatUnidad, type Insumo, type MockProductoReceta, type CategoriaInsumo } from '../../../shared/mocks/inventario';
 import BaseButton from '../../../shared/components/BaseButton';
 import { Input } from '../../../shared/components/Input';
 import CrearInsumoModal, { type CrearInsumoFormData } from './components/CrearInsumoModal';
+import CrearCategoriaModal from './components/CrearCategoriaModal';
 import AsociarInsumosModal from './components/AsociarInsumosModal';
 import { inventarioApi } from '../../../shared/api/inventario.api';
 
 export default function CatalogoInsumos() {
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [productosRecetas, setProductosRecetas] = useState<MockProductoReceta[]>([]);
+  const [categorias, setCategorias] = useState<CategoriaInsumo[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [isCategoriaModalOpen, setIsCategoriaModalOpen] = useState<boolean>(false);
   const [isAsociarOpen, setIsAsociarOpen] = useState<boolean>(false);
 
   const [busqueda, setBusqueda] = useState<string>('');
@@ -20,17 +23,25 @@ export default function CatalogoInsumos() {
   const cargarDatos = async () => {
     try {
       setLoading(true);
-      const [dataInsumos, dataRecetas] = await Promise.all([
+      const [dataInsumos, dataRecetas, dataCategorias] = await Promise.all([
         inventarioApi.getInsumos(),
-        inventarioApi.getProductosRecetas()
+        inventarioApi.getProductosRecetas(),
+        inventarioApi.getCategoriasInsumos()
       ]);
       setInsumos(dataInsumos);
       setProductosRecetas(dataRecetas);
+      setCategorias(dataCategorias);
     } catch (error) {
       console.error('Error cargando catálogo de insumos:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGuardarCategoria = async (nombre: string, descripcion?: string) => {
+    await inventarioApi.crearCategoriaInsumo(nombre, descripcion);
+    const dataCategorias = await inventarioApi.getCategoriasInsumos();
+    setCategorias(dataCategorias);
   };
 
   useEffect(() => {
@@ -109,63 +120,77 @@ export default function CatalogoInsumos() {
     <div className="flex flex-col gap-6 px-6 pb-10 md:px-8">
       
       {/* Barra de Filtros y Acción */}
-      <div className="grid items-end gap-3 rounded-[1.5rem] border border-gray-50 bg-white p-4 shadow-sm md:grid-cols-[1fr_auto_auto_auto]">
+      <div className="flex flex-col gap-4 rounded-[1.5rem] border border-gray-50 bg-white p-4 shadow-sm lg:flex-row lg:items-end lg:justify-between">
         
-        <label className="block w-full">
-          <span className="text-[11px] font-black uppercase text-gray-400">Buscar Insumo</span>
-          <Input 
-            label=""
-            type="text"
-            placeholder="Ej. Queso, Tomate..."
-            value={busqueda} 
-            onChange={(e) => setBusqueda(e.target.value)} 
-            className="mt-2"
-          />
-        </label>
+        {/* Filtros */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 w-full lg:flex lg:flex-1 lg:items-end">
+          
+          <label className="block w-full lg:flex-1">
+            <span className="text-[11px] font-black uppercase text-gray-400">Buscar Insumo</span>
+            <Input 
+              label=""
+              type="text"
+              placeholder="Ej. Queso, Tomate..."
+              value={busqueda} 
+              onChange={(e) => setBusqueda(e.target.value)} 
+              className="mt-2"
+            />
+          </label>
 
-        <label className="block w-full md:w-48">
-          <span className="text-[11px] font-black uppercase text-gray-400">Categoría</span>
-          <select 
-            value={filtroCategoria}
-            onChange={(e) => setFiltroCategoria(e.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-100 bg-background p-3 text-[14px] outline-none focus:border-primary"
-          >
-            <option value="">Todas</option>
-            <option value="Carnes y Aves">Carnes y Aves</option>
-            <option value="Verduras">Verduras</option>
-            <option value="Bebidas">Bebidas</option>
-            <option value="Lácteos">Lácteos</option>
-            <option value="Abarrotes / Secos">Abarrotes / Secos</option>
-          </select>
-        </label>
+          <label className="block w-full lg:w-48">
+            <span className="text-[11px] font-black uppercase text-gray-400">Categoría</span>
+            <select 
+              value={filtroCategoria}
+              onChange={(e) => setFiltroCategoria(e.target.value)}
+              className="mt-2 w-full rounded-xl border border-gray-100 bg-background p-3 text-[14px] outline-none focus:border-primary"
+            >
+              <option value="">Todas</option>
+              {categorias.map((cat) => (
+                <option key={cat.id_categoria_insumo} value={cat.nombre}>
+                  {cat.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label className="block w-full md:w-40">
-          <span className="text-[11px] font-black uppercase text-gray-400">Estado</span>
-          <select 
-            value={filtroEstado}
-            onChange={(e) => setFiltroEstado(e.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-100 bg-background p-3 text-[14px] outline-none focus:border-primary"
-          >
-            <option value="">Todos</option>
-            <option value="Crítico">Crítico</option>
-            <option value="Bajo">Bajo</option>
-            <option value="Óptimo">Óptimo</option>
-          </select>
-        </label>
+          <label className="block w-full lg:w-40">
+            <span className="text-[11px] font-black uppercase text-gray-400">Estado</span>
+            <select 
+              value={filtroEstado}
+              onChange={(e) => setFiltroEstado(e.target.value)}
+              className="mt-2 w-full rounded-xl border border-gray-100 bg-background p-3 text-[14px] outline-none focus:border-primary"
+            >
+              <option value="">Todos</option>
+              <option value="Crítico">Crítico</option>
+              <option value="Bajo">Bajo</option>
+              <option value="Óptimo">Óptimo</option>
+            </select>
+          </label>
 
-        <div className="mt-2 flex gap-2 w-full md:w-auto flex-col sm:flex-row">
+        </div>
+
+        {/* Acciones */}
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto sm:flex-row flex-col">
           <BaseButton 
             variant="outline" 
             onClick={() => setIsAsociarOpen(true)}
-            className="h-[46px] w-full md:w-auto"
+            className="h-[46px] w-full sm:w-auto whitespace-nowrap px-4"
             disabled={loading || insumos.length === 0 || productosRecetas.length === 0}
           >
             Asociar con Productos
           </BaseButton>
           <BaseButton 
+            variant="outline" 
+            onClick={() => setIsCategoriaModalOpen(true)}
+            className="h-[46px] w-full sm:w-auto whitespace-nowrap px-4"
+            disabled={loading}
+          >
+            + Nueva categoría
+          </BaseButton>
+          <BaseButton 
             variant="primary" 
             onClick={() => setIsModalOpen(true)}
-            className="h-[46px] w-full md:w-auto"
+            className="h-[46px] w-full sm:w-auto whitespace-nowrap px-4"
             disabled={loading}
           >
             + Nuevo insumo
@@ -250,7 +275,8 @@ export default function CatalogoInsumos() {
         )}
       </div>
 
-      <CrearInsumoModal open={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleGuardarInsumo} />
+      <CrearInsumoModal open={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleGuardarInsumo} categorias={categorias} />
+      <CrearCategoriaModal open={isCategoriaModalOpen} onClose={() => setIsCategoriaModalOpen(false)} onSave={handleGuardarCategoria} />
       {isAsociarOpen && (
         <AsociarInsumosModal
           open={isAsociarOpen}

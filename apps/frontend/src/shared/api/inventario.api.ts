@@ -1,4 +1,4 @@
-import type { Insumo, MockProductoReceta, MovimientoStock } from '../mocks/inventario';
+import type { Insumo, MockProductoReceta, MovimientoStock, CategoriaInsumo } from '../mocks/inventario';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -10,6 +10,28 @@ export const inventarioApi = {
       throw new Error(errData.error || 'Error al obtener los insumos');
     }
     return res.json() as Promise<Insumo[]>;
+  },
+
+  async getCategoriasInsumos(): Promise<CategoriaInsumo[]> {
+    const res = await fetch(`${API_URL}/api/insumos/categorias?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Error al obtener las categorías de insumos');
+    }
+    return res.json() as Promise<CategoriaInsumo[]>;
+  },
+
+  async crearCategoriaInsumo(nombre: string, descripcion?: string): Promise<CategoriaInsumo> {
+    const res = await fetch(`${API_URL}/api/insumos/categorias`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre, descripcion })
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.message || errData.error || 'Error al crear la categoría de insumos');
+    }
+    return res.json() as Promise<CategoriaInsumo>;
   },
 
   async crearInsumo(data: {
