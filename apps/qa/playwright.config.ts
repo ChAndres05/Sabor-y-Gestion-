@@ -1,4 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
+
+// Read from .env file
+dotenv.config();
 
 export default defineConfig({
   testDir: './src',
@@ -17,12 +21,12 @@ export default defineConfig({
   ],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-  baseURL: 'https://sabor-y-gestion-frontend.vercel.app',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'https://sabor-y-gestion-frontend.vercel.app',
 
-  trace: 'on-first-retry',
-  screenshot: 'only-on-failure',
-  video: 'retain-on-failure'
-},
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure'
+  },
 
   /* Configure projects for major browsers */
   projects: [

@@ -32,15 +32,13 @@ test('Abrir todos los roles', async ({ browser }) => {
 
   // ===== CLIENTE =====
 
-  await cliente.goto(
-    'https://sabor-y-gestion-frontend.vercel.app'
-  );
+  await cliente.goto('/');
 
   await cliente.locator('input').nth(0)
-    .fill('cliente01');
+    .fill(process.env.QA_CLIENTE_USER || '');
 
   await cliente.locator('input[type="password"]')
-    .fill('Test@123');
+    .fill(process.env.QA_CLIENTE_PASS || '');
 
   await cliente.getByRole('button', {
     name: /iniciar sesión/i
@@ -48,15 +46,13 @@ test('Abrir todos los roles', async ({ browser }) => {
 
   // ===== CAJERO =====
 
-  await cajero.goto(
-    'https://sabor-y-gestion-frontend.vercel.app'
-  );
+  await cajero.goto('/');
 
   await cajero.locator('input').nth(0)
-    .fill('cajero01');
+    .fill(process.env.QA_CAJERO_USER || '');
 
   await cajero.locator('input[type="password"]')
-    .fill('Test@123');
+    .fill(process.env.QA_CAJERO_PASS || '');
 
   await cajero.getByRole('button', {
     name: /iniciar sesión/i
@@ -64,15 +60,13 @@ test('Abrir todos los roles', async ({ browser }) => {
 
   // ===== COCINA =====
 
-  await cocina.goto(
-    'https://sabor-y-gestion-frontend.vercel.app'
-  );
+  await cocina.goto('/');
 
   await cocina.locator('input').nth(0)
-    .fill('cocinero01');
+    .fill(process.env.QA_COCINERO_USER || '');
 
   await cocina.locator('input[type="password"]')
-    .fill('Test@123');
+    .fill(process.env.QA_COCINERO_PASS || '');
 
   await cocina.getByRole('button', {
     name: /iniciar sesión/i
@@ -80,15 +74,13 @@ test('Abrir todos los roles', async ({ browser }) => {
 
   // ===== ADMIN =====
 
-  await admin.goto(
-    'https://sabor-y-gestion-frontend.vercel.app'
-  );
+  await admin.goto('/');
 
   await admin.locator('input').nth(0)
-    .fill('admin01');
+    .fill(process.env.QA_ADMIN_USER || '');
 
   await admin.locator('input[type="password"]')
-    .fill('Test@123');
+    .fill(process.env.QA_ADMIN_PASS || '');
 
   await admin.getByRole('button', {
     name: /iniciar sesión/i
@@ -96,13 +88,11 @@ test('Abrir todos los roles', async ({ browser }) => {
 
 // ===== MESERO =====
 
-  await mesero.goto(
-  'https://sabor-y-gestion-frontend.vercel.app'
-  );
+  await mesero.goto('/');
   await mesero.locator('input').nth(0)
-  .fill('mesero01');
+  .fill(process.env.QA_MESERO_USER || '');
   await mesero.locator('input[type="password"]')
-  .fill('Test@123');
+  .fill(process.env.QA_MESERO_PASS || '');
 
   await mesero.getByRole('button', {
   name: /iniciar sesión/i

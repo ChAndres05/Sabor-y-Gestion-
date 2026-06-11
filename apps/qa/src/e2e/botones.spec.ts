@@ -8,15 +8,13 @@ test('Probar flujo cocina', async ({ browser }) => {
 
   console.log('🔐 Iniciando sesión como cocinero...');
 
-  await cocinero.goto(
-    'https://sabor-y-gestion-frontend.vercel.app'
-  );
+  await cocinero.goto('/');
 
   await cocinero.locator('input').nth(0)
-    .fill('cocinero01');
+    .fill(process.env.QA_COCINERO_USER || '');
 
   await cocinero.locator('input[type="password"]')
-    .fill('Test@123');
+    .fill(process.env.QA_COCINERO_PASS || '');
 
   await cocinero.getByRole('button', {
     name: /iniciar sesión/i
