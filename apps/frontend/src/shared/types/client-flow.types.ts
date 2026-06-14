@@ -75,6 +75,8 @@ export interface ClientOrder {
   deliveryAddress?: string;
   deliveryPhone?: string;
   deliveryFee?: number;
+  paymentMethod?: string;
+  paymentReference?: string;
 }
 
 export interface ClientPreparedOrderRequest {

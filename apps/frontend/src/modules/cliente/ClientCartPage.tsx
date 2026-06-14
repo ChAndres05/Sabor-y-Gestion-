@@ -5,6 +5,7 @@ import type { ClientNavigationKey } from '../../shared/types/client-flow.types';
 import { createDeliveryOrderMock } from '../../shared/mocks/delivery.mock';
 import { emitRestaurantStateChanged } from '../../shared/utils/events';
 import ClientLayout from '../../components/client/ClientLayout';
+import qrImage from '../../assets/qr.png';
 
 interface ClientCartPageProps {
   user: AuthUser;
@@ -44,6 +45,8 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState(user.telefono || '');
   const [observations, setObservations] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'EFECTIVO' | 'QR'>('EFECTIVO');
+  const [paymentReference, setPaymentReference] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -194,12 +197,16 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
         subtotal,
         deliveryFee,
         total,
+        paymentMethod,
+        paymentReference: paymentMethod === 'QR' ? paymentReference.trim() : undefined,
       });
       
       // Clear variables and cart
       clearCart();
       setAddress('');
       setObservations('');
+      setPaymentMethod('EFECTIVO');
+      setPaymentReference('');
       
       // Notify state changed so tables list or order history reloads
       emitRestaurantStateChanged();
@@ -297,6 +304,61 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
                       placeholder="Ej. Llevar cubiertos, tocar timbre fuerte, salsa extra..."
                       className="w-full rounded-xl border border-gray-200 bg-background px-4 py-3 text-[14px] outline-none focus:border-primary focus:bg-white transition-all font-semibold resize-none"
                     />
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-100">
+                    <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider mb-3">
+                      Método de Pago *
+                    </label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('EFECTIVO')}
+                        className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer ${
+                          paymentMethod === 'EFECTIVO'
+                            ? 'border-primary bg-primary/5 ring-4 ring-primary/10'
+                            : 'border-gray-100 hover:border-gray-200 opacity-70'
+                        }`}
+                      >
+                        <span className="text-2xl">💵</span>
+                        <span className="font-extrabold text-[12px] uppercase tracking-wider text-text">Efectivo</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('QR')}
+                        className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer ${
+                          paymentMethod === 'QR'
+                            ? 'border-primary bg-primary/5 ring-4 ring-primary/10'
+                            : 'border-gray-100 hover:border-gray-200 opacity-70'
+                        }`}
+                      >
+                        <span className="text-2xl">📱</span>
+                        <span className="font-extrabold text-[12px] uppercase tracking-wider text-text">QR / Transferencia</span>
+                      </button>
+                    </div>
+
+                    {paymentMethod === 'QR' && (
+                      <div className="mt-4 p-5 border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50 flex flex-col items-center text-center animate-in slide-in-from-top-2 duration-300">
+                        <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">
+                          Escanea el código QR para realizar el pago
+                        </p>
+                        <div className="w-44 h-44 bg-white rounded-2xl shadow-sm flex items-center justify-center p-2 border border-gray-100 overflow-hidden">
+                          <img src={qrImage} alt="Código QR para Pago" className="w-full h-full object-contain" />
+                        </div>
+                        <div className="w-full mt-4">
+                          <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 text-left">
+                            Número de Referencia (Opcional)
+                          </label>
+                          <input
+                            type="text"
+                            value={paymentReference}
+                            onChange={(e) => setPaymentReference(e.target.value)}
+                            placeholder="Ej: TRANS-12345"
+                            className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[13px] font-mono outline-none focus:border-primary transition-all text-center"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

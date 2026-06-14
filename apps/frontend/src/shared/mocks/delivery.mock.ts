@@ -68,6 +68,8 @@ export interface CreateDeliveryOrderPayload {
   subtotal: number;
   deliveryFee: number;
   total: number;
+  paymentMethod?: string;
+  paymentReference?: string;
 }
 
 export async function createDeliveryOrderMock(payload: CreateDeliveryOrderPayload): Promise<ClientOrder> {
@@ -107,6 +109,8 @@ export async function createDeliveryOrderMock(payload: CreateDeliveryOrderPayloa
     deliveryAddress: payload.orderType === 'delivery' ? payload.address : undefined,
     deliveryPhone: payload.orderType === 'delivery' ? payload.phone : undefined,
     deliveryFee: payload.orderType === 'delivery' ? payload.deliveryFee : undefined,
+    paymentMethod: payload.paymentMethod,
+    paymentReference: payload.paymentReference,
   };
 
   writeStorage(DELIVERY_ORDERS_KEY, [newOrder, ...existingOrders]);

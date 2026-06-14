@@ -342,6 +342,12 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
                   <p className="font-bold mb-1">Detalles de Entrega (Delivery)</p>
                   <p><strong>Dirección:</strong> {selectedOrder.deliveryAddress}</p>
                   <p className="mt-1"><strong>Teléfono:</strong> {selectedOrder.deliveryPhone}</p>
+                  {selectedOrder.paymentMethod && (
+                    <p className="mt-1">
+                      <strong>Pago:</strong> {selectedOrder.paymentMethod === 'QR' ? '📱 QR / Transferencia' : '💵 Efectivo'}
+                      {selectedOrder.paymentReference && ` (Ref: ${selectedOrder.paymentReference})`}
+                    </p>
+                  )}
                   {selectedOrder.notes && (
                     <p className="mt-1"><strong>Notas:</strong> {selectedOrder.notes}</p>
                   )}
