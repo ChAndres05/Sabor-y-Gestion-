@@ -46,7 +46,6 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
   const [phone, setPhone] = useState(user.telefono || '');
   const [observations, setObservations] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'EFECTIVO' | 'QR'>('EFECTIVO');
-  const [paymentReference, setPaymentReference] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -198,7 +197,6 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
         deliveryFee,
         total,
         paymentMethod,
-        paymentReference: paymentMethod === 'QR' ? paymentReference.trim() : undefined,
       });
       
       // Clear variables and cart
@@ -206,7 +204,6 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
       setAddress('');
       setObservations('');
       setPaymentMethod('EFECTIVO');
-      setPaymentReference('');
       
       // Notify state changed so tables list or order history reloads
       emitRestaurantStateChanged();
@@ -344,18 +341,6 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
                         </p>
                         <div className="w-44 h-44 bg-white rounded-2xl shadow-sm flex items-center justify-center p-2 border border-gray-100 overflow-hidden">
                           <img src={qrImage} alt="Código QR para Pago" className="w-full h-full object-contain" />
-                        </div>
-                        <div className="w-full mt-4">
-                          <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 text-left">
-                            Número de Referencia (Opcional)
-                          </label>
-                          <input
-                            type="text"
-                            value={paymentReference}
-                            onChange={(e) => setPaymentReference(e.target.value)}
-                            placeholder="Ej: TRANS-12345"
-                            className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[13px] font-mono outline-none focus:border-primary transition-all text-center"
-                          />
                         </div>
                       </div>
                     )}
