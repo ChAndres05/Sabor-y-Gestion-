@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import type { AuthUser } from '../../modules/auth/types/auth.types';
 import type { ClientNavigationKey } from '../../shared/types/client-flow.types';
+import { useCartStore } from '../../store/cartStore';
 
 interface ClientLayoutProps {
   user: AuthUser;
@@ -14,32 +15,8 @@ interface ClientLayoutProps {
   onBack?: () => void;
 }
 
-const navigationItems: Array<{ key: ClientNavigationKey; label: string; description: string }> = [
-  {
-    key: 'menu',
-    label: 'Menú',
-    description: 'Productos, filtros y detalle de platos',
-  },
-  {
-    key: 'reserve-table',
-    label: 'Reservar mesa',
-    description: 'Mesas disponibles por zona y capacidad',
-  },
-  {
-    key: 'reservations',
-    label: 'Mis reservas',
-    description: 'Reservas activas e historial',
-  },
-  {
-    key: 'orders',
-    label: 'Mis pedidos',
-    description: 'Seguimiento de pedidos asociados a tu usuario',
-  },
-];
-
 export default function ClientLayout({
   user,
-  active,
   title,
   subtitle,
   onNavigate,
@@ -48,36 +25,53 @@ export default function ClientLayout({
   maxWidthClassName = 'max-w-screen-xl',
   onBack,
 }: ClientLayoutProps) {
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const cartItems = useCartStore((state) => state.items);
+  const cartCount = cartItems.reduce((acc, item) => acc + item.cantidad, 0);
 
   const handleNavigate = (screen: ClientNavigationKey) => {
-    setIsDrawerOpen(false);
     onNavigate(screen);
   };
 
   return (
-    <main className="bg-background px-4 py-6 text-text">
+    <main className="bg-background px-4 py-6 text-text min-h-screen">
       <div className={`mx-auto flex w-full ${maxWidthClassName} flex-col`}>
         <header className="shrink-0">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={onBack ? onBack : () => setIsDrawerOpen(true)}
-                className="rounded-2xl bg-white px-3 py-2 text-[24px] leading-none text-text shadow-sm transition-colors hover:bg-black/5"
+                onClick={onBack ? onBack : () => window.dispatchEvent(new Event('open-sidebar'))}
+                className="rounded-2xl bg-white px-3 py-2 text-[24px] leading-none text-text shadow-sm transition-colors hover:bg-black/5 cursor-pointer"
                 aria-label={onBack ? "Volver" : "Abrir navegación del cliente"}
               >
-                ☰
+                {onBack ? '←' : '☰'}
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={onLogout}
-              className="rounded-2xl bg-white px-4 py-2 text-[14px] font-semibold text-text shadow-sm transition-colors hover:bg-black/5"
-            >
-              Salir
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Cart Badge Trigger */}
+              <button
+                type="button"
+                onClick={() => handleNavigate('cart')}
+                className="relative rounded-2xl bg-white px-4 py-2 text-[15px] font-semibold text-text shadow-sm transition-all hover:bg-black/5 flex items-center gap-2 border border-gray-100 cursor-pointer"
+                title="Ver Carrito"
+              >
+                <span>🛒 Carrito</span>
+                {cartCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white shadow-sm ring-2 ring-white animate-bounce">
+                    {cartCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={onLogout}
+                className="rounded-2xl bg-white px-4 py-2 text-[14px] font-semibold text-text shadow-sm transition-colors hover:bg-black/5 cursor-pointer"
+              >
+                Salir
+              </button>
+            </div>
           </div>
 
           <p className="mt-4 text-[14px] font-medium text-gray-500">
@@ -91,68 +85,6 @@ export default function ClientLayout({
 
         <section className="mt-4">{children}</section>
       </div>
-
-      {isDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex bg-black/50">
-          <button
-            type="button"
-            className="flex-1 cursor-default"
-            aria-label="Cerrar navegación"
-            onClick={() => setIsDrawerOpen(false)}
-          />
-
-          <aside className="h-full w-[320px] max-w-[88vw] bg-primary p-5 text-white shadow-2xl">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[12px] font-bold uppercase tracking-wider text-white/70">
-                  Navegación cliente
-                </p>
-                <p className="mt-1 text-[20px] font-bold leading-tight">
-                  {user.nombre} {user.apellido}
-                </p>
-                <p className="mt-1 break-all text-[12px] font-medium text-white/75">
-                  {user.correo}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsDrawerOpen(false)}
-                className="rounded-xl bg-white/15 px-3 py-2 text-[18px] leading-none transition-colors hover:bg-white/25"
-                aria-label="Cerrar"
-              >
-                ×
-              </button>
-            </div>
-
-            <nav className="mt-8 space-y-2">
-              {navigationItems.map((item) => {
-                const isActive = item.key === active;
-
-                return (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => handleNavigate(item.key)}
-                    className={`w-full rounded-2xl px-4 py-3 text-left transition-colors ${
-                      isActive ? 'bg-white text-primary' : 'bg-white/10 text-white hover:bg-white/20'
-                    }`}
-                  >
-                    <span className="block text-[15px] font-bold">{item.label}</span>
-                    <span className={`mt-1 block text-[12px] leading-4 ${isActive ? 'text-primary/75' : 'text-white/70'}`}>
-                      {item.description}
-                    </span>
-                  </button>
-                );
-              })}
-            </nav>
-
-            <div className="mt-8 rounded-2xl bg-white/10 p-4 text-[12px] leading-5 text-white/80">
-              El cliente entra directo al menú, pero ahora puede navegar a reservas y pedidos sin salir de su sesión.
-            </div>
-          </aside>
-        </div>
-      )}
     </main>
   );
 }

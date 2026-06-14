@@ -1,7 +1,7 @@
 import type { TableOrderStatus } from '../../modules/tables/types/table-order.types';
 import type { RestaurantTable, Zone } from '../../modules/tables/types/table.types';
 
-export type ClientNavigationKey = 'menu' | 'reserve-table' | 'reservations' | 'orders';
+export type ClientNavigationKey = 'menu' | 'reserve-table' | 'reservations' | 'orders' | 'cart';
 
 export type ClientReservationStatus = 'CONFIRMADA' | 'CANCELADA' | 'COMPLETADA';
 
@@ -31,7 +31,7 @@ export interface ClientReservationRequest {
   observations?: string;
 }
 
-export type ClientOrderSource = 'MESA_MESERO' | 'RESERVA_PREPARADA';
+export type ClientOrderSource = 'MESA_MESERO' | 'RESERVA_PREPARADA' | 'DELIVERY';
 
 export interface ClientOrderIngredient {
   name: string;
@@ -59,6 +59,7 @@ export interface ClientOrder {
   id: number;
   orderNumber: string;
   userId: number | null;
+  customerName?: string;
   tableNumber: number | null;
   reservationId?: number;
   source: ClientOrderSource;
@@ -71,6 +72,9 @@ export interface ClientOrder {
   createdAt: string;
   reservationTime?: string;
   prepareFrom?: string;
+  deliveryAddress?: string;
+  deliveryPhone?: string;
+  deliveryFee?: number;
 }
 
 export interface ClientPreparedOrderRequest {
