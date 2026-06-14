@@ -29,8 +29,30 @@ type BackendPedido = {
   preparar_desde?: string;
   prepareFrom?: string;
   fecha_pedido?: string;
-  pedido_delivery?: any;
+  pedido_delivery?: unknown;
 };
+
+interface StorageDeliveryOrderItem {
+  id?: number;
+  name: string;
+  quantity: number;
+  checked?: boolean;
+  notes?: string | null;
+  ingredients?: Array<{
+    name: string;
+    included: boolean;
+  }>;
+}
+
+interface StorageDeliveryOrder {
+  id: number;
+  orderNumber: string | number;
+  status: string;
+  items: StorageDeliveryOrderItem[];
+  isToggled?: boolean;
+  customerName?: string;
+  createdAt?: string;
+}
 
 function getCheckedItemsFromStorage(): Record<string, boolean> {
   try { return JSON.parse(localStorage.getItem('gestionysabor_kitchen_checked_items') || '{}'); } catch { return {}; }
@@ -160,7 +182,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
             status: uiStatus,
             items: mappedItems,
             isToggled: existingOrder?.isToggled ?? backendOrder.armado ?? backendOrder.esta_armado ?? false,
-            source: isDelivery ? 'DELIVERY' : (backendOrder.origen ?? backendOrder.source) as any,
+            source: isDelivery ? 'DELIVERY' : (backendOrder.origen ?? backendOrder.source) as Order['source'],
             tableNumber: isDelivery ? undefined : (backendOrder.numero_mesa ?? backendOrder.mesa?.numero ?? backendOrder.mesa?.nro_mesa),
             customerName: backendOrder.cliente_nombre ?? backendOrder.cliente?.nombre,
             reservationTime: backendOrder.hora_reserva ?? backendOrder.reservationTime,
@@ -174,25 +196,25 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
         const storedDeliveryOrders = typeof window !== 'undefined' ? localStorage.getItem('gestionysabor_frontend_orders') : null;
         if (storedDeliveryOrders) {
           try {
-            const deliveryOrdersList = JSON.parse(storedDeliveryOrders);
+            const deliveryOrdersList = JSON.parse(storedDeliveryOrders) as StorageDeliveryOrder[];
             const deliveryOrdersMapped = deliveryOrdersList
-              .filter((doOrder: any) => ['REGISTRADO', 'EN_PREPARACION'].includes(doOrder.status))
-              .map((doOrder: any) => {
+              .filter((doOrder) => ['REGISTRADO', 'EN_PREPARACION'].includes(doOrder.status))
+              .map((doOrder) => {
                 const existingOrder = prevOrders.find((order) => order.id === doOrder.id);
-                const mappedItems = doOrder.items.map((item: any, idx: number) => ({
+                const mappedItems = doOrder.items.map((item, idx: number) => ({
                   id: item.id ?? (idx + 8000),
                   name: item.name,
                   quantity: item.quantity,
                   checked: item.checked ?? false,
                   notes: item.notes || null,
                   prepTime: 10,
-                  ingredientes: (item.ingredients || []).map((ing: any) => ({
-                    nombre: ing.name ?? ing.nombre,
-                    incluido: typeof ing.included === 'boolean' ? ing.included : ing.incluido
+                  ingredientes: (item.ingredients || []).map((ing) => ({
+                    nombre: ing.name,
+                    incluido: ing.included
                   }))
                 }));
 
-                const hasCheckedItem = mappedItems.some((item: any) => item.checked);
+                const hasCheckedItem = mappedItems.some((item) => item.checked);
                 let uiStatus: OrderStatus = 'pending';
                 if (doOrder.status === 'EN_PREPARACION' || hasCheckedItem) {
                   uiStatus = 'preparing';
@@ -212,7 +234,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
                 };
               });
 
-            deliveryOrdersMapped.forEach((doOrder: any) => {
+            deliveryOrdersMapped.forEach((doOrder) => {
               if (!newOrders.some(o => o.id === doOrder.id)) {
                 newOrders.push(doOrder);
               }
@@ -240,7 +262,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
                 ingredientes: mi.ingredientes
               })),
               isToggled: mo.isToggled,
-              source: mo.source as any,
+              source: mo.source as Order['source'],
               tableNumber: mo.tableNumber,
               customerName: mo.customerName,
               prepareFrom: mo.prepareFrom,
@@ -268,7 +290,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
             ingredientes: mi.ingredientes
           })),
           isToggled: mo.isToggled,
-          source: mo.source as any,
+          source: mo.source as Order['source'],
           tableNumber: mo.tableNumber,
           customerName: mo.customerName,
           prepareFrom: mo.prepareFrom,
@@ -278,25 +300,25 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
         // Load delivery orders from frontend local storage mocks
         const storedDeliveryOrders = typeof window !== 'undefined' ? localStorage.getItem('gestionysabor_frontend_orders') : null;
         if (storedDeliveryOrders) {
-          const deliveryOrdersList = JSON.parse(storedDeliveryOrders);
+          const deliveryOrdersList = JSON.parse(storedDeliveryOrders) as StorageDeliveryOrder[];
           const deliveryOrdersMapped = deliveryOrdersList
-            .filter((doOrder: any) => ['REGISTRADO', 'EN_PREPARACION'].includes(doOrder.status))
-            .map((doOrder: any) => {
+            .filter((doOrder) => ['REGISTRADO', 'EN_PREPARACION'].includes(doOrder.status))
+            .map((doOrder) => {
               const existingOrder = orders.find((order) => order.id === doOrder.id);
-              const mappedItems = doOrder.items.map((item: any, idx: number) => ({
+              const mappedItems = doOrder.items.map((item, idx: number) => ({
                 id: item.id ?? (idx + 8000),
                 name: item.name,
                 quantity: item.quantity,
                 checked: item.checked ?? false,
                 notes: item.notes || null,
                 prepTime: 10,
-                ingredientes: (item.ingredients || []).map((ing: any) => ({
-                  nombre: ing.name ?? ing.nombre,
-                  incluido: typeof ing.included === 'boolean' ? ing.included : ing.incluido
+                ingredientes: (item.ingredients || []).map((ing) => ({
+                  nombre: ing.name,
+                  incluido: ing.included
                 }))
               }));
 
-              const hasCheckedItem = mappedItems.some((item: any) => item.checked);
+              const hasCheckedItem = mappedItems.some((item) => item.checked);
               let uiStatus: OrderStatus = 'pending';
               if (doOrder.status === 'EN_PREPARACION' || hasCheckedItem) {
                 uiStatus = 'preparing';
@@ -316,7 +338,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
               };
             });
 
-          deliveryOrdersMapped.forEach((doOrder: any) => {
+          deliveryOrdersMapped.forEach((doOrder) => {
             if (!mainOrders.some(o => o.id === doOrder.id)) {
               mainOrders.push(doOrder);
             }
@@ -391,8 +413,8 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
       const stored = localStorage.getItem('gestionysabor_frontend_orders');
       if (stored) {
         try {
-          const list = JSON.parse(stored);
-          const updatedList = list.map((o: any) => 
+          const list = JSON.parse(stored) as StorageDeliveryOrder[];
+          const updatedList = list.map((o) => 
             o.id === id ? { ...o, isToggled: newToggledState } : o
           );
           localStorage.setItem('gestionysabor_frontend_orders', JSON.stringify(updatedList));
@@ -431,10 +453,10 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
       const stored = localStorage.getItem('gestionysabor_frontend_orders');
       if (stored) {
         try {
-          const list = JSON.parse(stored);
-          const updatedList = list.map((o: any) => {
+          const list = JSON.parse(stored) as StorageDeliveryOrder[];
+          const updatedList = list.map((o) => {
             if (o.id === orderId) {
-              const updatedItems = o.items.map((it: any, idx: number) => 
+              const updatedItems = o.items.map((it, idx: number) => 
                 idx === itemIndex ? { ...it, checked: newChecked } : it
               );
               return { 
@@ -473,8 +495,8 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
       const stored = localStorage.getItem('gestionysabor_frontend_orders');
       if (stored) {
         try {
-          const list = JSON.parse(stored);
-          const updatedList = list.map((o: any) => 
+          const list = JSON.parse(stored) as StorageDeliveryOrder[];
+          const updatedList = list.map((o) => 
             o.id === id ? { ...o, status: 'LISTO' } : o
           );
           localStorage.setItem('gestionysabor_frontend_orders', JSON.stringify(updatedList));

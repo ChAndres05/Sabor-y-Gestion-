@@ -50,7 +50,8 @@ const ROLE_PERMISSIONS: Record<string, AppScreen[]> = {
   [USER_ROLES.MESERO]: ['mesero-menu', 'mesero-tables', 'mesero-table-order', 'mesero-orders'],
   [USER_ROLES.COCINERO]: ['cocina-home'],
   [USER_ROLES.CAJERO]: ['cajero-home', 'admin-delivery'],
-  [USER_ROLES.CLIENTE]: ['cliente-home', 'client-menu', 'client-product-detail', 'client-reserve-table', 'client-reservations', 'client-reservation-order', 'client-orders', 'client-manage-order', 'client-cart']
+  [USER_ROLES.CLIENTE]: ['cliente-home', 'client-menu', 'client-product-detail', 'client-reserve-table', 'client-reservations', 'client-reservation-order', 'client-orders', 'client-manage-order', 'client-cart'],
+  [USER_ROLES.REPARTIDOR]: ['admin-delivery']
 };
 
 function getScreenByRole(role: AuthUser['rol']): AppScreen {
@@ -60,6 +61,7 @@ function getScreenByRole(role: AuthUser['rol']): AppScreen {
     case USER_ROLES.COCINERO: return 'cocina-home';
     case USER_ROLES.CAJERO: return 'cajero-home';
     case USER_ROLES.CLIENTE: return 'client-menu';
+    case USER_ROLES.REPARTIDOR: return 'admin-delivery';
     default: return 'login';
   }
 }
@@ -151,6 +153,10 @@ function App() {
       case USER_ROLES.COCINERO:
         return [
           { key: 'cocina', label: 'Monitor de Cocina', active: screenState === 'cocina-home', onClick: () => { setScreen('cocina-home'); setIsSidebarOpen(false); } }
+        ];
+      case USER_ROLES.REPARTIDOR:
+        return [
+          { key: 'delivery', label: 'Atención Delivery', active: screenState === 'admin-delivery', onClick: () => { setScreen('admin-delivery'); setIsSidebarOpen(false); } }
         ];
       case USER_ROLES.CLIENTE:
         return [

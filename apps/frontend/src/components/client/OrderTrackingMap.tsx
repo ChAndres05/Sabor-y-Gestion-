@@ -5,16 +5,45 @@ interface OrderTrackingMapProps {
   status: string;
 }
 
+interface LeafletMap {
+  setView: (center: [number, number], zoom: number) => LeafletMap;
+  invalidateSize: () => void;
+  fitBounds: (bounds: unknown, options?: unknown) => void;
+  removeLayer: (layer: unknown) => void;
+  pathPoints?: [number, number][];
+}
+
+interface LeafletMarker {
+  setLatLng: (latlng: [number, number]) => void;
+}
+
+interface LeafletGlobal {
+  map: (element: HTMLDivElement | null, options?: unknown) => LeafletMap;
+  tileLayer: (url: string, options?: unknown) => { addTo: (map: LeafletMap) => void };
+  divIcon: (options: unknown) => unknown;
+  marker: (latlng: unknown, options?: unknown) => {
+    addTo: (map: LeafletMap) => {
+      bindPopup: (content: string) => {
+        openPopup: () => LeafletMarker;
+      };
+    };
+  };
+  polyline: (points: [number, number][], options?: unknown) => { addTo: (map: LeafletMap) => void };
+  latLngBounds: (points: [number, number][]) => unknown;
+}
+
 export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const [leafletLoaded, setLeafletLoaded] = useState(false);
-  const mapRef = useRef<any>(null);
-  const motoMarkerRef = useRef<any>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const motoMarkerRef = useRef<LeafletMarker | null>(null);
 
   // Load Leaflet resources dynamically from CDN
   useEffect(() => {
-    if ((window as any).L) {
-      setLeafletLoaded(true);
+    if ((window as unknown as Record<string, unknown>).L) {
+      setTimeout(() => {
+        setLeafletLoaded(true);
+      }, 0);
       return;
     }
 
@@ -53,7 +82,7 @@ export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapPr
     const start: [number, number] = [startLat, startLng];
     const end: [number, number] = [endLat, endLng];
 
-    const L = (window as any).L;
+    const L = (window as unknown as Record<string, unknown>).L as LeafletGlobal | undefined;
     if (!L) return;
 
     if (!mapRef.current) {
@@ -71,7 +100,7 @@ export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapPr
         className: '',
         iconSize: [32, 32],
         iconAnchor: [16, 16],
-      });
+      }) as unknown;
 
       // Custom client address icon
       const clientIcon = L.divIcon({
@@ -79,7 +108,7 @@ export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapPr
         className: '',
         iconSize: [32, 32],
         iconAnchor: [16, 16],
-      });
+      }) as unknown;
 
       L.marker(start, { icon: restaurantIcon }).addTo(map).bindPopup('<b>Sabor y Gestión</b><br/>Origen del Pedido');
       L.marker(end, { icon: clientIcon }).addTo(map).bindPopup('<b>Cliente</b><br/>Destino de Entrega');
@@ -107,14 +136,15 @@ export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapPr
     }
 
     const map = mapRef.current;
-    const pathPoints = map.pathPoints;
+    if (!map) return;
+    const pathPoints = map.pathPoints || [];
 
     const motoIcon = L.divIcon({
       html: `<div style="background-color: #3b82f6; color: white; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 20px; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); animation: pulse 1.5s infinite">🛵</div>`,
       className: '',
       iconSize: [36, 36],
       iconAnchor: [18, 18],
-    });
+    }) as unknown;
 
     if (status === 'EN_CAMINO') {
       if (motoMarkerRef.current) {
@@ -136,7 +166,7 @@ export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapPr
       const marker = L.marker(getInterpolatedPoint(0, 0), { icon: motoIcon })
         .addTo(map)
         .bindPopup('<b>Repartidor en Camino</b><br/>Siga la ubicación en tiempo real.')
-        .openPopup();
+        .openPopup() as unknown as LeafletMarker;
 
       motoMarkerRef.current = marker;
 
@@ -167,7 +197,7 @@ export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapPr
       if (motoMarkerRef.current) {
         motoMarkerRef.current.setLatLng(finalCoord);
       } else {
-        motoMarkerRef.current = L.marker(finalCoord, { icon: motoIcon }).addTo(map);
+        motoMarkerRef.current = L.marker(finalCoord, { icon: motoIcon }).addTo(map) as unknown as LeafletMarker;
       }
     }
   }, [leafletLoaded, orderId, status]);

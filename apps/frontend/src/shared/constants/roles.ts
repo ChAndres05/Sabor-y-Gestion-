@@ -4,6 +4,7 @@ export const USER_ROLES = {
   COCINERO: 'COCINERO',
   CAJERO: 'CAJERO',
   CLIENTE: 'CLIENTE',
+  REPARTIDOR: 'REPARTIDOR',
 } as const;
 
 export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES];
@@ -14,6 +15,7 @@ export const USER_ROLE_OPTIONS: UserRole[] = [
   USER_ROLES.COCINERO,
   USER_ROLES.CAJERO,
   USER_ROLES.CLIENTE,
+  USER_ROLES.REPARTIDOR,
 ];
 
 export const UI_TO_BACKEND_ROLE: Record<UserRole, string> = {
@@ -22,6 +24,7 @@ export const UI_TO_BACKEND_ROLE: Record<UserRole, string> = {
   COCINERO: 'COCINERO',
   CAJERO: 'CAJERO',
   CLIENTE: 'CLIENTE',
+  REPARTIDOR: 'REPARTIDOR',
 };
 
 export const BACKEND_TO_UI_ROLE: Record<string, UserRole> = {
@@ -31,4 +34,5 @@ export const BACKEND_TO_UI_ROLE: Record<string, UserRole> = {
   COCINERO: USER_ROLES.COCINERO,
   CAJERO: USER_ROLES.CAJERO,
   CLIENTE: USER_ROLES.CLIENTE,
+  REPARTIDOR: USER_ROLES.REPARTIDOR,
 };

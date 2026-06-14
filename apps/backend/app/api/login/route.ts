@@ -16,6 +16,7 @@ const ROLES_MAP: Record<number, string> = {
   3: "COCINERO",
   4: "CAJERO",
   5: "CLIENTE",
+  6: "REPARTIDOR",
 };
 
 export async function OPTIONS() {

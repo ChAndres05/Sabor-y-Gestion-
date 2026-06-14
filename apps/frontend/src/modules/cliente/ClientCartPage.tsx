@@ -16,6 +16,29 @@ function formatPrice(value: number) {
   return `${value.toFixed(2)} Bs`;
 }
 
+interface LeafletMap {
+  setView: (center: [number, number], zoom: number) => LeafletMap;
+  invalidateSize: () => void;
+  on: (event: string, fn: (e: { latlng: { lat: number; lng: number } }) => void) => void;
+  off: (event: string, fn: (e: { latlng: { lat: number; lng: number } }) => void) => void;
+  remove: () => void;
+}
+
+interface LeafletMarker {
+  setLatLng: (latlng: { lat: number; lng: number }) => void;
+}
+
+interface LeafletGlobal {
+  map: (element: HTMLDivElement | null, options?: unknown) => LeafletMap;
+  tileLayer: (url: string, options?: unknown) => { addTo: (map: LeafletMap) => void };
+  divIcon: (options: unknown) => unknown;
+  marker: (latlng: unknown, options?: unknown) => {
+    addTo: (map: LeafletMap) => {
+      bindPopup: (content: string) => void;
+    };
+  };
+}
+
 export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCartPageProps) {
   const { items, updateQuantity, removeItem, clearCart } = useCartStore();
   const [address, setAddress] = useState('');
@@ -26,16 +49,18 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const [leafletLoaded, setLeafletLoaded] = useState(false);
-  const mapRef = useRef<any>(null);
-  const selectionMarkerRef = useRef<any>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const selectionMarkerRef = useRef<LeafletMarker | null>(null);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
 
   // Load Leaflet resources dynamically from CDN when map modal is requested
   useEffect(() => {
     if (!isMapModalOpen) return;
 
-    if ((window as any).L) {
-      setLeafletLoaded(true);
+    if ((window as unknown as Record<string, unknown>).L) {
+      setTimeout(() => {
+        setLeafletLoaded(true);
+      }, 0);
       return;
     }
 
@@ -60,7 +85,7 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
   useEffect(() => {
     if (!isMapModalOpen || !leafletLoaded || !mapContainerRef.current) return;
 
-    const L = (window as any).L;
+    const L = (window as unknown as Record<string, unknown>).L as LeafletGlobal | undefined;
     if (!L) return;
 
     const startLat = -17.391537153336852;
@@ -89,7 +114,7 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
       className: '',
       iconSize: [28, 28],
       iconAnchor: [14, 14],
-    });
+    }) as unknown;
 
     L.marker(center, { icon: restaurantIcon }).addTo(map).bindPopup('<b>Sabor y Gestión</b><br/>Restaurante');
 
@@ -98,15 +123,15 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
       className: '',
       iconSize: [28, 28],
       iconAnchor: [14, 14],
-    });
+    }) as unknown;
 
-    const handleMapClick = (e: any) => {
+    const handleMapClick = (e: { latlng: { lat: number; lng: number } }) => {
       const { lat, lng } = e.latlng;
       
       if (selectionMarkerRef.current) {
         selectionMarkerRef.current.setLatLng(e.latlng);
       } else {
-        const marker = L.marker(e.latlng, { icon: clientIcon }).addTo(map);
+        const marker = L.marker(e.latlng, { icon: clientIcon }).addTo(map) as unknown as LeafletMarker;
         selectionMarkerRef.current = marker;
       }
       

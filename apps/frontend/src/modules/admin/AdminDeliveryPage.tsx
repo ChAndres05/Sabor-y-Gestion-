@@ -3,6 +3,7 @@ import type { AuthUser } from '../auth/types/auth.types';
 import type { TableOrderStatus } from '../tables/types/table-order.types';
 import OrderTrackingMap from '../../components/client/OrderTrackingMap';
 import { listAllDeliveryOrdersMock, updateDeliveryOrderStatusMock } from '../../shared/mocks/delivery.mock';
+import type { ClientOrder } from '../../shared/types/client-flow.types';
 
 interface AdminDeliveryPageProps {
   user: AuthUser;
@@ -63,9 +64,9 @@ function getStatusClass(status: TableOrderStatus) {
 }
 
 export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPageProps) {
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<ClientOrder[]>([]);
   const [filter, setFilter] = useState<'ALL' | TableOrderStatus>('ALL');
-  const [activeMapOrder, setActiveMapOrder] = useState<any | null>(null);
+  const [activeMapOrder, setActiveMapOrder] = useState<ClientOrder | null>(null);
 
   const loadLocalOrders = async () => {
     try {
@@ -77,12 +78,29 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
   };
 
   useEffect(() => {
-    loadLocalOrders();
+    let active = true;
+    listAllDeliveryOrdersMock().then((parsed) => {
+      if (active) {
+        setOrders(parsed);
+      }
+    }).catch((e) => {
+      console.error('Error parsing orders from mock', e);
+    });
 
-    // Listen to local changes
-    window.addEventListener('restaurant-state-changed', loadLocalOrders);
+    const handleStateChange = () => {
+      listAllDeliveryOrdersMock().then((parsed) => {
+        if (active) {
+          setOrders(parsed);
+        }
+      }).catch((e) => {
+        console.error('Error parsing orders from mock', e);
+      });
+    };
+
+    window.addEventListener('restaurant-state-changed', handleStateChange);
     return () => {
-      window.removeEventListener('restaurant-state-changed', loadLocalOrders);
+      active = false;
+      window.removeEventListener('restaurant-state-changed', handleStateChange);
     };
   }, []);
 
@@ -141,19 +159,21 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
 
       {/* Filter Tabs */}
       <div className="flex flex-wrap gap-2 pb-1 overflow-x-auto no-scrollbar">
-        {[
-          { key: 'ALL', label: `Todos (${orders.length})` },
-          { key: 'REGISTRADO', label: `Nuevos (${orders.filter((o) => o.status === 'REGISTRADO').length})` },
-          { key: 'EN_PREPARACION', label: `En Cocina (${orders.filter((o) => o.status === 'EN_PREPARACION').length})` },
-          { key: 'LISTO', label: `Listos (${orders.filter((o) => o.status === 'LISTO').length})` },
-          { key: 'EN_CAMINO', label: `En Reparto (${orders.filter((o) => o.status === 'EN_CAMINO').length})` },
-          { key: 'ENTREGADO', label: `Entregados (${orders.filter((o) => o.status === 'ENTREGADO').length})` },
-          { key: 'PAGADO', label: `Finalizados (${orders.filter((o) => o.status === 'PAGADO').length})` },
-          { key: 'CANCELADO', label: `Cancelados (${orders.filter((o) => o.status === 'CANCELADO').length})` },
-        ].map((tab) => (
+        {(
+          [
+            { key: 'ALL', label: `Todos (${orders.length})` },
+            { key: 'REGISTRADO', label: `Nuevos (${orders.filter((o) => o.status === 'REGISTRADO').length})` },
+            { key: 'EN_PREPARACION', label: `En Cocina (${orders.filter((o) => o.status === 'EN_PREPARACION').length})` },
+            { key: 'LISTO', label: `Listos (${orders.filter((o) => o.status === 'LISTO').length})` },
+            { key: 'EN_CAMINO', label: `En Reparto (${orders.filter((o) => o.status === 'EN_CAMINO').length})` },
+            { key: 'ENTREGADO', label: `Entregados (${orders.filter((o) => o.status === 'ENTREGADO').length})` },
+            { key: 'PAGADO', label: `Finalizados (${orders.filter((o) => o.status === 'PAGADO').length})` },
+            { key: 'CANCELADO', label: `Cancelados (${orders.filter((o) => o.status === 'CANCELADO').length})` },
+          ] as const
+        ).map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setFilter(tab.key as any)}
+            onClick={() => setFilter(tab.key)}
             className={`shrink-0 rounded-full px-4 py-2 text-[13px] font-bold transition-all border ${
               filter === tab.key
                 ? 'bg-primary text-white border-primary shadow-sm'
@@ -222,7 +242,7 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
                   {/* Products Details List */}
                   <div className="mt-4 space-y-2.5">
                     <h4 className="text-[12px] font-bold text-gray-400 uppercase tracking-wider">Productos</h4>
-                    {order.items.map((item: any, idx: number) => (
+                    {order.items.map((item, idx) => (
                       <div key={idx} className="text-[13px] text-text flex flex-col">
                         <div className="flex justify-between font-bold">
                           <span>
@@ -231,9 +251,9 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
                           <span>{formatPrice(item.unitPrice * item.quantity)}</span>
                         </div>
                         {/* Selected ingredient details */}
-                        {item.ingredients && item.ingredients.some((i: any) => !i.incluido) && (
+                        {item.ingredients && item.ingredients.some((i) => !i.included) && (
                           <span className="text-[11px] text-gray-500 pl-3">
-                            Sin: {item.ingredients.filter((i: any) => !i.incluido).map((i: any) => i.nombre).join(', ')}
+                            Sin: {item.ingredients.filter((i) => !i.included).map((i) => i.name).join(', ')}
                           </span>
                         )}
                         {item.notes && (
@@ -265,10 +285,10 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
                       <span>Subtotal</span>
                       <span>{formatPrice(order.subtotal)}</span>
                     </div>
-                    {order.deliveryFee > 0 && (
+                    {(order.deliveryFee ?? 0) > 0 && (
                       <div className="flex justify-between">
                         <span>Costo de Envío</span>
-                        <span>{formatPrice(order.deliveryFee)}</span>
+                        <span>{formatPrice(order.deliveryFee ?? 0)}</span>
                       </div>
                     )}
                     <div className="flex justify-between text-[15px] font-bold text-text border-t border-gray-200/50 pt-1.5">
