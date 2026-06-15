@@ -1,78 +1,26 @@
 import { useState } from 'react';
 import { Menu, User, FileDown, Sheet, ArrowUp } from 'lucide-react';
+import DateRangePicker from '../../../shared/components/DateRangePicker';
+import { DASHBOARD_MOCK_DATA, type DashboardData } from '../../../shared/mocks/dashboard.mock';
 
 interface AdminDashboardPageProps {
   onBack: () => void;
   userName?: string;
 }
 
-type TabType = 'hoy' | 'semana' | 'mes';
-
-const MOCK_DATA = {
-  hoy: {
-    ventas: '$3,475.20',
-    porcentaje: '+12%',
-    platos: [
-      { nombre: 'Carpaccio de Res', u: 120, pct: '80%' },
-      { nombre: 'Salmón al Horno', u: 90, pct: '60%' },
-      { nombre: 'Pique Macho', u: 60, pct: '45%' }
-    ],
-    horas: {
-      pico: '01 PM',
-      picoIndex: 3,
-      barras: ['25%', '45%', '60%', '90%', '55%', '40%', '25%']
-    },
-    meseros: [
-      { nombre: 'Juan Gómez', ventas: '$345.20', pedidos: 30, tipo: 'Frecuente' },
-      { nombre: 'Ana Pérez', ventas: '$152.20', pedidos: 20, tipo: 'Nuevo' },
-      { nombre: 'Luis Díaz', ventas: '$35.30', pedidos: 10, tipo: 'Ocasional' }
-    ]
-  },
-  semana: {
-    ventas: '$24,580.50',
-    porcentaje: '+8%',
-    platos: [
-      { nombre: 'Pique Macho', u: 540, pct: '85%' },
-      { nombre: 'Lomo Saltado', u: 420, pct: '65%' },
-      { nombre: 'Carpaccio de Res', u: 310, pct: '50%' }
-    ],
-    horas: {
-      pico: '02 PM',
-      picoIndex: 4,
-      barras: ['30%', '50%', '70%', '85%', '95%', '60%', '35%']
-    },
-    meseros: [
-      { nombre: 'Ana Pérez', ventas: '$2,450.00', pedidos: 180, tipo: 'VIP' },
-      { nombre: 'Juan Gómez', ventas: '$2,100.50', pedidos: 150, tipo: 'Frecuente' },
-      { nombre: 'Luis Díaz', ventas: '$1,850.30', pedidos: 110, tipo: 'Nuevo' }
-    ]
-  },
-  mes: {
-    ventas: '$98,400.00',
-    porcentaje: '+15%',
-    platos: [
-      { nombre: 'Pique Macho', u: 2100, pct: '90%' },
-      { nombre: 'Chicharrón', u: 1850, pct: '75%' },
-      { nombre: 'Salmón al Horno', u: 1500, pct: '60%' }
-    ],
-    horas: {
-      pico: '01 PM',
-      picoIndex: 3,
-      barras: ['40%', '60%', '80%', '100%', '75%', '50%', '30%']
-    },
-    meseros: [
-      { nombre: 'Juan Gómez', ventas: '$9,800.00', pedidos: 650, tipo: 'VIP' },
-      { nombre: 'Luis Díaz', ventas: '$8,450.00', pedidos: 520, tipo: 'Frecuente' },
-      { nombre: 'Ana Pérez', ventas: '$7,900.20', pedidos: 480, tipo: 'Ocasional' }
-    ]
-  }
-};
+type TabType = 'hoy' | 'rango' | 'mes';
 
 const X_AXIS_LABELS = ['10AM', '11AM', '12PM', '1PM', '2PM', '3PM', '4PM'];
 
 export default function AdminDashboardPage({ onBack, userName = 'Juanito Perez' }: AdminDashboardPageProps) {
   const [activeTab, setActiveTab] = useState<TabType>('hoy');
-  const data = MOCK_DATA[activeTab];
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const data: DashboardData = DASHBOARD_MOCK_DATA[activeTab] || DASHBOARD_MOCK_DATA['hoy'];
+
+  const handleRangeSelected = () => {
+    setActiveTab('rango');
+    setIsCalendarOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-[#F4EFE6] flex flex-col font-sans text-gray-800">
@@ -95,9 +43,9 @@ export default function AdminDashboardPage({ onBack, userName = 'Juanito Perez' 
 
       <div className="px-6 pb-24 space-y-6 flex-1 overflow-y-auto">
         {/* Tabs */}
-        <div className="bg-white rounded-full p-1.5 flex shadow-sm mb-6">
+        <div className="bg-white rounded-full p-1.5 flex shadow-sm mb-6 relative z-50">
           <button
-            onClick={() => setActiveTab('hoy')}
+            onClick={() => { setActiveTab('hoy'); setIsCalendarOpen(false); }}
             className={`flex-1 py-2 text-sm font-bold rounded-full transition-all duration-300 hover:scale-105 ${
               activeTab === 'hoy' ? 'bg-[#B3401B] text-white shadow-md' : 'text-gray-500 hover:text-gray-700'
             }`}
@@ -105,26 +53,34 @@ export default function AdminDashboardPage({ onBack, userName = 'Juanito Perez' 
             Hoy
           </button>
           <button
-            onClick={() => setActiveTab('semana')}
+            onClick={() => setIsCalendarOpen(!isCalendarOpen)}
             className={`flex-1 py-2 text-sm font-bold rounded-full transition-all duration-300 hover:scale-105 ${
-              activeTab === 'semana' ? 'bg-[#B3401B] text-white shadow-md' : 'text-gray-500 hover:text-gray-700'
+              activeTab === 'rango' || isCalendarOpen ? 'bg-[#B3401B] text-white shadow-md' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            Esta Semana
+            Filtrar por fecha
           </button>
           <button
-            onClick={() => setActiveTab('mes')}
+            onClick={() => { setActiveTab('mes'); setIsCalendarOpen(false); }}
             className={`flex-1 py-2 text-sm font-bold rounded-full transition-all duration-300 hover:scale-105 ${
               activeTab === 'mes' ? 'bg-[#B3401B] text-white shadow-md' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             Este Mes
           </button>
+          
+          {/* Calendar Popover */}
+          {isCalendarOpen && (
+            <DateRangePicker 
+              onRangeSelected={handleRangeSelected} 
+              onClose={() => setIsCalendarOpen(false)} 
+            />
+          )}
         </div>
 
         {/* Net Sales */}
         <div className="bg-white rounded-2xl p-5 shadow-sm text-center">
-          <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">Ventas Netas {activeTab === 'hoy' ? 'Hoy' : activeTab === 'semana' ? 'Esta Semana' : 'Este Mes'}</h3>
+          <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">Ventas Netas {activeTab === 'hoy' ? 'Hoy' : activeTab === 'rango' ? 'del Rango' : 'Este Mes'}</h3>
           <div className="flex items-center justify-center gap-3 transition-opacity duration-300">
             <span className="text-4xl font-bold text-[#B3401B] tracking-tight">{data.ventas}</span>
             <div className="flex items-center text-green-600">
@@ -181,18 +137,17 @@ export default function AdminDashboardPage({ onBack, userName = 'Juanito Perez' 
 
         {/* Waiter Performance */}
         <div className="bg-white rounded-2xl p-5 shadow-sm">
-          <h3 className="text-sm font-bold mb-6 text-center">Rendimiento de Meseros (Top {activeTab === 'hoy' ? 'Hoy' : activeTab === 'semana' ? 'Semanal' : 'Mensual'})</h3>
+          <h3 className="text-sm font-bold mb-6 text-center">Rendimiento de Meseros (Top {activeTab === 'hoy' ? 'Hoy' : activeTab === 'rango' ? 'del Rango' : 'Mensual'})</h3>
           
-          <div className="grid grid-cols-[1fr_1fr_1fr_1.5fr] gap-2 mb-4 text-[11px] font-bold text-gray-800 uppercase tracking-wider text-center">
+          <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-4 text-[11px] font-bold text-gray-800 uppercase tracking-wider text-center">
             <span className="text-left">Mesero</span>
             <span>Ventas</span>
             <span>Pedidos</span>
-            <span>Tipo Cliente</span>
           </div>
 
           <div className="space-y-4">
             {data.meseros.map((mesero, idx) => (
-              <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_1.5fr] gap-2 items-center text-center transition-opacity duration-300">
+              <div key={idx} className="grid grid-cols-[1fr_1fr_1fr] gap-2 items-center text-center transition-opacity duration-300">
                 <div className="flex items-center gap-2 text-left overflow-hidden">
                   <div className="w-7 h-7 shrink-0 bg-transparent border-2 border-gray-800 rounded-full flex items-center justify-center">
                     <User className="w-4 h-4 text-gray-800" />
@@ -201,7 +156,6 @@ export default function AdminDashboardPage({ onBack, userName = 'Juanito Perez' 
                 </div>
                 <span className="text-xs font-medium text-gray-800">{mesero.ventas}</span>
                 <span className="text-xs font-medium text-gray-800">{mesero.pedidos}</span>
-                <span className="text-xs font-medium text-[#B3401B]">{mesero.tipo}</span>
               </div>
             ))}
           </div>
