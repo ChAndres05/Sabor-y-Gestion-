@@ -8,6 +8,7 @@ import type { ClientOrder } from '../types/client-flow.types';
 import { mapBackendOrderToWaiterFrontend } from '../mappers/order.mapper';
 import type { KitchenOrder } from '../types/kitchen.types';
 import { listClientOrdersMock } from '../mocks/client-flow.mock';
+import { listClientDeliveryOrdersMock } from '../mocks/delivery.mock';
 import { emitRestaurantStateChanged } from '../utils/events';
 import { cocinaApi } from '../../modules/cocina/api/cocina.api';
 import { saveIngredientsForKitchenItem } from '../mocks/cocinaMocks';
@@ -215,11 +216,12 @@ export const ordersApi = {
    * Trae activos e historial para que el frontend clasifique.
    */
   async listOrdersByClient(userId: number): Promise<ClientOrder[]> {
+    let apiOrders: ClientOrder[] = [];
     const data = await tryJson<BackendOrderRecord[]>(
       `${API_URL}/api/clientes/pedidos/historial?id_usuario=${userId}`
     );
     if (Array.isArray(data)) {
-      return data.map((order) => {
+      apiOrders = data.map((order) => {
         const mesa = isRecord(order.mesa) ? order.mesa : undefined;
         const tableNum = mesa?.numero ?? order.numero_mesa;
         const sourceVal = mesa || order.origen === 'MESA' ? 'MESA_MESERO' : 'RESERVA';
@@ -260,9 +262,19 @@ export const ordersApi = {
           items,
         } as unknown as ClientOrder;
       });
+    } else {
+      apiOrders = await listClientOrdersMock(userId);
     }
 
-    return listClientOrdersMock(userId);
+    // Load frontend delivery/custom orders from delivery mock
+    try {
+      const userLocalOrders = await listClientDeliveryOrdersMock(userId);
+      return [...userLocalOrders, ...apiOrders];
+    } catch (e) {
+      console.error('Error loading mock delivery orders', e);
+    }
+
+    return apiOrders;
   },
 
   /**

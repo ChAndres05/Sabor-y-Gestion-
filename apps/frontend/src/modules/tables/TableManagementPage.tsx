@@ -220,7 +220,14 @@ export default function TableManagementPage({
     <main className="bg-background px-4 py-6 text-text flex flex-col font-sans">
       <div className="mx-auto flex w-full max-w-screen-xl flex-col">
         <div className="shrink-0">
-          <button type="button" onClick={onBack} className="mb-4 text-[28px]">☰</button>
+          <button
+            type="button"
+            onClick={onBack}
+            className="mb-4 text-[28px] leading-none text-text hover:opacity-85 transition-opacity cursor-pointer"
+            aria-label="Menú"
+          >
+            ☰
+          </button>
           <h1 className="text-title font-bold text-text">Gestión de mesas</h1>
           <p className="mt-1 text-[14px] leading-5 text-gray-500">Mapeo del salón y pedidos sincronizados con el backend.</p>
           
