@@ -13,6 +13,8 @@ export function redirectByRole(role: UserRole) {
       return ROUTES.CAJERO_HOME;
     case USER_ROLES.CLIENTE:
       return ROUTES.CLIENTE_HOME;
+    case USER_ROLES.REPARTIDOR:
+      return ROUTES.CAJERO_HOME;
     default:
       return ROUTES.LOGIN;
   }

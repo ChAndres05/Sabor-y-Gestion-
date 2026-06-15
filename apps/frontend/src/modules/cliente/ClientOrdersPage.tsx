@@ -6,7 +6,9 @@ import { FeedbackModal } from '../../shared/components/FeedbackModal';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { TableOrderStatus } from '../tables/types/table-order.types';
 import ClientLayout from '../../components/client/ClientLayout';
+import OrderTrackingMap from '../../components/client/OrderTrackingMap';
 import { ordersApi } from '../../shared/api/orders.api';
+import { orderFlow, deliveryFlow } from '../../shared/mocks/delivery.mock';
 import { pusherClient } from '../../shared/utils/pusher';
 import type { ClientNavigationKey, ClientOrder, ClientOrderStep, ClientOrderItem } from '../../shared/types/client-flow.types';
 
@@ -26,13 +28,7 @@ type FeedbackState = {
 
 type OrdersTab = 'active' | 'history';
 
-const orderFlow: Array<{ key: TableOrderStatus; label: string }> = [
-  { key: 'REGISTRADO', label: 'Recibido' },
-  { key: 'EN_PREPARACION', label: 'En preparación' },
-  { key: 'LISTO', label: 'Listo' },
-  { key: 'ENTREGADO', label: 'Entregado' },
-  { key: 'PAGADO', label: 'Finalizado' },
-];
+
 
 function getStatusLabel(status: TableOrderStatus) {
   switch (status) {
@@ -83,11 +79,14 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
-function buildSteps(status: TableOrderStatus): ClientOrderStep[] {
-  const activeIndex = orderFlow.findIndex((step) => step.key === status);
+
+
+function buildSteps(status: TableOrderStatus, isDelivery: boolean): ClientOrderStep[] {
+  const flow = isDelivery ? deliveryFlow : orderFlow;
+  const activeIndex = flow.findIndex((step) => step.key === status);
   const safeActiveIndex = activeIndex === -1 ? 0 : activeIndex;
 
-  return orderFlow.map((step, index) => ({
+  return flow.map((step, index) => ({
     ...step,
     completed: status === 'CANCELADO' ? false : index <= safeActiveIndex,
   }));
@@ -132,6 +131,7 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
     cocinaChannel.bind('pedido-actualizado', handleUpdate);
     cocinaChannel.bind('detalle-actualizado', handleUpdate);
     cocinaChannel.bind('pedido-armado', handleUpdate);
+    window.addEventListener('restaurant-state-changed', handleUpdate);
 
     return () => {
       ordersChannel.unbind_all();
@@ -140,6 +140,7 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
       pusherClient.unsubscribe('orders-channel');
       pusherClient.unsubscribe('tables-channel');
       pusherClient.unsubscribe('cocina-channel');
+      window.removeEventListener('restaurant-state-changed', handleUpdate);
     };
   }, [loadOrders]);
 
@@ -213,7 +214,7 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
           ) : (
             <div className="grid gap-3 lg:grid-cols-2">
               {visibleOrders.map((order) => {
-                const steps = buildSteps(order.status);
+                const steps = buildSteps(order.status, order.source === 'DELIVERY');
 
                 return (
                   <article key={order.id} className="rounded-[1.5rem] bg-white p-4 shadow-sm">
@@ -221,9 +222,11 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
                       <div>
                         <p className="text-[20px] font-bold text-text">Pedido {order.orderNumber}</p>
                         <p className="mt-1 text-[13px] font-medium text-gray-500">
-                          {order.source === 'MESA_MESERO'
-                            ? `Mesa ${order.tableNumber ?? '-'}`
-                            : `Pedido de reserva · Mesa ${order.tableNumber ?? '-'}`}
+                          {order.source === 'DELIVERY'
+                            ? '🛵 Pedido a domicilio (Delivery)'
+                            : order.source === 'MESA_MESERO'
+                              ? `Mesa ${order.tableNumber ?? '-'}`
+                              : `Pedido de reserva · Mesa ${order.tableNumber ?? '-'}`}
                         </p>
                       </div>
                       <span
@@ -258,6 +261,12 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
                       <p>Total: <strong>{formatCurrency(order.total)}</strong></p>
                       {order.reservationTime && <p>Hora de reserva: {order.reservationTime}</p>}
                       {order.prepareFrom && <p>Preparar desde: {order.prepareFrom}</p>}
+                      {order.source === 'DELIVERY' && (
+                        <>
+                          <p className="text-[12px] truncate">📍 Dirección: {order.deliveryAddress}</p>
+                          <p className="text-[12px]">📞 Teléfono: {order.deliveryPhone}</p>
+                        </>
+                      )}
                     </div>
 
                     <div className="mt-4 flex gap-2">
@@ -326,11 +335,31 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
               ))}
             </div>
 
-            <div className="mt-5 rounded-2xl bg-info/10 p-4 text-[13px] leading-5 text-info">
-              {selectedOrder.source === 'MESA_MESERO'
-                ? 'Este pedido representa el flujo real esperado: mesero registra, cocina cambia estado y cliente visualiza el avance.'
-                : 'Este pedido representa el flujo futuro de pedido asociado a reserva, con preparación sugerida antes de la hora reservada.'}
-            </div>
+            {selectedOrder.source === 'DELIVERY' ? (
+              <>
+                <OrderTrackingMap orderId={selectedOrder.id} status={selectedOrder.status} />
+                <div className="mt-4 rounded-2xl bg-primary/10 p-4 text-[13px] leading-5 text-primary">
+                  <p className="font-bold mb-1">Detalles de Entrega (Delivery)</p>
+                  <p><strong>Dirección:</strong> {selectedOrder.deliveryAddress}</p>
+                  <p className="mt-1"><strong>Teléfono:</strong> {selectedOrder.deliveryPhone}</p>
+                  {selectedOrder.paymentMethod && (
+                    <p className="mt-1">
+                      <strong>Pago:</strong> {selectedOrder.paymentMethod === 'QR' ? '📱 QR / Transferencia' : '💵 Efectivo'}
+                      {selectedOrder.paymentReference && ` (Ref: ${selectedOrder.paymentReference})`}
+                    </p>
+                  )}
+                  {selectedOrder.notes && (
+                    <p className="mt-1"><strong>Notas:</strong> {selectedOrder.notes}</p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="mt-5 rounded-2xl bg-info/10 p-4 text-[13px] leading-5 text-info">
+                {selectedOrder.source === 'MESA_MESERO'
+                  ? 'Este pedido representa el flujo real esperado: mesero registra, cocina cambia estado y cliente visualiza el avance.'
+                  : 'Este pedido representa el flujo futuro de pedido asociado a reserva, con preparación sugerida antes de la hora reservada.'}
+              </div>
+            )}
 
             <div className="mt-5 flex items-center justify-between border-t border-gray-100 pt-4 text-[16px] font-bold text-text">
               <span>Total</span>

@@ -16,6 +16,7 @@ import ClientReservationsPage from './modules/cliente/ClientReservationsPage';
 import ClientReservationOrderPage from './modules/cliente/ClientReservationOrderPage';
 import ClientOrdersPage from './modules/cliente/ClientOrdersPage';
 import ClientActiveOrderPage from './modules/cliente/ClientActiveOrderPage';
+import ClientCartPage from './modules/cliente/ClientCartPage';
 import UsersPage from './modules/users/UsersPage';
 import MenuManagementPage from './modules/menu/MenuManagementPage';
 import InventarioLayout from './modules/admin/inventario/InventarioLayout';
@@ -24,6 +25,7 @@ import MonitorCocinaPage from './modules/cocina/MonitorCocinaPage';
 import AdminReservationsPage from './modules/admin/AdminReservationsPage';
 import AdminInvoicesPage from './modules/admin/AdminInvoicesPage';
 import AdminCouponsPage from './modules/admin/AdminCouponsPage';
+import AdminDeliveryPage from './modules/admin/AdminDeliveryPage';
 import ServiceHistoryPage from './modules/history/ServiceHistoryPage';
 import CashHistoryPage from './modules/history/CashHistoryPage';
 import type { ClientNavigationKey } from './shared/types/client-flow.types';
@@ -38,17 +40,18 @@ type AppScreen =
   | 'mesero-tables' | 'mesero-table-order' | 'mesero-orders' | 'mesero-menu'
   | 'cocina-home' | 'cajero-home' | 'cliente-home' | 'client-menu'
   | 'client-product-detail' | 'client-reserve-table' | 'client-reservations'
-  | 'client-reservation-order' | 'client-orders' | 'client-manage-order'
-  | 'admin-reservations' | 'admin-orders' | 'admin-kitchen-monitor' | 'service-history' | 'cash-history' | 'admin-invoices' | 'admin-coupons';
+  | 'client-reservation-order' | 'client-orders' | 'client-manage-order' | 'client-cart'
+  | 'admin-reservations' | 'admin-orders' | 'admin-kitchen-monitor' | 'service-history' | 'cash-history' | 'admin-invoices' | 'admin-coupons' | 'admin-delivery';
 
 const AUTH_STORAGE_KEY = 'gestionysabor_auth';
 
 const ROLE_PERMISSIONS: Record<string, AppScreen[]> = {
-  [USER_ROLES.ADMIN]: ['admin-menu', 'admin-users', 'menu-management', 'admin-inventory', 'table-management', 'table-order', 'admin-kitchen-monitor', 'admin-reservations', 'admin-orders', 'client-reservation-order', 'mesero-orders', 'mesero-table-order', 'service-history', 'cash-history', 'admin-invoices', 'admin-coupons'],
+  [USER_ROLES.ADMIN]: ['admin-menu', 'admin-users', 'menu-management', 'admin-inventory', 'table-management', 'table-order', 'admin-kitchen-monitor', 'admin-reservations', 'admin-orders', 'client-reservation-order', 'mesero-orders', 'mesero-table-order', 'service-history', 'cash-history', 'admin-invoices', 'admin-coupons', 'admin-delivery'],
   [USER_ROLES.MESERO]: ['mesero-menu', 'mesero-tables', 'mesero-table-order', 'mesero-orders'],
   [USER_ROLES.COCINERO]: ['cocina-home'],
-  [USER_ROLES.CAJERO]: ['cajero-home'],
-  [USER_ROLES.CLIENTE]: ['cliente-home', 'client-menu', 'client-product-detail', 'client-reserve-table', 'client-reservations', 'client-reservation-order', 'client-orders', 'client-manage-order']
+  [USER_ROLES.CAJERO]: ['cajero-home', 'admin-delivery'],
+  [USER_ROLES.CLIENTE]: ['cliente-home', 'client-menu', 'client-product-detail', 'client-reserve-table', 'client-reservations', 'client-reservation-order', 'client-orders', 'client-manage-order', 'client-cart'],
+  [USER_ROLES.REPARTIDOR]: ['admin-delivery']
 };
 
 function getScreenByRole(role: AuthUser['rol']): AppScreen {
@@ -58,6 +61,7 @@ function getScreenByRole(role: AuthUser['rol']): AppScreen {
     case USER_ROLES.COCINERO: return 'cocina-home';
     case USER_ROLES.CAJERO: return 'cajero-home';
     case USER_ROLES.CLIENTE: return 'client-menu';
+    case USER_ROLES.REPARTIDOR: return 'admin-delivery';
     default: return 'login';
   }
 }
@@ -68,6 +72,7 @@ function getClientScreen(screen: ClientNavigationKey): AppScreen {
     case 'reserve-table': return 'client-reserve-table';
     case 'reservations': return 'client-reservations';
     case 'orders': return 'client-orders';
+    case 'cart': return 'client-cart';
   }
 }
 
@@ -119,46 +124,52 @@ function App() {
     switch (role) {
       case USER_ROLES.ADMIN:
         return [
-          { key: 'productos', label: 'Administración de productos', onClick: () => { setScreen('menu-management'); setIsSidebarOpen(false); } },
-          { key: 'inventario', label: 'Gestión de Inventario', onClick: () => { setScreen('admin-inventory'); setIsSidebarOpen(false); } },
-          { key: 'mesas', label: 'Gestión de Mesas', onClick: () => { setScreen('table-management'); setIsSidebarOpen(false); } },
-          { key: 'cocina', label: 'Monitor de cocina', onClick: () => { setScreen('admin-kitchen-monitor'); setIsSidebarOpen(false); } },
-          { key: 'reservas', label: 'Gestión de reservas', onClick: () => { setScreen('admin-reservations'); setIsSidebarOpen(false); } },
-          { key: 'pedidos', label: 'Gestión de pedidos', onClick: () => { setScreen('admin-orders'); setIsSidebarOpen(false); } },
-          { key: 'delivery', label: 'Atención Delivery', onClick: () => { alert('Atención Delivery no implementado aún'); setIsSidebarOpen(false); } },
-          { key: 'facturacion', label: 'Facturación', onClick: () => { setScreen('cajero-home'); setSelectedCajeroView('facturacion'); setIsSidebarOpen(false); } },
-          { key: 'cierre', label: 'Cierre de Caja', onClick: () => { setScreen('cajero-home'); setSelectedCajeroView('cierre'); setIsSidebarOpen(false); } },
-          { key: 'facturas-admin', label: 'Control de Facturas', onClick: () => { setScreen('admin-invoices'); setIsSidebarOpen(false); } },
-          { key: 'cupones', label: 'Gestión de Cupones', onClick: () => { setScreen('admin-coupons'); setIsSidebarOpen(false); } },
-          { key: 'usuarios', label: 'Gestión de Usuarios', onClick: () => { setScreen('admin-users'); setIsSidebarOpen(false); } },
-          { key: 'historial', label: 'Historial de Atención', onClick: () => { setScreen('service-history'); setIsSidebarOpen(false); } },
-          { key: 'historial-caja', label: 'Historial de Caja', onClick: () => { setScreen('cash-history'); setIsSidebarOpen(false); } }
+          { key: 'productos', label: 'Administración de productos', active: screenState === 'menu-management', onClick: () => { setScreen('menu-management'); setIsSidebarOpen(false); } },
+          { key: 'inventario', label: 'Gestión de Inventario', active: screenState === 'admin-inventory', onClick: () => { setScreen('admin-inventory'); setIsSidebarOpen(false); } },
+          { key: 'mesas', label: 'Gestión de Mesas', active: ['table-management', 'table-order'].includes(screenState), onClick: () => { setScreen('table-management'); setIsSidebarOpen(false); } },
+          { key: 'cocina', label: 'Monitor de cocina', active: screenState === 'admin-kitchen-monitor', onClick: () => { setScreen('admin-kitchen-monitor'); setIsSidebarOpen(false); } },
+          { key: 'reservas', label: 'Gestión de reservas', active: screenState === 'admin-reservations', onClick: () => { setScreen('admin-reservations'); setIsSidebarOpen(false); } },
+          { key: 'pedidos', label: 'Gestión de pedidos', active: screenState === 'admin-orders', onClick: () => { setScreen('admin-orders'); setIsSidebarOpen(false); } },
+          { key: 'delivery', label: 'Atención Delivery', active: screenState === 'admin-delivery', onClick: () => { setScreen('admin-delivery'); setIsSidebarOpen(false); } },
+          { key: 'facturacion', label: 'Facturación', active: screenState === 'cajero-home' && selectedCajeroView === 'facturacion', onClick: () => { setScreen('cajero-home'); setSelectedCajeroView('facturacion'); setIsSidebarOpen(false); } },
+          { key: 'cierre', label: 'Cierre de Caja', active: screenState === 'cajero-home' && selectedCajeroView === 'cierre', onClick: () => { setScreen('cajero-home'); setSelectedCajeroView('cierre'); setIsSidebarOpen(false); } },
+          { key: 'facturas-admin', label: 'Control de Facturas', active: screenState === 'admin-invoices', onClick: () => { setScreen('admin-invoices'); setIsSidebarOpen(false); } },
+          { key: 'cupones', label: 'Gestión de Cupones', active: screenState === 'admin-coupons', onClick: () => { setScreen('admin-coupons'); setIsSidebarOpen(false); } },
+          { key: 'usuarios', label: 'Gestión de Usuarios', active: screenState === 'admin-users', onClick: () => { setScreen('admin-users'); setIsSidebarOpen(false); } },
+          { key: 'historial', label: 'Historial de Atención', active: screenState === 'service-history', onClick: () => { setScreen('service-history'); setIsSidebarOpen(false); } },
+          { key: 'historial-caja', label: 'Historial de Caja', active: screenState === 'cash-history', onClick: () => { setScreen('cash-history'); setIsSidebarOpen(false); } }
         ];
       case USER_ROLES.MESERO:
         return [
-          { key: 'mesas', label: 'Gestionar mesas', onClick: () => { setScreen('mesero-tables'); setIsSidebarOpen(false); } },
-          { key: 'pedidos', label: 'Gestionar pedidos', onClick: () => { setScreen('mesero-orders'); setIsSidebarOpen(false); } }
+          { key: 'mesas', label: 'Gestionar mesas', active: ['mesero-tables', 'mesero-table-order'].includes(screenState), onClick: () => { setScreen('mesero-tables'); setIsSidebarOpen(false); } },
+          { key: 'pedidos', label: 'Gestionar pedidos', active: screenState === 'mesero-orders', onClick: () => { setScreen('mesero-orders'); setIsSidebarOpen(false); } }
         ];
       case USER_ROLES.CAJERO:
         return [
-          { key: 'facturacion', label: 'Facturación', onClick: () => { setScreen('cajero-home'); setSelectedCajeroView('facturacion'); setIsSidebarOpen(false); } },
-          { key: 'cierre', label: 'Cierre de Caja', onClick: () => { setScreen('cajero-home'); setSelectedCajeroView('cierre'); setIsSidebarOpen(false); } }
+          { key: 'delivery', label: 'Atención Delivery', active: screenState === 'admin-delivery', onClick: () => { setScreen('admin-delivery'); setIsSidebarOpen(false); } },
+          { key: 'facturacion', label: 'Facturación', active: screenState === 'cajero-home' && selectedCajeroView === 'facturacion', onClick: () => { setScreen('cajero-home'); setSelectedCajeroView('facturacion'); setIsSidebarOpen(false); } },
+          { key: 'cierre', label: 'Cierre de Caja', active: screenState === 'cajero-home' && selectedCajeroView === 'cierre', onClick: () => { setScreen('cajero-home'); setSelectedCajeroView('cierre'); setIsSidebarOpen(false); } }
         ];
       case USER_ROLES.COCINERO:
         return [
-          { key: 'cocina', label: 'Monitor de Cocina', onClick: () => { setScreen('cocina-home'); setIsSidebarOpen(false); } }
+          { key: 'cocina', label: 'Monitor de Cocina', active: screenState === 'cocina-home', onClick: () => { setScreen('cocina-home'); setIsSidebarOpen(false); } }
+        ];
+      case USER_ROLES.REPARTIDOR:
+        return [
+          { key: 'delivery', label: 'Atención Delivery', active: screenState === 'admin-delivery', onClick: () => { setScreen('admin-delivery'); setIsSidebarOpen(false); } }
         ];
       case USER_ROLES.CLIENTE:
         return [
-          { key: 'menu', label: 'Menú', onClick: () => { navigateClient('menu'); setIsSidebarOpen(false); } },
-          { key: 'reserve-table', label: 'Reservar mesa', onClick: () => { navigateClient('reserve-table'); setIsSidebarOpen(false); } },
-          { key: 'reservations', label: 'Mis reservas', onClick: () => { navigateClient('reservations'); setIsSidebarOpen(false); } },
-          { key: 'orders', label: 'Mis pedidos', onClick: () => { navigateClient('orders'); setIsSidebarOpen(false); } }
+          { key: 'menu', label: 'Menú', active: ['client-menu', 'client-product-detail'].includes(screenState), onClick: () => { navigateClient('menu'); setIsSidebarOpen(false); } },
+          { key: 'cart', label: 'Mi pedido (Carrito)', active: screenState === 'client-cart', onClick: () => { navigateClient('cart'); setIsSidebarOpen(false); } },
+          { key: 'reserve-table', label: 'Reservar mesa', active: screenState === 'client-reserve-table', onClick: () => { navigateClient('reserve-table'); setIsSidebarOpen(false); } },
+          { key: 'reservations', label: 'Mis reservas', active: ['client-reservations', 'client-reservation-order'].includes(screenState), onClick: () => { navigateClient('reservations'); setIsSidebarOpen(false); } },
+          { key: 'orders', label: 'Mis pedidos', active: ['client-orders', 'client-manage-order'].includes(screenState), onClick: () => { navigateClient('orders'); setIsSidebarOpen(false); } }
         ];
       default:
         return [];
     }
-  }, [setScreen, navigateClient]);
+  }, [setScreen, navigateClient, screenState, selectedCajeroView]);
 
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
@@ -196,6 +207,12 @@ function App() {
       cocinaChannel.unbind_all();
       pusherClient.unsubscribe('cocina-channel');
     };
+  }, []);
+
+  useEffect(() => {
+    const handleOpenSidebar = () => setIsSidebarOpen(true);
+    window.addEventListener('open-sidebar', handleOpenSidebar);
+    return () => window.removeEventListener('open-sidebar', handleOpenSidebar);
   }, []);
 
   useEffect(() => {
@@ -336,6 +353,10 @@ function App() {
             <AdminCouponsPage onBack={() => setIsSidebarOpen(true)} />
           )}
 
+          {screenState === 'admin-delivery' && sessionUser && (
+            <AdminDeliveryPage user={sessionUser} onBack={() => setIsSidebarOpen(true)} />
+          )}
+
           {screenState === 'cocina-home' && <MonitorCocinaPage onBack={() => setIsSidebarOpen(true)} />}
           {screenState === 'cajero-home' && sessionUser && accessToken && (
             <CajeroHomePage 
@@ -348,14 +369,17 @@ function App() {
           
           {screenState === 'cliente-home' && sessionUser && <ClientHomePage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} />}
           {screenState === 'client-menu' && sessionUser && (
-            <ClientMenuPage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onOpenProductDetail={(productId) => setScreen('client-product-detail', { productId })} onBack={() => setIsSidebarOpen(true)} />
+            <ClientMenuPage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onOpenProductDetail={(productId) => setScreen('client-product-detail', { productId })} />
           )}
           {screenState === 'client-product-detail' && sessionUser && selectedClientProductId !== null && (
             <ClientProductDetailPage user={sessionUser} productId={selectedClientProductId} onBack={() => setScreen('client-menu')} onLogout={handleLogout} onNavigate={navigateClient} />
           )}
-          {screenState === 'client-reserve-table' && sessionUser && <TableManagementPage role="CLIENTE" user={sessionUser} onNavigate={navigateClient} onBack={() => setScreen('cliente-home')} />}
+          {screenState === 'client-cart' && sessionUser && (
+            <ClientCartPage user={sessionUser} onNavigate={navigateClient} onLogout={handleLogout} />
+          )}
+          {screenState === 'client-reserve-table' && sessionUser && <TableManagementPage role="CLIENTE" user={sessionUser} onNavigate={navigateClient} onBack={() => setIsSidebarOpen(true)} />}
           {screenState === 'client-reservations' && sessionUser && (
-            <ClientReservationsPage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onBack={() => setScreen('cliente-home')} onOpenReservationOrder={(resId) => setScreen('client-reservation-order', { reservationId: resId })} />
+            <ClientReservationsPage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onOpenReservationOrder={(resId) => setScreen('client-reservation-order', { reservationId: resId })} />
           )}
           {screenState === 'client-reservation-order' && sessionUser && selectedReservationId !== null && (
             <ClientReservationOrderPage 
@@ -374,7 +398,7 @@ function App() {
             />
           )}
           {screenState === 'client-orders' && sessionUser && (
-            <ClientOrdersPage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onBack={() => setScreen('cliente-home')} onManageOrder={(tableId) => setScreen('client-manage-order', { tableId })} />
+            <ClientOrdersPage user={sessionUser} onLogout={handleLogout} onNavigate={navigateClient} onManageOrder={(tableId) => setScreen('client-manage-order', { tableId })} />
           )}
           {screenState === 'client-manage-order' && sessionUser && selectedTableId !== null && (
             <ClientActiveOrderPage user={sessionUser} tableId={selectedTableId} onBack={() => navigateClient('orders')} />
