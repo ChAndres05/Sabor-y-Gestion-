@@ -10,9 +10,9 @@ export interface HoraPico {
   barras: string[];
 }
 
-export interface MeseroRendimiento {
+export interface ClienteRendimiento {
   nombre: string;
-  ventas: string;
+  consumo: string;
   pedidos: number;
 }
 
@@ -21,7 +21,7 @@ export interface DashboardData {
   porcentaje: string;
   platos: PlatoVendido[];
   horas: HoraPico;
-  meseros: MeseroRendimiento[];
+  clientes: ClienteRendimiento[];
 }
 
 export const DASHBOARD_MOCK_DATA: Record<string, DashboardData> = {
@@ -38,10 +38,10 @@ export const DASHBOARD_MOCK_DATA: Record<string, DashboardData> = {
       picoIndex: 3,
       barras: ['25%', '45%', '60%', '90%', '55%', '40%', '25%']
     },
-    meseros: [
-      { nombre: 'Juan Gómez', ventas: '$345.20', pedidos: 30 },
-      { nombre: 'Ana Pérez', ventas: '$152.20', pedidos: 20 },
-      { nombre: 'Luis Díaz', ventas: '$35.30', pedidos: 10 }
+    clientes: [
+      { nombre: 'Carlos Rocha', consumo: '$345.20', pedidos: 5 },
+      { nombre: 'Maria Fernandez', consumo: '$152.20', pedidos: 2 },
+      { nombre: 'Jose Mendez', consumo: '$35.30', pedidos: 1 }
     ]
   },
   semana: {
@@ -57,10 +57,10 @@ export const DASHBOARD_MOCK_DATA: Record<string, DashboardData> = {
       picoIndex: 4,
       barras: ['30%', '50%', '70%', '85%', '95%', '60%', '35%']
     },
-    meseros: [
-      { nombre: 'Ana Pérez', ventas: '$2,450.00', pedidos: 180 },
-      { nombre: 'Juan Gómez', ventas: '$2,100.50', pedidos: 150 },
-      { nombre: 'Luis Díaz', ventas: '$1,850.30', pedidos: 110 }
+    clientes: [
+      { nombre: 'Ana Fernandez', consumo: '$2,450.00', pedidos: 18 },
+      { nombre: 'Carlos Rocha', consumo: '$2,100.50', pedidos: 15 },
+      { nombre: 'Luis Suarez', consumo: '$1,850.30', pedidos: 11 }
     ]
   },
   mes: {
@@ -76,10 +76,10 @@ export const DASHBOARD_MOCK_DATA: Record<string, DashboardData> = {
       picoIndex: 3,
       barras: ['40%', '60%', '80%', '100%', '75%', '50%', '30%']
     },
-    meseros: [
-      { nombre: 'Juan Gómez', ventas: '$9,800.00', pedidos: 650 },
-      { nombre: 'Luis Díaz', ventas: '$8,450.00', pedidos: 520 },
-      { nombre: 'Ana Pérez', ventas: '$7,900.20', pedidos: 480 }
+    clientes: [
+      { nombre: 'Carlos Rocha', consumo: '$9,800.00', pedidos: 65 },
+      { nombre: 'Luis Suarez', consumo: '$8,450.00', pedidos: 52 },
+      { nombre: 'Ana Fernandez', consumo: '$7,900.20', pedidos: 48 }
     ]
   },
   rango: {
@@ -95,10 +95,10 @@ export const DASHBOARD_MOCK_DATA: Record<string, DashboardData> = {
       picoIndex: 2,
       barras: ['50%', '75%', '100%', '60%', '40%', '30%', '20%']
     },
-    meseros: [
-      { nombre: 'Luis Díaz', ventas: '$1,500.00', pedidos: 85 },
-      { nombre: 'Juan Gómez', ventas: '$1,200.20', pedidos: 70 },
-      { nombre: 'Ana Pérez', ventas: '$950.00', pedidos: 55 }
+    clientes: [
+      { nombre: 'Luis Suarez', consumo: '$1,500.00', pedidos: 8 },
+      { nombre: 'Carlos Rocha', consumo: '$1,200.20', pedidos: 7 },
+      { nombre: 'Ana Fernandez', consumo: '$950.00', pedidos: 5 }
     ]
   }
 };

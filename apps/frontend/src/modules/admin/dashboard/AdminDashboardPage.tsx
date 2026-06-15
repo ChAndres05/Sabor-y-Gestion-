@@ -135,27 +135,27 @@ export default function AdminDashboardPage({ onBack, userName = 'Juanito Perez' 
           </div>
         </div>
 
-        {/* Waiter Performance */}
+        {/* Client Ranking */}
         <div className="bg-white rounded-2xl p-5 shadow-sm">
-          <h3 className="text-sm font-bold mb-6 text-center">Rendimiento de Meseros (Top {activeTab === 'hoy' ? 'Hoy' : activeTab === 'rango' ? 'del Rango' : 'Mensual'})</h3>
+          <h3 className="text-sm font-bold mb-6 text-center">Mejores Clientes (Top 3 {activeTab === 'hoy' ? 'Hoy' : activeTab === 'rango' ? 'del Rango' : 'Mensual'})</h3>
           
           <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-4 text-[11px] font-bold text-gray-800 uppercase tracking-wider text-center">
-            <span className="text-left">Mesero</span>
-            <span>Ventas</span>
+            <span className="text-left">Cliente</span>
+            <span>Consumo</span>
             <span>Pedidos</span>
           </div>
 
           <div className="space-y-4">
-            {data.meseros.map((mesero, idx) => (
+            {data.clientes.map((cliente, idx) => (
               <div key={idx} className="grid grid-cols-[1fr_1fr_1fr] gap-2 items-center text-center transition-opacity duration-300">
                 <div className="flex items-center gap-2 text-left overflow-hidden">
                   <div className="w-7 h-7 shrink-0 bg-transparent border-2 border-gray-800 rounded-full flex items-center justify-center">
                     <User className="w-4 h-4 text-gray-800" />
                   </div>
-                  <span className="text-xs font-bold text-gray-800 truncate">{mesero.nombre}</span>
+                  <span className="text-xs font-bold text-gray-800 truncate">{cliente.nombre}</span>
                 </div>
-                <span className="text-xs font-medium text-gray-800">{mesero.ventas}</span>
-                <span className="text-xs font-medium text-gray-800">{mesero.pedidos}</span>
+                <span className="text-xs font-medium text-gray-800">{cliente.consumo}</span>
+                <span className="text-xs font-medium text-gray-800">{cliente.pedidos}</span>
               </div>
             ))}
           </div>
