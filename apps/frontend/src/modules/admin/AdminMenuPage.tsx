@@ -14,9 +14,11 @@ interface AdminMenuPageProps {
   onOpenCaja: () => void;
   onOpenInvoices: () => void;
   onOpenCoupons: () => void;
+  onOpenDashboard: () => void;
 }
 
 const menuItems = [
+  { key: 'dashboard', label: 'Dashboard de Información', enabled: true },
   { key: 'productos', label: 'Administración de productos', enabled: true },
   { key: 'mesas', label: 'Gestión de Mesas', enabled: true },
   { key: 'cocina', label: 'Monitor de cocina', enabled: true },
@@ -43,6 +45,7 @@ export default function AdminMenuPage({
   onOpenCaja,
   onOpenInvoices,
   onOpenCoupons,
+  onOpenDashboard,
 }: AdminMenuPageProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -61,6 +64,7 @@ export default function AdminMenuPage({
           user={user} 
           onLogout={onLogout}
           options={[
+            { key: 'dashboard', label: 'Dashboard de Información', onClick: () => { onOpenDashboard(); setIsSidebarOpen(false); } },
             { key: 'productos', label: 'Administración de productos', onClick: () => { onOpenMenuManagement(); setIsSidebarOpen(false); } },
             { key: 'mesas', label: 'Gestión de Mesas', onClick: () => { onOpenTableManagement(); setIsSidebarOpen(false); } },
             { key: 'cocina', label: 'Monitor de cocina', onClick: () => { onOpenKitchenMonitor(); setIsSidebarOpen(false); } },
@@ -80,6 +84,10 @@ export default function AdminMenuPage({
 
               if (item.key === 'usuarios') {
                 onOpenUsers();
+              }
+
+              if (item.key === 'dashboard') {
+                onOpenDashboard();
               }
 
               if (item.key === 'productos') {

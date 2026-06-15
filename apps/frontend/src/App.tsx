@@ -28,6 +28,7 @@ import AdminCouponsPage from './modules/admin/AdminCouponsPage';
 import AdminDeliveryPage from './modules/admin/AdminDeliveryPage';
 import ServiceHistoryPage from './modules/history/ServiceHistoryPage';
 import CashHistoryPage from './modules/history/CashHistoryPage';
+import AdminDashboardPage from './modules/admin/dashboard/AdminDashboardPage';
 import type { ClientNavigationKey } from './shared/types/client-flow.types';
 import { pusherClient } from './shared/utils/pusher';
 import { emitRestaurantStateChanged } from './shared/utils/events';
@@ -35,7 +36,7 @@ import { Sidebar } from './shared/components/Sidebar';
 
 
 type AppScreen =
-  | 'login' | 'register' | 'forgot-password' | 'admin-menu' | 'admin-users'
+  | 'login' | 'register' | 'forgot-password' | 'admin-menu' | 'admin-users' | 'admin-dashboard'
   | 'menu-management' | 'admin-inventory' | 'table-management' | 'table-order' | 'mesero-home'
   | 'mesero-tables' | 'mesero-table-order' | 'mesero-orders' | 'mesero-menu'
   | 'cocina-home' | 'cajero-home' | 'cliente-home' | 'client-menu'
@@ -46,7 +47,7 @@ type AppScreen =
 const AUTH_STORAGE_KEY = 'gestionysabor_auth';
 
 const ROLE_PERMISSIONS: Record<string, AppScreen[]> = {
-  [USER_ROLES.ADMIN]: ['admin-menu', 'admin-users', 'menu-management', 'admin-inventory', 'table-management', 'table-order', 'admin-kitchen-monitor', 'admin-reservations', 'admin-orders', 'client-reservation-order', 'mesero-orders', 'mesero-table-order', 'service-history', 'cash-history', 'admin-invoices', 'admin-coupons', 'admin-delivery'],
+  [USER_ROLES.ADMIN]: ['admin-menu', 'admin-users', 'admin-dashboard', 'menu-management', 'admin-inventory', 'table-management', 'table-order', 'admin-kitchen-monitor', 'admin-reservations', 'admin-orders', 'client-reservation-order', 'mesero-orders', 'mesero-table-order', 'service-history', 'cash-history', 'admin-invoices', 'admin-coupons', 'admin-delivery'],
   [USER_ROLES.MESERO]: ['mesero-menu', 'mesero-tables', 'mesero-table-order', 'mesero-orders'],
   [USER_ROLES.COCINERO]: ['cocina-home'],
   [USER_ROLES.CAJERO]: ['cajero-home', 'admin-delivery'],
@@ -124,6 +125,7 @@ function App() {
     switch (role) {
       case USER_ROLES.ADMIN:
         return [
+          { key: 'dashboard', label: 'Dashboard de Información', active: screenState === 'admin-dashboard', onClick: () => { setScreen('admin-dashboard'); setIsSidebarOpen(false); } },
           { key: 'productos', label: 'Administración de productos', active: screenState === 'menu-management', onClick: () => { setScreen('menu-management'); setIsSidebarOpen(false); } },
           { key: 'inventario', label: 'Gestión de Inventario', active: screenState === 'admin-inventory', onClick: () => { setScreen('admin-inventory'); setIsSidebarOpen(false); } },
           { key: 'mesas', label: 'Gestión de Mesas', active: ['table-management', 'table-order'].includes(screenState), onClick: () => { setScreen('table-management'); setIsSidebarOpen(false); } },
@@ -309,6 +311,13 @@ function App() {
               onOpenCaja={() => setScreen('cajero-home')}
               onOpenInvoices={() => setScreen('admin-invoices')}
               onOpenCoupons={() => setScreen('admin-coupons')}
+              onOpenDashboard={() => setScreen('admin-dashboard')}
+            />
+          )}
+          {screenState === 'admin-dashboard' && sessionUser && (
+            <AdminDashboardPage 
+              onBack={() => setIsSidebarOpen(true)} 
+              userName={`${sessionUser.nombre} ${sessionUser.apellido}`} 
             />
           )}
           {screenState === 'admin-reservations' && (
