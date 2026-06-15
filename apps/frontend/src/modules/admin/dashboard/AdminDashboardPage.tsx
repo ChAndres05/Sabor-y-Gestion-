@@ -43,11 +43,11 @@ export default function AdminDashboardPage({ onBack, userName = 'Juanito Perez' 
 
       <div className="px-6 pb-24 space-y-6 flex-1 overflow-y-auto">
         {/* Tabs */}
-        <div className="bg-white rounded-full p-1.5 flex shadow-sm mb-6 relative z-50">
+        <div className="bg-white rounded-full p-1.5 flex shadow-sm mb-6 relative z-10">
           <button
             onClick={() => { setActiveTab('hoy'); setIsCalendarOpen(false); }}
             className={`flex-1 py-2 text-sm font-bold rounded-full transition-all duration-300 hover:scale-105 ${
-              activeTab === 'hoy' ? 'bg-[#B3401B] text-white shadow-md' : 'text-gray-500 hover:text-gray-700'
+              activeTab === 'hoy' && !isCalendarOpen ? 'bg-[#B3401B] text-white shadow-md' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             Hoy
@@ -63,7 +63,7 @@ export default function AdminDashboardPage({ onBack, userName = 'Juanito Perez' 
           <button
             onClick={() => { setActiveTab('mes'); setIsCalendarOpen(false); }}
             className={`flex-1 py-2 text-sm font-bold rounded-full transition-all duration-300 hover:scale-105 ${
-              activeTab === 'mes' ? 'bg-[#B3401B] text-white shadow-md' : 'text-gray-500 hover:text-gray-700'
+              activeTab === 'mes' && !isCalendarOpen ? 'bg-[#B3401B] text-white shadow-md' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             Este Mes
