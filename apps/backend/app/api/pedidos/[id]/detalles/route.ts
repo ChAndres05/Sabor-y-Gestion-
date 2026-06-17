@@ -117,6 +117,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ detalle: nuevoDetalle, pedido: pedidoActualizado }, { status: 201 });
   } catch (error) {
     console.error('Error agregando detalle al pedido:', error);
-    return NextResponse.json({ error: 'Error interno del servidor al agregar el detalle' }, { status: 500 });
+    const err = error as Error;
+    let errMsg = 'Error interno del servidor al agregar el detalle';
+    if (err.message?.includes('insumos_stock_actual_check') || (err.message?.includes('insumos') && err.message?.includes('check constraint'))) {
+      errMsg = 'No hay suficiente stock en inventario para preparar este producto.';
+    }
+    return NextResponse.json({ error: errMsg }, { status: 500 });
   }
 }
