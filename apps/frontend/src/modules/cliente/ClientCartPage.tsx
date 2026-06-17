@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useCartStore } from '../../store/cartStore';
 import type { AuthUser } from '../auth/types/auth.types';
 import type { ClientNavigationKey } from '../../shared/types/client-flow.types';
-import { createDeliveryOrderMock } from '../../shared/mocks/delivery.mock';
+import { deliveryApi } from '../../shared/api/delivery.api';
 import { emitRestaurantStateChanged } from '../../shared/utils/events';
 import ClientLayout from '../../components/client/ClientLayout';
 import qrImage from '../../assets/qr.png';
@@ -17,12 +17,25 @@ function formatPrice(value: number) {
   return `${value.toFixed(2)} Bs`;
 }
 
+function getHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371; // Earth radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 interface LeafletMap {
   setView: (center: [number, number], zoom: number) => LeafletMap;
   invalidateSize: () => void;
   on: (event: string, fn: (e: { latlng: { lat: number; lng: number } }) => void) => void;
   off: (event: string, fn: (e: { latlng: { lat: number; lng: number } }) => void) => void;
   remove: () => void;
+  removeLayer: (layer: unknown) => void;
 }
 
 interface LeafletMarker {
@@ -38,7 +51,9 @@ interface LeafletGlobal {
       bindPopup: (content: string) => void;
     };
   };
+  polyline: (points: [number, number][], options?: unknown) => { addTo: (map: LeafletMap) => unknown };
 }
+
 
 export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCartPageProps) {
   const { items, updateQuantity, removeItem, clearCart } = useCartStore();
@@ -53,7 +68,22 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
   const [leafletLoaded, setLeafletLoaded] = useState(false);
   const mapRef = useRef<LeafletMap | null>(null);
   const selectionMarkerRef = useRef<LeafletMarker | null>(null);
+  const polylineRef = useRef<unknown>(null);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
+
+  const [restaurantLoc, setRestaurantLoc] = useState({ lat: -17.391537153336852, lng: -66.15233613739282 });
+  const [deliveryLat, setDeliveryLat] = useState<number | null>(null);
+  const [deliveryLng, setDeliveryLng] = useState<number | null>(null);
+  const [calculatedDeliveryFee, setCalculatedDeliveryFee] = useState<number>(5);
+
+  // Fetch restaurant coordinates on mount
+  useEffect(() => {
+    deliveryApi.getRestaurantConfig()
+      .then((config) => {
+        setRestaurantLoc({ lat: config.restaurantLat, lng: config.restaurantLng });
+      })
+      .catch((err) => console.error('Error fetching restaurant config:', err));
+  }, []);
 
   // Load Leaflet resources dynamically from CDN when map modal is requested
   useEffect(() => {
@@ -90,9 +120,7 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
     const L = (window as unknown as Record<string, unknown>).L as LeafletGlobal | undefined;
     if (!L) return;
 
-    const startLat = -17.391537153336852;
-    const startLng = -66.15233613739282;
-    const center: [number, number] = [startLat, startLng];
+    const center: [number, number] = [restaurantLoc.lat, restaurantLoc.lng];
 
     if (mapRef.current) {
       setTimeout(() => {
@@ -111,6 +139,11 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
       attribution: '&copy; OpenStreetMap contributors',
     }).addTo(map);
 
+    // Ensure map is rendered correctly after modal transition completes
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 250);
+
     const restaurantIcon = L.divIcon({
       html: `<div style="background-color: #ef4444; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 14px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3)">🍕</div>`,
       className: '',
@@ -127,17 +160,77 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
       iconAnchor: [14, 14],
     }) as unknown;
 
-    const handleMapClick = (e: { latlng: { lat: number; lng: number } }) => {
+    const handleMapClick = async (e: { latlng: { lat: number; lng: number } }) => {
       const { lat, lng } = e.latlng;
-      
+
       if (selectionMarkerRef.current) {
         selectionMarkerRef.current.setLatLng(e.latlng);
       } else {
         const marker = L.marker(e.latlng, { icon: clientIcon }).addTo(map) as unknown as LeafletMarker;
         selectionMarkerRef.current = marker;
       }
-      
-      setAddress(`📍 Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`);
+
+      // Remove previous polyline
+      if (polylineRef.current) {
+        map.removeLayer(polylineRef.current);
+        polylineRef.current = null;
+      }
+
+      // Default Manhattan path fallback
+      const rawDistance = getHaversineDistance(restaurantLoc.lat, restaurantLoc.lng, lat, lng);
+      const fallbackDistance = rawDistance * 1.25; // Estimate real path distance
+      const fallbackPoints: [number, number][] = [
+        [restaurantLoc.lat, restaurantLoc.lng],
+        [restaurantLoc.lat + (lat - restaurantLoc.lat) * 0.5, restaurantLoc.lng],
+        [restaurantLoc.lat + (lat - restaurantLoc.lat) * 0.5, lng],
+        [lat, lng],
+      ];
+
+      let routeDistance = fallbackDistance;
+      let pathPoints = fallbackPoints;
+
+      // Try fetching exact street routing path from OSRM
+      try {
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${restaurantLoc.lng},${restaurantLoc.lat};${lng},${lat}?overview=full&geometries=geojson&alternatives=true`;
+        const res = await fetch(osrmUrl);
+        const data = await res.json();
+        if (data.code === 'Ok' && data.routes?.length > 0) {
+          // Find the route with the shortest distance among alternatives
+          interface RouteGeometry {
+            coordinates: [number, number][];
+          }
+          interface OSRMRoute {
+            distance: number;
+            geometry: RouteGeometry;
+          }
+          const shortestRoute = data.routes.reduce((prev: OSRMRoute, curr: OSRMRoute) =>
+            curr.distance < prev.distance ? curr : prev
+            , data.routes[0] as OSRMRoute);
+
+          routeDistance = shortestRoute.distance / 1000;
+          pathPoints = shortestRoute.geometry.coordinates.map(([lon, l]: number[]) => [l, lon]);
+        }
+      } catch (err) {
+        console.warn('OSRM routing failed, using Manhattan path fallback:', err);
+      }
+
+      // Draw route on map
+      const polyline = L.polyline(pathPoints, {
+        color: '#3b82f6',
+        weight: 4,
+        opacity: 0.8,
+        dashArray: '5, 8',
+      }).addTo(map);
+      polylineRef.current = polyline;
+
+      const roundedDistance = Number(routeDistance.toFixed(2));
+      // Calculate cost: 5 Bs for first 2 km, and 2 Bs per additional km
+      const fee = roundedDistance <= 2 ? 5 : 5 + 2 * (roundedDistance - 2);
+
+      setCalculatedDeliveryFee(Number(fee.toFixed(2)));
+      setDeliveryLat(lat);
+      setDeliveryLng(lng);
+      setAddress(`📍 Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)} (${routeDistance.toFixed(2)} km)`);
     };
 
     map.on('click', handleMapClick);
@@ -149,12 +242,13 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
         mapRef.current.remove();
         mapRef.current = null;
         selectionMarkerRef.current = null;
+        polylineRef.current = null;
       }
     };
-  }, [leafletLoaded, isMapModalOpen]);
+  }, [leafletLoaded, isMapModalOpen, restaurantLoc]);
 
   const subtotal = items.reduce((sum, item) => sum + item.precioUnitario * item.cantidad, 0);
-  const deliveryFee = 10;
+  const deliveryFee = calculatedDeliveryFee;
   const total = subtotal + deliveryFee;
 
   const handlePlaceOrder = async () => {
@@ -176,11 +270,9 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
     setIsSubmitting(true);
 
     try {
-      await createDeliveryOrderMock({
+      await deliveryApi.createDeliveryOrder({
         userId: user.id,
         customerName: `${user.nombre} ${user.apellido}`,
-        orderType: 'delivery',
-        tableNumber: '',
         phone,
         address,
         observations: observations.trim(),
@@ -196,26 +288,30 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
         subtotal,
         deliveryFee,
         total,
+        deliveryLat: deliveryLat !== null ? deliveryLat : restaurantLoc.lat,
+        deliveryLng: deliveryLng !== null ? deliveryLng : restaurantLoc.lng,
         paymentMethod,
       });
-      
+
       // Clear variables and cart
       clearCart();
       setAddress('');
       setObservations('');
       setPaymentMethod('EFECTIVO');
-      
+
       // Notify state changed so tables list or order history reloads
       emitRestaurantStateChanged();
-      
+
       setIsSubmitting(false);
       onNavigate('orders');
     } catch (e) {
+      const err = e as Error;
       setIsSubmitting(false);
-      setErrorMsg('Error al procesar el pedido. Intente nuevamente.');
+      setErrorMsg(err.message || 'Error al procesar el pedido. Intente nuevamente.');
       console.error(e);
     }
   };
+
 
   return (
     <ClientLayout
@@ -245,10 +341,10 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-[1.2fr_0.8fr] items-start pb-16">
-            
+
             {/* Left Column - Delivery Form details */}
             <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-6">
-              
+
               {/* Delivery info form parameters */}
               <div className="space-y-4">
                 <h3 className="text-[15px] font-black text-gray-800 uppercase tracking-wider border-b border-gray-100 pb-3">
@@ -263,11 +359,11 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
                     <input
                       type="text"
                       value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder="Calle, Nro, Barrio y referencias..."
-                      className="w-full rounded-xl border border-gray-200 bg-background px-4 py-3 text-[14px] outline-none focus:border-primary focus:bg-white transition-all font-bold"
+                      readOnly
+                      placeholder="Usa el botón de abajo para seleccionar tu ubicación de entraga"
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-[14px] outline-none font-bold cursor-not-allowed select-none"
                     />
-                    
+
                     <button
                       type="button"
                       onClick={() => setIsMapModalOpen(true)}
@@ -311,11 +407,10 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('EFECTIVO')}
-                        className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer ${
-                          paymentMethod === 'EFECTIVO'
-                            ? 'border-primary bg-primary/5 ring-4 ring-primary/10'
-                            : 'border-gray-100 hover:border-gray-200 opacity-70'
-                        }`}
+                        className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer ${paymentMethod === 'EFECTIVO'
+                          ? 'border-primary bg-primary/5 ring-4 ring-primary/10'
+                          : 'border-gray-100 hover:border-gray-200 opacity-70'
+                          }`}
                       >
                         <span className="text-2xl">💵</span>
                         <span className="font-extrabold text-[12px] uppercase tracking-wider text-text">Efectivo</span>
@@ -323,11 +418,10 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('QR')}
-                        className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer ${
-                          paymentMethod === 'QR'
-                            ? 'border-primary bg-primary/5 ring-4 ring-primary/10'
-                            : 'border-gray-100 hover:border-gray-200 opacity-70'
-                        }`}
+                        className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer ${paymentMethod === 'QR'
+                          ? 'border-primary bg-primary/5 ring-4 ring-primary/10'
+                          : 'border-gray-100 hover:border-gray-200 opacity-70'
+                          }`}
                       >
                         <span className="text-2xl">📱</span>
                         <span className="font-extrabold text-[12px] uppercase tracking-wider text-text">QR / Transferencia</span>

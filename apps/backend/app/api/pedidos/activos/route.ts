@@ -13,6 +13,7 @@ export async function GET() {
         usuarios_pedidos_id_usuario_clienteTousuarios: true,
         usuario_mesero: true,
         mesa: true,
+        facturas: true,
         detalles_pedido: {
           include: {
             presentacion_producto: {

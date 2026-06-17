@@ -141,22 +141,43 @@ export async function POST(request: Request) {
                     }
                 });
 
-                // Registrar la factura electrónica o recibo correspondiente al pedido
-                await tx.facturas.create({
-                    data: {
+                // Verificar si ya existe una factura solicitada para este pedido
+                const facturaSolicitada = await tx.facturas.findFirst({
+                    where: {
                         id_pedido: pedido.id_pedido,
-                        id_usuario_emision: id_usuario_cajero,
-                        tipo_documento: "FACTURA",
-                        numero_documento: `FAC-${Date.now()}-${pedido.id_pedido}`,
-                        subtotal: pedido.subtotal,
-                        impuesto: 0,
-                        descuento: descuento_pedido,
-                        total: total_sin_iva,
-                        estado_documento: "EMITIDA",
-                        observaciones: `Facturado a: ${nombre_cliente || 'S/N'}, CI/NIT: ${ci_cliente || '0'}${(enviar_recibo && correo_cliente) ? ` - Enviado a: ${correo_cliente}` : ''}`,
-                        fecha_emision: fechaActualLocal
+                        estado_documento: 'SOLICITADA'
                     }
                 });
+
+                if (facturaSolicitada) {
+                    await tx.facturas.update({
+                        where: { id_factura: facturaSolicitada.id_factura },
+                        data: {
+                            id_usuario_emision: id_usuario_cajero,
+                            numero_documento: `FAC-${Date.now()}-${pedido.id_pedido}`,
+                            estado_documento: "EMITIDA",
+                            observaciones: `Facturado a: ${nombre_cliente || 'S/N'}, CI/NIT: ${ci_cliente || '0'}${(enviar_recibo && correo_cliente) ? ` - Enviado a: ${correo_cliente}` : ''}`,
+                            fecha_emision: fechaActualLocal
+                        }
+                    });
+                } else {
+                    // Registrar la factura electrónica o recibo correspondiente al pedido
+                    await tx.facturas.create({
+                        data: {
+                            id_pedido: pedido.id_pedido,
+                            id_usuario_emision: id_usuario_cajero,
+                            tipo_documento: "FACTURA",
+                            numero_documento: `FAC-${Date.now()}-${pedido.id_pedido}`,
+                            subtotal: pedido.subtotal,
+                            impuesto: 0,
+                            descuento: descuento_pedido,
+                            total: total_sin_iva,
+                            estado_documento: "EMITIDA",
+                            observaciones: `Facturado a: ${nombre_cliente || 'S/N'}, CI/NIT: ${ci_cliente || '0'}${(enviar_recibo && correo_cliente) ? ` - Enviado a: ${correo_cliente}` : ''}`,
+                            fecha_emision: fechaActualLocal
+                        }
+                    });
+                }
             }
 
             // 5. Crear el registro contable global en la tabla "movimientos_caja" 

@@ -224,7 +224,7 @@ export const ordersApi = {
       apiOrders = data.map((order) => {
         const mesa = isRecord(order.mesa) ? order.mesa : undefined;
         const tableNum = mesa?.numero ?? order.numero_mesa;
-        const sourceVal = mesa || order.origen === 'MESA' ? 'MESA_MESERO' : 'RESERVA';
+        const sourceVal = order.origen === 'DELIVERY' ? 'DELIVERY' : (mesa || order.origen === 'MESA' ? 'MESA_MESERO' : 'RESERVA');
 
         const rawItems = Array.isArray(order.detalles_pedido)
           ? order.detalles_pedido
@@ -260,6 +260,12 @@ export const ordersApi = {
           total: Number(order.total ?? 0),
           createdAt: String(order.fecha_hora_pedido ?? ''),
           items,
+          deliveryAddress: order.deliveryAddress ? String(order.deliveryAddress) : undefined,
+          deliveryPhone: order.deliveryPhone ? String(order.deliveryPhone) : undefined,
+          deliveryFee: typeof order.deliveryFee === 'number' ? order.deliveryFee : undefined,
+          deliveryLat: typeof order.deliveryLat === 'number' ? order.deliveryLat : undefined,
+          deliveryLng: typeof order.deliveryLng === 'number' ? order.deliveryLng : undefined,
+          facturas: Array.isArray(order.facturas) ? order.facturas : undefined,
         } as unknown as ClientOrder;
       });
     } else {
@@ -584,5 +590,23 @@ export const ordersApi = {
         tableNumber: order.tableNumber || 0,
         customerName: order.customer?.nombre || 'Cliente Genérico',
       }));
+  },
+
+  /**
+   * Solicita una factura en el backend para un pedido específico.
+   */
+  async requestInvoice(
+    orderId: number,
+    payload: { nit: string; razonSocial: string; email?: string; userId: number }
+  ): Promise<void> {
+    await requestOk(
+      `${API_URL}/api/pedidos/${orderId}/factura`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      'No se pudo registrar la solicitud de factura.'
+    );
   },
 };
