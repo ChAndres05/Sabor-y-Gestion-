@@ -28,7 +28,8 @@ export async function GET(req: Request) {
                     }
                 },
                 mesa: true,
-                pedido_delivery: true
+                pedido_delivery: true,
+                facturas: true
             },
             orderBy: {
                 fecha_hora_pedido: 'desc'
@@ -53,6 +54,11 @@ export async function GET(req: Request) {
                 deliveryFee: hasDelivery ? Number(delivery?.costo_entrega || 0) : undefined,
                 deliveryLat: hasDelivery && delivery?.latitud_entrega ? Number(delivery.latitud_entrega) : undefined,
                 deliveryLng: hasDelivery && delivery?.longitud_entrega ? Number(delivery.longitud_entrega) : undefined,
+                facturas: pedido.facturas.map(f => ({
+                    id_factura: f.id_factura,
+                    estado_documento: f.estado_documento,
+                    observaciones: f.observaciones
+                })),
                 productos: pedido.detalles_pedido.map(detalle => ({
                     id_detalle: detalle.id_detalle_pedido,
                     cantidad: detalle.cantidad,
