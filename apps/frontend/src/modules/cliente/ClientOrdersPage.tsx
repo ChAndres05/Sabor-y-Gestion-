@@ -124,32 +124,72 @@ export default function ClientOrdersPage({ user, onLogout, onNavigate, onBack, o
     setEmail(user.correo || '');
   }, [user]);
 
-  const handleRequestInvoiceSubmit = useCallback((e: React.FormEvent) => {
+  const handleRequestInvoiceSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!invoiceModalOrder) return;
 
-    setRequestedInvoices((prev) => ({
-      ...prev,
-      [invoiceModalOrder.id]: {
+    try {
+      await ordersApi.requestInvoice(invoiceModalOrder.id, {
         nit,
         razonSocial,
-        email,
-      },
-    }));
+        email: email || undefined,
+        userId: user.id,
+      });
 
-    setInvoiceModalOrder(null);
-    setFeedback({
-      type: 'success',
-      title: 'Factura Solicitada',
-      message: `La factura para el pedido ${invoiceModalOrder.orderNumber} ha sido solicitada con éxito a nombre de "${razonSocial}".`,
-    });
-  }, [invoiceModalOrder, nit, razonSocial, email]);
+      setRequestedInvoices((prev) => ({
+        ...prev,
+        [invoiceModalOrder.id]: {
+          nit,
+          razonSocial,
+          email,
+        },
+      }));
+
+      setInvoiceModalOrder(null);
+      setFeedback({
+        type: 'success',
+        title: 'Factura Solicitada',
+        message: `La factura para el pedido ${invoiceModalOrder.orderNumber} ha sido solicitada con éxito a nombre de "${razonSocial}".`,
+      });
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        title: 'Error al solicitar factura',
+        message: err instanceof Error ? err.message : 'No se pudo procesar la solicitud en el servidor.',
+      });
+    }
+  }, [invoiceModalOrder, nit, razonSocial, email, user.id]);
 
   const loadOrders = useCallback(async (isBackground = false) => {
     if (!isBackground) setIsLoading(true);
     try {
       const data = await ordersApi.listOrdersByClient(user.id);
       setOrders(data);
+
+      // Sincronizar facturas solicitadas desde la base de datos
+      const syncRequests: Record<number, { nit: string; razonSocial: string; email?: string }> = {};
+      data.forEach((order) => {
+        const requested = order.facturas?.find(f => f.estado_documento === 'SOLICITADA' || f.estado_documento === 'EMITIDA');
+        if (requested) {
+          const obs = requested.observaciones || '';
+          const nameMatch = obs.match(/Facturado a:\s*(.*?)(?:, CI\/NIT:|$)/);
+          const nitMatch = obs.match(/CI\/NIT:\s*([^\s-]*)/);
+          const emailMatch = obs.match(/Correo:\s*([^\s-]*)/);
+
+          syncRequests[order.id] = {
+            nit: nitMatch ? nitMatch[1].trim() : '',
+            razonSocial: nameMatch ? nameMatch[1].trim() : '',
+            email: emailMatch ? emailMatch[1].trim() : '',
+          };
+        }
+      });
+
+      if (Object.keys(syncRequests).length > 0) {
+        setRequestedInvoices((prev) => ({
+          ...prev,
+          ...syncRequests
+        }));
+      }
     } catch (error) {
       setFeedback({
         type: 'error',
