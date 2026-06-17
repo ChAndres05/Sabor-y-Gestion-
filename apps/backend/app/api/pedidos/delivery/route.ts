@@ -44,6 +44,7 @@ export async function GET() {
             telefono: true,
           },
         },
+        facturas: true,
       },
       orderBy: {
         fecha_hora_pedido: 'desc',
@@ -85,6 +86,11 @@ export async function GET() {
         deliveryLng: delivery.longitud_entrega ? Number(delivery.longitud_entrega) : null,
         repartidor: delivery.usuario_repartidor,
         estado_delivery: delivery.estado_delivery,
+        facturas: order.facturas.map(f => ({
+          id_factura: f.id_factura,
+          estado_documento: f.estado_documento,
+          observaciones: f.observaciones
+        })),
       };
     });
 
