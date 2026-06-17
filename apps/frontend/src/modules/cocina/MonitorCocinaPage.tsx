@@ -8,7 +8,7 @@ import type { KitchenOrder } from '../../shared/types/kitchen.types';
 
 interface OrderItem { id: number; name: string; quantity: number; checked: boolean; notes: string | null; prepTime: number; ingredientes?: Array<{ nombre: string; incluido: boolean }>; }
 type OrderStatus = 'pending' | 'preparing' | 'ready';
-interface Order { id: number; orderNumber: number | string; items: OrderItem[]; status: OrderStatus; isToggled: boolean; source?: 'mesa' | 'reserva' | 'DELIVERY'; tableNumber?: number; customerName?: string; reservationTime?: string; prepareFrom?: string; maxPrepTime?: number; isDelivery?: boolean; }
+interface Order { id: number; orderNumber: number | string; items: OrderItem[]; status: OrderStatus; isToggled: boolean; source?: 'mesa' | 'reserva' | 'DELIVERY'; tableNumber?: number; customerName?: string; reservationTime?: string; prepareFrom?: string; maxPrepTime?: number; isDelivery?: boolean; isMock?: boolean; }
 interface MonitorCocinaPageProps { onBack: () => void; user?: { id?: number; id_usuario?: number; nombre: string; rol: string }; }
 
 type BackendDetallePedido = { id_detalle_pedido: number; cantidad: number; observaciones?: string | null; preparado?: boolean; esta_preparado?: boolean; preparado_cocina?: boolean; presentacion_producto?: { tiempo_preparacion_minutos?: number; producto?: { nombre?: string; tiempo_preparacion?: number; }; }; ingredientes?: unknown; };
@@ -107,9 +107,13 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
 
   const lockedOrders = useRef<Set<number>>(new Set());
 
-  const updateBackendStatus = useCallback(async (id: number, nuevoEstado: string) => {
+  const updateBackendStatus = useCallback(async (id: number, nuevoEstado: string, isDeliveryOrder?: boolean) => {
     try {
-      await fetch(`${API_URL}/api/pedidos/${id}/estado`, {
+      const url = isDeliveryOrder
+        ? `${API_URL}/api/pedidos/delivery/${id}/estado`
+        : `${API_URL}/api/pedidos/${id}/estado`;
+
+      await fetch(url, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estado: nuevoEstado, id_usuario: user?.id_usuario || user?.id }),
@@ -230,7 +234,8 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
                   customerName: doOrder.customerName,
                   prepareFrom: doOrder.createdAt || new Date().toISOString(),
                   maxPrepTime: 15,
-                  isDelivery: true
+                  isDelivery: true,
+                  isMock: true
                 };
               });
 
@@ -334,7 +339,8 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
                 customerName: doOrder.customerName,
                 prepareFrom: doOrder.createdAt || new Date().toISOString(),
                 maxPrepTime: 15,
-                isDelivery: true
+                isDelivery: true,
+                isMock: true
               };
             });
 
@@ -409,7 +415,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
     const newToggledState = !orderToToggle.isToggled;
     setOrders((prev) => prev.map((order) => order.id === id ? { ...order, isToggled: newToggledState } : order));
 
-    if (orderToToggle.isDelivery) {
+    if (orderToToggle.isDelivery && orderToToggle.isMock) {
       const stored = localStorage.getItem('gestionysabor_frontend_orders');
       if (stored) {
         try {
@@ -449,7 +455,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
       })
     );
 
-    if (order.isDelivery) {
+    if (order.isDelivery && order.isMock) {
       const stored = localStorage.getItem('gestionysabor_frontend_orders');
       if (stored) {
         try {
@@ -477,7 +483,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
       try {
         await cocinaApi.marcarPlatoPreparado(item.id, newChecked);
         if (order.status === 'pending') {
-          await updateBackendStatus(orderId, 'EN_PREPARACION');
+          await updateBackendStatus(orderId, 'EN_PREPARACION', order.isDelivery);
         }
       }
       catch (error) { console.error('Error BD:', error); }
@@ -491,7 +497,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
     lockOrder(id);
     setOrders((prev) => prev.filter((currentOrder) => currentOrder.id !== id));
 
-    if (order.isDelivery) {
+    if (order.isDelivery && order.isMock) {
       const stored = localStorage.getItem('gestionysabor_frontend_orders');
       if (stored) {
         try {
@@ -506,7 +512,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
         }
       }
     } else {
-      try { await updateBackendStatus(id, 'LISTO'); }
+      try { await updateBackendStatus(id, 'LISTO', order.isDelivery); }
       catch (error) { console.error(error); }
     }
   };

@@ -281,6 +281,33 @@ export async function POST(request: Request) {
           estado_delivery: 'PENDIENTE',
         },
       });
+      
+      // Auto-assign to Kitchen (Cocina) so it appears on the Kitchen Monitor
+      let cocinero = await tx.usuarios.findFirst({
+        where: {
+          rol: {
+            nombre: { contains: 'COCINERO', mode: 'insensitive' }
+          },
+          activo: true
+        }
+      });
+
+      if (!cocinero) {
+        cocinero = await tx.usuarios.findFirst({ where: { activo: true } });
+      }
+
+      if (cocinero) {
+        await tx.asignaciones_cocina_pedido.create({
+          data: {
+            id_pedido: updatedOrder.id_pedido,
+            id_usuario_cocinero: cocinero.id_usuario,
+            estado_asignacion: 'ASIGNADO',
+            observaciones: 'Pedido enviado a cocina automáticamente (Delivery)',
+            fecha_hora_asignacion: orderDate,
+            es_asignacion_actual: true
+          }
+        });
+      }
 
       // Optional: Add history record
       if (userId) {
