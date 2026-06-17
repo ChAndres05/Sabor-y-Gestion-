@@ -344,8 +344,12 @@ export async function POST(request: Request) {
   } catch (error) {
     const err = error as Error;
     console.error('Error creating delivery order:', err);
+    let errMsg = err.message || 'Error interno del servidor al crear pedido';
+    if (errMsg.includes('insumos_stock_actual_check') || (errMsg.includes('insumos') && errMsg.includes('check constraint'))) {
+      errMsg = 'No hay suficiente stock en inventario para alguno de los productos seleccionados.';
+    }
     return NextResponse.json(
-      { error: err.message || 'Error interno del servidor al crear pedido' },
+      { error: errMsg },
       { status: 500 }
     );
   }
