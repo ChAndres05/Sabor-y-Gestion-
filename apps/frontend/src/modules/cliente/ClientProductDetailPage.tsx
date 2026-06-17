@@ -91,6 +91,7 @@ export default function ClientProductDetailPage({
 
     addItem({
       productoId: product.id,
+      presentacionId: product.presentacionId,
       nombre: product.nombre,
       precioUnitario: product.precio,
       cantidad: quantity,

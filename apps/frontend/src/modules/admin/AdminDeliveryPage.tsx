@@ -44,6 +44,7 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat('es-BO', {
     dateStyle: 'short',
     timeStyle: 'short',
+    timeZone: 'UTC', // Mostrar la hora de Bolivia tal como se guardó en UTC
   }).format(new Date(value));
 }
 
