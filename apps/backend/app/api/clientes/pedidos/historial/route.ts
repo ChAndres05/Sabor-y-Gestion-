@@ -27,30 +27,41 @@ export async function GET(req: Request) {
                         }
                     }
                 },
-                mesa: true
+                mesa: true,
+                pedido_delivery: true
             },
             orderBy: {
                 fecha_hora_pedido: 'desc'
             }
         });
 
-        const historialLimpio = historialBruto.map(pedido => ({
-            id_pedido: pedido.id_pedido,
-            numero_pedido: String(pedido.id_pedido).padStart(4, '0'),
-            estado: pedido.estado,
-            total: Number(pedido.total),
-            tiempo_estimado_minutos: pedido.tiempo_estimado_minutos,
-            fecha_hora_pedido: pedido.fecha_hora_pedido,
-            numero_mesa: pedido.mesa ? pedido.mesa.numero : null,
-            origen: pedido.mesa ? 'MESA' : 'RESERVA',
-            productos: pedido.detalles_pedido.map(detalle => ({
-                id_detalle: detalle.id_detalle_pedido,
-                cantidad: detalle.cantidad,
-                nombre: detalle.presentacion_producto?.producto?.nombre || 'Producto sin nombre',
-                observaciones: detalle.observaciones || '',
-                subtotal: Number(detalle.subtotal)
-            }))
-        }));
+        const historialLimpio = historialBruto.map(pedido => {
+            const hasDelivery = pedido.pedido_delivery !== null;
+            const delivery = pedido.pedido_delivery;
+
+            return {
+                id_pedido: pedido.id_pedido,
+                numero_pedido: String(pedido.id_pedido).padStart(4, '0'),
+                estado: pedido.estado,
+                total: Number(pedido.total),
+                tiempo_estimado_minutos: pedido.tiempo_estimado_minutos,
+                fecha_hora_pedido: pedido.fecha_hora_pedido,
+                numero_mesa: pedido.mesa ? pedido.mesa.numero : null,
+                origen: hasDelivery ? 'DELIVERY' : (pedido.mesa ? 'MESA' : 'RESERVA'),
+                deliveryAddress: hasDelivery ? delivery?.direccion_entrega : undefined,
+                deliveryPhone: hasDelivery ? delivery?.telefono_contacto : undefined,
+                deliveryFee: hasDelivery ? Number(delivery?.costo_entrega || 0) : undefined,
+                deliveryLat: hasDelivery && delivery?.latitud_entrega ? Number(delivery.latitud_entrega) : undefined,
+                deliveryLng: hasDelivery && delivery?.longitud_entrega ? Number(delivery.longitud_entrega) : undefined,
+                productos: pedido.detalles_pedido.map(detalle => ({
+                    id_detalle: detalle.id_detalle_pedido,
+                    cantidad: detalle.cantidad,
+                    nombre: detalle.presentacion_producto?.producto?.nombre || 'Producto sin nombre',
+                    observaciones: detalle.observaciones || '',
+                    subtotal: Number(detalle.subtotal)
+                }))
+            };
+        });
 
         return NextResponse.json(historialLimpio, { status: 200 });
 
@@ -62,4 +73,4 @@ export async function GET(req: Request) {
             { status: 500 }
         );
     }
-}
+}
