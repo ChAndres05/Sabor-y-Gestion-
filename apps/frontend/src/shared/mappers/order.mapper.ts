@@ -85,13 +85,32 @@ export function mapBackendOrderToWaiterFrontend(
     waiterName: waiter.nombre
       ? `${stringValue(waiter.nombre)} ${stringValue(waiter.apellido)}`.trim()
       : 'Mesero',
-    customer: {
-      idUsuario: customer.id_usuario ? numberValue(customer.id_usuario) : null,
-      nombre: customerName,
-      telefono: stringValue(customer.telefono, '00000000'),
-      ci: customer.usuario_ci ? String(customer.usuario_ci) : '0',
-      correo: stringValue(customer.correo_electronico ?? customer.correo ?? backendOrder.cliente_correo ?? ''),
-    },
+    customer: (() => {
+      const facturasList = asArray(backendOrder.facturas);
+      const requestedInvoice = facturasList.find((f) => asRecord(f).estado_documento === 'SOLICITADA');
+      let finalCustomerName = customerName;
+      let finalCustomerCi = customer.usuario_ci ? String(customer.usuario_ci) : '0';
+      let finalCustomerCorreo = stringValue(customer.correo_electronico ?? customer.correo ?? backendOrder.cliente_correo ?? '');
+
+      if (requestedInvoice) {
+        const obs = stringValue(asRecord(requestedInvoice).observaciones);
+        const nameMatch = obs.match(/Facturado a:\s*(.*?)(?:, CI\/NIT:|$)/);
+        const nitMatch = obs.match(/CI\/NIT:\s*([^\s-]*)/);
+        const emailMatch = obs.match(/Correo:\s*([^\s-]*)/);
+
+        if (nameMatch) finalCustomerName = nameMatch[1].trim();
+        if (nitMatch) finalCustomerCi = nitMatch[1].trim();
+        if (emailMatch) finalCustomerCorreo = emailMatch[1].trim();
+      }
+
+      return {
+        idUsuario: customer.id_usuario ? numberValue(customer.id_usuario) : null,
+        nombre: finalCustomerName,
+        telefono: stringValue(customer.telefono, '00000000'),
+        ci: finalCustomerCi,
+        correo: finalCustomerCorreo,
+      };
+    })(),
     items: mappedItems,
     subtotal: numberValue(backendOrder.subtotal, 0),
     impuesto: 0,
