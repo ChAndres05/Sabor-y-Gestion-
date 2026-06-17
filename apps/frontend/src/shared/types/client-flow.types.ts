@@ -79,6 +79,7 @@ export interface ClientOrder {
   deliveryLng?: number | null;
   paymentMethod?: string;
   paymentReference?: string;
+  facturas?: Array<{ id_factura: number; estado_documento: string; observaciones: string | null }>;
 }
 
 export interface ClientPreparedOrderRequest {
