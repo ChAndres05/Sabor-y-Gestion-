@@ -150,10 +150,10 @@ export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapPr
         const data = await res.json();
         if (data.code === 'Ok' && data.routes?.length > 0) {
           // Find the route with the shortest distance among alternatives
-          const shortestRoute = data.routes.reduce((prev: any, curr: any) => 
+          const shortestRoute = data.routes.reduce((prev: any, curr: any) =>
             curr.distance < prev.distance ? curr : prev
-          , data.routes[0]);
-          
+            , data.routes[0]);
+
           points = shortestRoute.geometry.coordinates.map(([lon, lat]: number[]) => [lat, lon]);
         }
       } catch (err) {
@@ -287,8 +287,8 @@ export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapPr
     } else {
       motoMarkerRef.current = L.marker(finalCoord, { icon: motoIcon })
         .addTo(mapRef.current)
-        .bindPopup('<b>Ubicación del Repartidor</b><br/>Seguimiento en tiempo real por WebSockets.');
-      
+        .bindPopup('<b>Ubicación del Repartidor</b><br/>Seguimiento en tiempo real.');
+
       if (status === 'EN_CAMINO') {
         motoMarkerRef.current.openPopup();
       }
