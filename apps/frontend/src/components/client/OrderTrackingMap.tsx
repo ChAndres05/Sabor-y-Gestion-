@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { deliveryApi } from '../../shared/api/delivery.api';
+import { pusherClient } from '../../shared/utils/pusher';
 
 interface OrderTrackingMapProps {
   orderId: number;
@@ -28,15 +30,34 @@ interface LeafletGlobal {
       };
     };
   };
-  polyline: (points: [number, number][], options?: unknown) => { addTo: (map: LeafletMap) => void };
+  polyline: (points: [number, number][], options?: unknown) => { addTo: (map: LeafletMap) => any };
   latLngBounds: (points: [number, number][]) => unknown;
+}
+
+function getHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371; // Earth radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
 export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const [leafletLoaded, setLeafletLoaded] = useState(false);
   const mapRef = useRef<LeafletMap | null>(null);
-  const motoMarkerRef = useRef<LeafletMarker | null>(null);
+  const motoMarkerRef = useRef<any>(null);
+  const routePolylineRef = useRef<any>(null);
+
+  const [restaurantLoc, setRestaurantLoc] = useState({ lat: -17.391537153336852, lng: -66.15233613739282 });
+  const [clientLoc, setClientLoc] = useState({ lat: -17.391537153336852, lng: -66.15233613739282 });
+  const [driverLoc, setDriverLoc] = useState<{ lat: number; lng: number } | null>(null);
+  const [routePoints, setRoutePoints] = useState<[number, number][]>([]);
+  const [loadingDetails, setLoadingDetails] = useState(true);
 
   // Load Leaflet resources dynamically from CDN
   useEffect(() => {
@@ -66,24 +87,115 @@ export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapPr
     document.head.appendChild(script);
   }, []);
 
-  // Initialize and update the map
+  // Fetch coordinates: Restaurant config and Client delivery destination coordinates
   useEffect(() => {
-    if (!leafletLoaded || !mapContainerRef.current) return;
+    let active = true;
+    setLoadingDetails(true);
 
-    const startLat = -17.391537153336852;
-    const startLng = -66.15233613739282;
+    async function loadData() {
+      try {
+        const config = await deliveryApi.getRestaurantConfig();
+        const orders = await deliveryApi.listAllDeliveryOrders();
+        const currentOrder = orders.find(o => o.id === orderId);
 
-    // Calculate a stable/deterministic end coordinate based on orderId
-    const angle = (orderId * 97) % 360;
-    const radius = 0.007 + ((orderId % 5) * 0.0015); // ~1 to 1.5 km
-    const endLat = startLat + radius * Math.sin((angle * Math.PI) / 180);
-    const endLng = startLng + radius * Math.cos((angle * Math.PI) / 180);
+        if (active) {
+          setRestaurantLoc({ lat: config.restaurantLat, lng: config.restaurantLng });
+          if (currentOrder && typeof currentOrder.deliveryLat === 'number' && typeof currentOrder.deliveryLng === 'number') {
+            setClientLoc({ lat: currentOrder.deliveryLat, lng: currentOrder.deliveryLng });
+          } else {
+            // deterministic mockup location fallback if coordinates are missing in DB
+            const angle = (orderId * 97) % 360;
+            const radius = 0.007 + ((orderId % 5) * 0.0015);
+            setClientLoc({
+              lat: config.restaurantLat + radius * Math.sin((angle * Math.PI) / 180),
+              lng: config.restaurantLng + radius * Math.cos((angle * Math.PI) / 180),
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Error loading order coordinates:', err);
+      } finally {
+        if (active) setLoadingDetails(false);
+      }
+    }
 
-    const start: [number, number] = [startLat, startLng];
-    const end: [number, number] = [endLat, endLng];
+    loadData();
+    return () => {
+      active = false;
+    };
+  }, [orderId]);
+
+  // Fetch exact street routing
+  useEffect(() => {
+    if (loadingDetails) return;
+
+    let active = true;
+
+    async function calculateRoute() {
+      // Default Manhattan path fallback
+      const rawDistance = getHaversineDistance(restaurantLoc.lat, restaurantLoc.lng, clientLoc.lat, clientLoc.lng);
+      const fallbackDistance = rawDistance * 1.25; // Estimate real path distance
+      const midLat = restaurantLoc.lat + (clientLoc.lat - restaurantLoc.lat) * 0.5;
+      const fallbackPoints: [number, number][] = [
+        [restaurantLoc.lat, restaurantLoc.lng],
+        [midLat, restaurantLoc.lng],
+        [midLat, clientLoc.lng],
+        [clientLoc.lat, clientLoc.lng],
+      ];
+      let points = fallbackPoints;
+
+      try {
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${restaurantLoc.lng},${restaurantLoc.lat};${clientLoc.lng},${clientLoc.lat}?overview=full&geometries=geojson&alternatives=true`;
+        const res = await fetch(osrmUrl);
+        const data = await res.json();
+        if (data.code === 'Ok' && data.routes?.length > 0) {
+          // Find the route with the shortest distance among alternatives
+          const shortestRoute = data.routes.reduce((prev: any, curr: any) => 
+            curr.distance < prev.distance ? curr : prev
+          , data.routes[0]);
+          
+          points = shortestRoute.geometry.coordinates.map(([lon, lat]: number[]) => [lat, lon]);
+        }
+      } catch (err) {
+        console.warn('OSRM routing failed in tracking map, using fallback grid:', err);
+      }
+
+      if (active) {
+        setRoutePoints(points);
+      }
+    }
+
+    calculateRoute();
+    return () => {
+      active = false;
+    };
+  }, [loadingDetails, restaurantLoc, clientLoc]);
+
+  // Subscribe to real-time WebSockets (Pusher) location tracking channel
+  useEffect(() => {
+    const channel = pusherClient.subscribe(`delivery-tracking-${orderId}`);
+
+    const handleLocationUpdate = (data: { lat: number; lng: number }) => {
+      setDriverLoc({ lat: data.lat, lng: data.lng });
+    };
+
+    channel.bind('location-updated', handleLocationUpdate);
+
+    return () => {
+      channel.unbind('location-updated', handleLocationUpdate);
+      pusherClient.unsubscribe(`delivery-tracking-${orderId}`);
+    };
+  }, [orderId]);
+
+  // Initialize and render Leaflet map
+  useEffect(() => {
+    if (!leafletLoaded || loadingDetails || routePoints.length === 0 || !mapContainerRef.current) return;
 
     const L = (window as unknown as Record<string, unknown>).L as LeafletGlobal | undefined;
     if (!L) return;
+
+    const start: [number, number] = [restaurantLoc.lat, restaurantLoc.lng];
+    const end: [number, number] = [clientLoc.lat, clientLoc.lng];
 
     if (!mapRef.current) {
       const map = L.map(mapContainerRef.current, {
@@ -93,6 +205,11 @@ export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapPr
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors',
       }).addTo(map);
+
+      // Ensure map is rendered correctly after modal transition completes
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 250);
 
       // Custom house/restaurant icon
       const restaurantIcon = L.divIcon({
@@ -113,31 +230,42 @@ export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapPr
       L.marker(start, { icon: restaurantIcon }).addTo(map).bindPopup('<b>Sabor y Gestión</b><br/>Origen del Pedido');
       L.marker(end, { icon: clientIcon }).addTo(map).bindPopup('<b>Cliente</b><br/>Destino de Entrega');
 
-      // Create a grid-styled route representing city blocks
-      const midLat = startLat + (endLat - startLat) * 0.5;
-      const pathPoints = [
-        start,
-        [midLat, startLng] as [number, number],
-        [midLat, endLng] as [number, number],
-        end,
-      ];
-
-      L.polyline(pathPoints, {
+      // Draw route path
+      const polyline = L.polyline(routePoints, {
         color: '#3b82f6',
         weight: 4.5,
         opacity: 0.75,
         dashArray: '5, 8',
       }).addTo(map);
+      routePolylineRef.current = polyline;
 
       map.fitBounds(L.latLngBounds([start, end]), { padding: [40, 40] });
-
       mapRef.current = map;
-      mapRef.current.pathPoints = pathPoints;
+    } else {
+      // If map is already initialized, fit bounds for new coordinates
+      mapRef.current.fitBounds(L.latLngBounds([start, end]), { padding: [40, 40] });
+      if (routePolylineRef.current) {
+        mapRef.current.removeLayer(routePolylineRef.current);
+      }
+      const polyline = L.polyline(routePoints, {
+        color: '#3b82f6',
+        weight: 4.5,
+        opacity: 0.75,
+        dashArray: '5, 8',
+      }).addTo(mapRef.current);
+      routePolylineRef.current = polyline;
     }
+  }, [leafletLoaded, loadingDetails, routePoints, restaurantLoc, clientLoc]);
 
-    const map = mapRef.current;
-    if (!map) return;
-    const pathPoints = map.pathPoints || [];
+  // Handle repartidor (moto 🛵) location updates dynamically
+  useEffect(() => {
+    if (!leafletLoaded || !mapRef.current) return;
+
+    const L = (window as unknown as Record<string, unknown>).L as LeafletGlobal | undefined;
+    if (!L) return;
+
+    const start: [number, number] = [restaurantLoc.lat, restaurantLoc.lng];
+    const end: [number, number] = [clientLoc.lat, clientLoc.lng];
 
     const motoIcon = L.divIcon({
       html: `<div style="background-color: #3b82f6; color: white; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 20px; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); animation: pulse 1.5s infinite">🛵</div>`,
@@ -146,66 +274,43 @@ export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapPr
       iconAnchor: [18, 18],
     }) as unknown;
 
+    // Determine current position
+    let finalCoord = start;
     if (status === 'EN_CAMINO') {
-      if (motoMarkerRef.current) {
-        map.removeLayer(motoMarkerRef.current);
-      }
+      finalCoord = driverLoc ? [driverLoc.lat, driverLoc.lng] : start;
+    } else if (['ENTREGADO', 'PAGADO'].includes(status)) {
+      finalCoord = end;
+    }
 
-      let segmentIdx = 0;
-      let ratio = 0;
-
-      const getInterpolatedPoint = (seg: number, rat: number) => {
-        const p1 = pathPoints[seg];
-        const p2 = pathPoints[seg + 1];
-        return [
-          p1[0] + (p2[0] - p1[0]) * rat,
-          p1[1] + (p2[1] - p1[1]) * rat,
-        ] as [number, number];
-      };
-
-      const marker = L.marker(getInterpolatedPoint(0, 0), { icon: motoIcon })
-        .addTo(map)
-        .bindPopup('<b>Repartidor en Camino</b><br/>Siga la ubicación en tiempo real.')
-        .openPopup() as unknown as LeafletMarker;
-
-      motoMarkerRef.current = marker;
-
-      const timer = setInterval(() => {
-        ratio += 0.04;
-        if (ratio >= 1) {
-          ratio = 0;
-          segmentIdx += 1;
-        }
-        if (segmentIdx >= pathPoints.length - 1) {
-          clearInterval(timer);
-          marker.setLatLng(end);
-          return;
-        }
-        const currentCoord = getInterpolatedPoint(segmentIdx, ratio);
-        marker.setLatLng(currentCoord);
-      }, 250);
-
-      return () => {
-        clearInterval(timer);
-      };
+    if (motoMarkerRef.current) {
+      motoMarkerRef.current.setLatLng(finalCoord);
     } else {
-      let finalCoord = start;
-      if (['ENTREGADO', 'PAGADO'].includes(status)) {
-        finalCoord = end;
-      }
-
-      if (motoMarkerRef.current) {
-        motoMarkerRef.current.setLatLng(finalCoord);
-      } else {
-        motoMarkerRef.current = L.marker(finalCoord, { icon: motoIcon }).addTo(map) as unknown as LeafletMarker;
+      motoMarkerRef.current = L.marker(finalCoord, { icon: motoIcon })
+        .addTo(mapRef.current)
+        .bindPopup('<b>Ubicación del Repartidor</b><br/>Seguimiento en tiempo real por WebSockets.');
+      
+      if (status === 'EN_CAMINO') {
+        motoMarkerRef.current.openPopup();
       }
     }
-  }, [leafletLoaded, orderId, status]);
+  }, [leafletLoaded, driverLoc, status, restaurantLoc, clientLoc]);
+
+  // Cleanup map on unmount
+  useEffect(() => {
+    return () => {
+      if (mapRef.current) {
+        // We will let the container dispose, but reset refs
+        mapRef.current = null;
+        motoMarkerRef.current = null;
+        routePolylineRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 h-[240px] w-full mt-4">
-      {!leafletLoaded && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 font-bold gap-2">
+      {(!leafletLoaded || loadingDetails) && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 font-bold gap-2 bg-gray-50 z-20">
           <span className="animate-spin text-[24px]">🗺️</span>
           <span className="text-[12px] font-sans">Cargando mapa de seguimiento...</span>
         </div>
