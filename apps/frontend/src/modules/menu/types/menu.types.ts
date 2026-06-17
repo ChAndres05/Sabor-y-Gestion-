@@ -8,6 +8,7 @@ export interface MenuCategory {
 
 export interface MenuProduct {
   id: number;
+  presentacionId?: number;
   categoryId: number;
   nombre: string;
   descripcion: string;

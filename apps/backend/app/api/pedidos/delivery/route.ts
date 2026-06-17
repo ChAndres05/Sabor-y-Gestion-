@@ -119,6 +119,7 @@ export async function POST(request: Request) {
       total,
       deliveryLat,
       deliveryLng,
+      descuento,
     } = body;
 
     if (!address || !phone || !items || items.length === 0) {
@@ -161,7 +162,7 @@ export async function POST(request: Request) {
           observaciones: observations || null,
           subtotal: subtotal || 0,
           impuesto: 0,
-          descuento: 0,
+          descuento: descuento || 0,
           total: total || 0,
           fecha_hora_pedido: orderDate,
         },
@@ -179,9 +180,15 @@ export async function POST(request: Request) {
             where: { id_presentacion_producto: item.presentacionId },
           });
         } else {
+          // Fallback logic: Try default presentation first, then any active presentation
           presentacion = await tx.presentaciones_producto.findFirst({
-            where: { id_producto: item.productoId, activo: true },
+            where: { id_producto: item.productoId, activo: true, es_predeterminada: true },
           });
+          if (!presentacion) {
+            presentacion = await tx.presentaciones_producto.findFirst({
+              where: { id_producto: item.productoId, activo: true },
+            });
+          }
         }
 
         if (!presentacion) {
@@ -222,6 +229,11 @@ export async function POST(request: Request) {
           });
 
           if (insumo) {
+            const stockActual = Number(insumo.stock_actual);
+            if (stockActual < cantInsumo) {
+              throw new Error(`Stock insuficiente para "${insumo.nombre}". Disponible: ${stockActual}, Requerido: ${cantInsumo}`);
+            }
+
             await tx.insumos.update({
               where: { id_insumo: ing.id_insumo },
               data: {
@@ -323,6 +335,9 @@ export async function POST(request: Request) {
       }
 
       return { updatedOrder, delivery };
+    }, {
+      maxWait: 15000,
+      timeout: 30000
     });
 
     // Map result to frontend structure
@@ -370,9 +385,10 @@ export async function POST(request: Request) {
   } catch (error) {
     const err = error as Error;
     console.error('Error creating delivery order:', err);
+    const status = err.message.includes('Stock insuficiente') ? 400 : 500;
     return NextResponse.json(
       { error: err.message || 'Error interno del servidor al crear pedido' },
-      { status: 500 }
+      { status }
     );
   }
 }
