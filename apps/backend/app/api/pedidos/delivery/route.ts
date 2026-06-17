@@ -282,32 +282,7 @@ export async function POST(request: Request) {
         },
       });
       
-      // Auto-assign to Kitchen (Cocina) so it appears on the Kitchen Monitor
-      let cocinero = await tx.usuarios.findFirst({
-        where: {
-          rol: {
-            nombre: { contains: 'COCINERO', mode: 'insensitive' }
-          },
-          activo: true
-        }
-      });
 
-      if (!cocinero) {
-        cocinero = await tx.usuarios.findFirst({ where: { activo: true } });
-      }
-
-      if (cocinero) {
-        await tx.asignaciones_cocina_pedido.create({
-          data: {
-            id_pedido: updatedOrder.id_pedido,
-            id_usuario_cocinero: cocinero.id_usuario,
-            estado_asignacion: 'ASIGNADO',
-            observaciones: 'Pedido enviado a cocina automáticamente (Delivery)',
-            fecha_hora_asignacion: orderDate,
-            es_asignacion_actual: true
-          }
-        });
-      }
 
       // Optional: Add history record
       if (userId) {
@@ -358,9 +333,8 @@ export async function POST(request: Request) {
       estado_delivery: result.delivery.estado_delivery,
     };
 
-    // Trigger Pusher events to update kitchen and Cajeros/Admins
+    // Trigger Pusher events to update Cajeros/Admins
     try {
-      await pusherServer.trigger('cocina-channel', 'nuevo-pedido', result.updatedOrder);
       await pusherServer.trigger('tables-channel', 'table-order-updated', result.updatedOrder);
     } catch (pushErr) {
       console.error('Error triggering Pusher for new delivery order:', pushErr);
