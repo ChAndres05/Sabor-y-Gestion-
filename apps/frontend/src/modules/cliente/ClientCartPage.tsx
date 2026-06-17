@@ -197,10 +197,10 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
         const data = await res.json();
         if (data.code === 'Ok' && data.routes?.length > 0) {
           // Find the route with the shortest distance among alternatives
-          const shortestRoute = data.routes.reduce((prev: any, curr: any) => 
+          const shortestRoute = data.routes.reduce((prev: any, curr: any) =>
             curr.distance < prev.distance ? curr : prev
-          , data.routes[0]);
-          
+            , data.routes[0]);
+
           routeDistance = shortestRoute.distance / 1000;
           pathPoints = shortestRoute.geometry.coordinates.map(([lon, l]: number[]) => [l, lon]);
         }
@@ -335,10 +335,10 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-[1.2fr_0.8fr] items-start pb-16">
-            
+
             {/* Left Column - Delivery Form details */}
             <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-6">
-              
+
               {/* Delivery info form parameters */}
               <div className="space-y-4">
                 <h3 className="text-[15px] font-black text-gray-800 uppercase tracking-wider border-b border-gray-100 pb-3">
@@ -353,11 +353,11 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
                     <input
                       type="text"
                       value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder="Calle, Nro, Barrio y referencias..."
-                      className="w-full rounded-xl border border-gray-200 bg-background px-4 py-3 text-[14px] outline-none focus:border-primary focus:bg-white transition-all font-bold"
+                      readOnly
+                      placeholder="Usa el botón de abajo para seleccionar tu ubicación de entraga"
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-[14px] outline-none font-bold cursor-not-allowed select-none"
                     />
-                    
+
                     <button
                       type="button"
                       onClick={() => setIsMapModalOpen(true)}
@@ -401,11 +401,10 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('EFECTIVO')}
-                        className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer ${
-                          paymentMethod === 'EFECTIVO'
-                            ? 'border-primary bg-primary/5 ring-4 ring-primary/10'
-                            : 'border-gray-100 hover:border-gray-200 opacity-70'
-                        }`}
+                        className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer ${paymentMethod === 'EFECTIVO'
+                          ? 'border-primary bg-primary/5 ring-4 ring-primary/10'
+                          : 'border-gray-100 hover:border-gray-200 opacity-70'
+                          }`}
                       >
                         <span className="text-2xl">💵</span>
                         <span className="font-extrabold text-[12px] uppercase tracking-wider text-text">Efectivo</span>
@@ -413,11 +412,10 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('QR')}
-                        className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer ${
-                          paymentMethod === 'QR'
-                            ? 'border-primary bg-primary/5 ring-4 ring-primary/10'
-                            : 'border-gray-100 hover:border-gray-200 opacity-70'
-                        }`}
+                        className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer ${paymentMethod === 'QR'
+                          ? 'border-primary bg-primary/5 ring-4 ring-primary/10'
+                          : 'border-gray-100 hover:border-gray-200 opacity-70'
+                          }`}
                       >
                         <span className="text-2xl">📱</span>
                         <span className="font-extrabold text-[12px] uppercase tracking-wider text-text">QR / Transferencia</span>
