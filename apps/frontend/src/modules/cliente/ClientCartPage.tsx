@@ -217,11 +217,12 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
       }).addTo(map);
       polylineRef.current = polyline;
 
+      const roundedDistance = Number(routeDistance.toFixed(2));
       // Calculate cost: 5 Bs for first 2 km, and 2 Bs per additional km
-      const fee = routeDistance <= 2 ? 5 : 5 + 2 * (routeDistance - 2);
+      const fee = roundedDistance <= 2 ? 5 : 5 + 2 * (roundedDistance - 2);
 
       setCalculatedDeliveryFee(Number(fee.toFixed(2)));
-      setDeliveryDistance(Number(routeDistance.toFixed(2)));
+      setDeliveryDistance(roundedDistance);
       setDeliveryLat(lat);
       setDeliveryLng(lng);
       setAddress(`📍 Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)} (${routeDistance.toFixed(2)} km)`);
