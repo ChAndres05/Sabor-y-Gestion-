@@ -4,6 +4,7 @@ import type { TableOrderStatus } from '../tables/types/table-order.types';
 import OrderTrackingMap from '../../components/client/OrderTrackingMap';
 import { deliveryApi } from '../../shared/api/delivery.api';
 import type { ClientOrder } from '../../shared/types/client-flow.types';
+import { pusherClient } from '../../shared/utils/pusher';
 
 interface AdminDeliveryPageProps {
   user: AuthUser;
@@ -131,14 +132,25 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
   useEffect(() => {
     loadApiOrders();
 
-    // Listen to real-time order updates via Pusher
-    const handleStateChange = () => {
+    const ordersChannel = pusherClient.subscribe('orders-channel');
+    const tablesChannel = pusherClient.subscribe('tables-channel');
+
+    const handleRefresh = () => {
       loadApiOrders();
     };
 
-    window.addEventListener('restaurant-state-changed', handleStateChange);
+    ordersChannel.bind('order-updated', handleRefresh);
+    tablesChannel.bind('table-order-updated', handleRefresh);
+
+    // Also keep local event listener
+    window.addEventListener('restaurant-state-changed', handleRefresh);
+
     return () => {
-      window.removeEventListener('restaurant-state-changed', handleStateChange);
+      ordersChannel.unbind_all();
+      tablesChannel.unbind_all();
+      pusherClient.unsubscribe('orders-channel');
+      pusherClient.unsubscribe('tables-channel');
+      window.removeEventListener('restaurant-state-changed', handleRefresh);
     };
   }, []);
 
@@ -326,7 +338,6 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
         setIsSimulating(false);
         setSimulationIndex(0);
         simulationTimerRef.current = null;
-        alert('Simulación finalizada. Repartidor llegó a destino.');
         return;
       }
       setSimulationIndex(idx);
@@ -358,8 +369,6 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
     switch (status) {
       case 'REGISTRADO':
         return { label: '👨‍🍳 Empezar Preparación', next: 'EN_PREPARACION' as TableOrderStatus };
-      case 'EN_PREPARACION':
-        return { label: '✅ Marcar como Listo', next: 'LISTO' as TableOrderStatus };
       case 'LISTO':
         return { label: '🛵 Despachar Delivery', next: 'EN_CAMINO' as TableOrderStatus };
       case 'EN_CAMINO':
@@ -540,16 +549,37 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
                   </div>
 
                   {/* Status Change Buttons */}
+                  {order.status === 'EN_CAMINO' && !(order.facturas && order.facturas.some(
+                    f => f.estado_documento === 'SOLICITADA' || f.estado_documento === 'EMITIDA'
+                  )) && (
+                    <div className="bg-alert/10 text-alert text-[12px] font-bold p-3 rounded-xl border border-alert/20 flex items-center gap-1.5 animate-pulse">
+                      ⚠️ Esperando solicitud de factura del cliente
+                    </div>
+                  )}
+
                   <div className="flex gap-2 flex-wrap">
-                    {nextAction && (
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateStatus(order.id, nextAction.next)}
-                        className="flex-1 min-w-[120px] rounded-2xl bg-primary py-2.5 text-[13px] font-bold text-white hover:bg-primary-hover shadow-sm transition-colors cursor-pointer"
-                      >
-                        {nextAction.label}
-                      </button>
-                    )}
+                    {nextAction && (() => {
+                      const isInvoiceRequested = order.facturas && order.facturas.some(
+                        f => f.estado_documento === 'SOLICITADA' || f.estado_documento === 'EMITIDA'
+                      );
+                      const isDeliveryConfirm = nextAction.next === 'ENTREGADO';
+                      const isDisabled = isDeliveryConfirm && !isInvoiceRequested;
+
+                      return (
+                        <button
+                          type="button"
+                          disabled={isDisabled}
+                          onClick={() => handleUpdateStatus(order.id, nextAction.next)}
+                          className={`flex-1 min-w-[120px] rounded-2xl py-2.5 text-[13px] font-bold shadow-sm transition-colors ${
+                            isDisabled
+                              ? 'bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed'
+                              : 'bg-primary text-white hover:bg-primary-hover cursor-pointer'
+                          }`}
+                        >
+                          {nextAction.label}
+                        </button>
+                      );
+                    })()}
                     {order.deliveryAddress && (
                       <button
                         type="button"
