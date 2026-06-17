@@ -224,7 +224,7 @@ export const ordersApi = {
       apiOrders = data.map((order) => {
         const mesa = isRecord(order.mesa) ? order.mesa : undefined;
         const tableNum = mesa?.numero ?? order.numero_mesa;
-        const sourceVal = mesa || order.origen === 'MESA' ? 'MESA_MESERO' : 'RESERVA';
+        const sourceVal = order.origen === 'DELIVERY' ? 'DELIVERY' : (mesa || order.origen === 'MESA' ? 'MESA_MESERO' : 'RESERVA');
 
         const rawItems = Array.isArray(order.detalles_pedido)
           ? order.detalles_pedido
@@ -260,6 +260,11 @@ export const ordersApi = {
           total: Number(order.total ?? 0),
           createdAt: String(order.fecha_hora_pedido ?? ''),
           items,
+          deliveryAddress: order.deliveryAddress ? String(order.deliveryAddress) : undefined,
+          deliveryPhone: order.deliveryPhone ? String(order.deliveryPhone) : undefined,
+          deliveryFee: typeof order.deliveryFee === 'number' ? order.deliveryFee : undefined,
+          deliveryLat: typeof order.deliveryLat === 'number' ? order.deliveryLat : undefined,
+          deliveryLng: typeof order.deliveryLng === 'number' ? order.deliveryLng : undefined,
         } as unknown as ClientOrder;
       });
     } else {
