@@ -75,6 +75,8 @@ export interface ClientOrder {
   deliveryAddress?: string;
   deliveryPhone?: string;
   deliveryFee?: number;
+  deliveryLat?: number | null;
+  deliveryLng?: number | null;
   paymentMethod?: string;
   paymentReference?: string;
 }
