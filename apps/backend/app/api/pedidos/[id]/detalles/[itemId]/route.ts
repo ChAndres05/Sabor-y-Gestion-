@@ -146,6 +146,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (msg === 'DETALLE_NO_ENCONTRADO') {
       return NextResponse.json({ error: 'El producto del pedido no existe' }, { status: 404 });
     }
+    if (msg.includes('insumos_stock_actual_check') || (msg.includes('insumos') && msg.includes('check constraint'))) {
+      return NextResponse.json({ error: 'No hay suficiente stock en inventario para preparar la cantidad solicitada.' }, { status: 400 });
+    }
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
