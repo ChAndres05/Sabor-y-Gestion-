@@ -202,7 +202,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
           try {
             const deliveryOrdersList = JSON.parse(storedDeliveryOrders) as StorageDeliveryOrder[];
             const deliveryOrdersMapped = deliveryOrdersList
-              .filter((doOrder) => ['REGISTRADO', 'EN_PREPARACION'].includes(doOrder.status))
+              .filter((doOrder) => ['EN_PREPARACION'].includes(doOrder.status))
               .map((doOrder) => {
                 const existingOrder = prevOrders.find((order) => order.id === doOrder.id);
                 const mappedItems = doOrder.items.map((item, idx: number) => ({
@@ -307,7 +307,7 @@ export default function MonitorCocinaPage({ onBack, user }: MonitorCocinaPagePro
         if (storedDeliveryOrders) {
           const deliveryOrdersList = JSON.parse(storedDeliveryOrders) as StorageDeliveryOrder[];
           const deliveryOrdersMapped = deliveryOrdersList
-            .filter((doOrder) => ['REGISTRADO', 'EN_PREPARACION'].includes(doOrder.status))
+            .filter((doOrder) => ['EN_PREPARACION'].includes(doOrder.status))
             .map((doOrder) => {
               const existingOrder = orders.find((order) => order.id === doOrder.id);
               const mappedItems = doOrder.items.map((item, idx: number) => ({

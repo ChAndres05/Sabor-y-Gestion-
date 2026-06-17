@@ -233,13 +233,27 @@ export async function PATCH(
             }
           });
         } else {
+          let cocinero = await tx.usuarios.findFirst({
+            where: {
+              rol: {
+                nombre: { contains: 'COCINERO', mode: 'insensitive' }
+              },
+              activo: true
+            }
+          });
+          if (!cocinero) {
+            cocinero = await tx.usuarios.findFirst({ where: { activo: true } });
+          }
+          const id_cocinero = cocinero ? cocinero.id_usuario : id_usuario;
+
           await tx.asignaciones_cocina_pedido.create({
             data: {
               id_pedido,
-              id_usuario_cocinero: id_usuario,
+              id_usuario_cocinero: id_cocinero,
               estado_asignacion: 'ASIGNADO',
               fecha_hora_inicio_preparacion: nowBolivia(),
               fecha_hora_asignacion: nowBolivia(),
+              es_asignacion_actual: true
             }
           });
         }
