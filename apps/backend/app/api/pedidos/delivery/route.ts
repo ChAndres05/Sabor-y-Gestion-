@@ -72,7 +72,7 @@ export async function GET() {
           notes: item.observaciones,
           unitPrice: Number(item.precio_unitario),
           subtotal: Number(item.subtotal),
-          ingredients: item.ingredientes ? (item.ingredientes as any) : [],
+          ingredients: item.ingredientes ? (item.ingredientes as unknown as Record<string, unknown>[]) : [],
         })),
         subtotal: Number(order.subtotal),
         total: Number(order.total),
@@ -119,7 +119,6 @@ export async function POST(request: Request) {
       total,
       deliveryLat,
       deliveryLng,
-      paymentMethod,
     } = body;
 
     if (!address || !phone || !items || items.length === 0) {
@@ -316,7 +315,7 @@ export async function POST(request: Request) {
         notes: item.observaciones,
         unitPrice: Number(item.precio_unitario),
         subtotal: Number(item.subtotal),
-        ingredients: item.ingredientes ? (item.ingredientes as any) : [],
+        ingredients: item.ingredientes ? (item.ingredientes as unknown as Record<string, unknown>[]) : [],
       })),
       subtotal: Number(result.updatedOrder.subtotal),
       total: Number(result.updatedOrder.total),
@@ -341,10 +340,11 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(mapped, { status: 201 });
-  } catch (error: any) {
-    console.error('Error creating delivery order:', error);
+  } catch (error) {
+    const err = error as Error;
+    console.error('Error creating delivery order:', err);
     return NextResponse.json(
-      { error: error.message || 'Error interno del servidor al crear pedido' },
+      { error: err.message || 'Error interno del servidor al crear pedido' },
       { status: 500 }
     );
   }

@@ -34,10 +34,11 @@ export async function POST(
     }
 
     return NextResponse.json({ ok: true, message: 'Coordenadas transmitidas con éxito' });
-  } catch (error: any) {
-    console.error('Error in delivery track route:', error);
+  } catch (error) {
+    const err = error as Error;
+    console.error('Error in delivery track route:', err);
     return NextResponse.json(
-      { error: error.message || 'Error interno al procesar rastreo de delivery' },
+      { error: err.message || 'Error interno al procesar rastreo de delivery' },
       { status: 500 }
     );
   }

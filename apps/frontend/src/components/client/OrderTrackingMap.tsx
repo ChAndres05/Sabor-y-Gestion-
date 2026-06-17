@@ -17,6 +17,7 @@ interface LeafletMap {
 
 interface LeafletMarker {
   setLatLng: (latlng: [number, number]) => void;
+  openPopup: () => void;
 }
 
 interface LeafletGlobal {
@@ -25,33 +26,20 @@ interface LeafletGlobal {
   divIcon: (options: unknown) => unknown;
   marker: (latlng: unknown, options?: unknown) => {
     addTo: (map: LeafletMap) => {
-      bindPopup: (content: string) => {
-        openPopup: () => LeafletMarker;
-      };
+      bindPopup: (content: string) => LeafletMarker;
     };
   };
-  polyline: (points: [number, number][], options?: unknown) => { addTo: (map: LeafletMap) => any };
+  polyline: (points: [number, number][], options?: unknown) => { addTo: (map: LeafletMap) => unknown };
   latLngBounds: (points: [number, number][]) => unknown;
 }
 
-function getHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371; // Earth radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
 
 export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const [leafletLoaded, setLeafletLoaded] = useState(false);
   const mapRef = useRef<LeafletMap | null>(null);
-  const motoMarkerRef = useRef<any>(null);
-  const routePolylineRef = useRef<any>(null);
+  const motoMarkerRef = useRef<LeafletMarker | null>(null);
+  const routePolylineRef = useRef<unknown | null>(null);
 
   const [restaurantLoc, setRestaurantLoc] = useState({ lat: -17.391537153336852, lng: -66.15233613739282 });
   const [clientLoc, setClientLoc] = useState({ lat: -17.391537153336852, lng: -66.15233613739282 });
@@ -133,8 +121,6 @@ export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapPr
 
     async function calculateRoute() {
       // Default Manhattan path fallback
-      const rawDistance = getHaversineDistance(restaurantLoc.lat, restaurantLoc.lng, clientLoc.lat, clientLoc.lng);
-      const fallbackDistance = rawDistance * 1.25; // Estimate real path distance
       const midLat = restaurantLoc.lat + (clientLoc.lat - restaurantLoc.lat) * 0.5;
       const fallbackPoints: [number, number][] = [
         [restaurantLoc.lat, restaurantLoc.lng],
@@ -149,10 +135,16 @@ export default function OrderTrackingMap({ orderId, status }: OrderTrackingMapPr
         const res = await fetch(osrmUrl);
         const data = await res.json();
         if (data.code === 'Ok' && data.routes?.length > 0) {
-          // Find the route with the shortest distance among alternatives
-          const shortestRoute = data.routes.reduce((prev: any, curr: any) =>
+          interface RouteGeometry {
+            coordinates: [number, number][];
+          }
+          interface OSRMRoute {
+            distance: number;
+            geometry: RouteGeometry;
+          }
+          const shortestRoute = data.routes.reduce((prev: OSRMRoute, curr: OSRMRoute) =>
             curr.distance < prev.distance ? curr : prev
-            , data.routes[0]);
+            , data.routes[0] as OSRMRoute);
 
           points = shortestRoute.geometry.coordinates.map(([lon, lat]: number[]) => [lat, lon]);
         }

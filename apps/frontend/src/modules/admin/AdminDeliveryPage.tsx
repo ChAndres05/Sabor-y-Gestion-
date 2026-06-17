@@ -17,7 +17,7 @@ interface LeafletMap {
   on: (event: string, fn: (e: { latlng: { lat: number; lng: number } }) => void) => void;
   off: (event: string, fn: (e: { latlng: { lat: number; lng: number } }) => void) => void;
   remove: () => void;
-  removeLayer: (layer: any) => void;
+  removeLayer: (layer: unknown) => void;
 }
 
 interface LeafletMarker {
@@ -87,18 +87,6 @@ function getStatusClass(status: TableOrderStatus) {
   }
 }
 
-function getHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371; // Earth radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
 export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPageProps) {
   const [orders, setOrders] = useState<ClientOrder[]>([]);
   const [filter, setFilter] = useState<'ALL' | TableOrderStatus>('ALL');
@@ -116,8 +104,9 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
   // Location Simulation States (Repartidor)
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulationIndex, setSimulationIndex] = useState(0);
-  const simulationTimerRef = useRef<any>(null);
+  const simulationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const simulationPointsRef = useRef<[number, number][]>([]);
+  const [simulationPointsCount, setSimulationPointsCount] = useState(0);
 
   // Load orders from API
   const loadApiOrders = async () => {
@@ -130,7 +119,12 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
   };
 
   useEffect(() => {
-    loadApiOrders();
+    let active = true;
+    deliveryApi.listAllDeliveryOrders()
+      .then((fetched) => {
+        if (active) setOrders(fetched);
+      })
+      .catch((e) => console.error('Error fetching orders from DB:', e));
 
     const ordersChannel = pusherClient.subscribe('orders-channel');
     const tablesChannel = pusherClient.subscribe('tables-channel');
@@ -146,6 +140,7 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
     window.addEventListener('restaurant-state-changed', handleRefresh);
 
     return () => {
+      active = false;
       ordersChannel.unbind_all();
       tablesChannel.unbind_all();
       pusherClient.unsubscribe('orders-channel');
@@ -284,6 +279,7 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
       }
       setIsSimulating(false);
       setSimulationIndex(0);
+      setSimulationPointsCount(0);
       return;
     }
 
@@ -295,8 +291,6 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
     const destLng = (typeof currentOrder.deliveryLng === 'number') ? currentOrder.deliveryLng : restaurantCoordinates.lng;
 
     // Fetch routing points from OSRM
-    const rawDistance = getHaversineDistance(restaurantCoordinates.lat, restaurantCoordinates.lng, destLat, destLng);
-    const fallbackDistance = rawDistance * 1.25; // Estimate real path distance
     const midLat = restaurantCoordinates.lat + (destLat - restaurantCoordinates.lat) * 0.5;
     const fallbackPoints: [number, number][] = [
       [restaurantCoordinates.lat, restaurantCoordinates.lng],
@@ -312,9 +306,16 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
       const data = await res.json();
       if (data.code === 'Ok' && data.routes?.length > 0) {
         // Find the route with the shortest distance among alternatives
-        const shortestRoute = data.routes.reduce((prev: any, curr: any) => 
+        interface RouteGeometry {
+          coordinates: [number, number][];
+        }
+        interface OSRMRoute {
+          distance: number;
+          geometry: RouteGeometry;
+        }
+        const shortestRoute = data.routes.reduce((prev: OSRMRoute, curr: OSRMRoute) => 
           curr.distance < prev.distance ? curr : prev
-        , data.routes[0]);
+        , data.routes[0] as OSRMRoute);
         
         points = shortestRoute.geometry.coordinates.map(([lon, lat]: number[]) => [lat, lon]);
       }
@@ -325,6 +326,7 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
     if (points.length === 0) return;
 
     simulationPointsRef.current = points;
+    setSimulationPointsCount(points.length);
     setIsSimulating(true);
     let idx = 0;
 
@@ -337,6 +339,7 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
         clearInterval(timer);
         setIsSimulating(false);
         setSimulationIndex(0);
+        setSimulationPointsCount(0);
         simulationTimerRef.current = null;
         return;
       }
@@ -645,7 +648,7 @@ export default function AdminDeliveryPage({ user, onBack }: AdminDeliveryPagePro
                   }`}
                 >
                   {isSimulating
-                    ? `🛑 Parar (Paso ${simulationIndex}/${simulationPointsRef.current.length - 1})`
+                    ? `🛑 Parar (Paso ${simulationIndex}/${simulationPointsCount - 1})`
                     : '🚀 Simular Ruta (WebSocket)'}
                 </button>
               ) : (

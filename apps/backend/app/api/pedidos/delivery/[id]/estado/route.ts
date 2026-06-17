@@ -72,7 +72,7 @@ export async function PATCH(
       }
 
       // Update main order
-      const dataUpdate: any = { estado };
+      const dataUpdate: { estado: string; fecha_hora_entrega?: Date } = { estado };
       if (estado === 'ENTREGADO') {
         // Verificar que el cliente haya solicitado la factura (existencia de factura SOLICITADA o EMITIDA)
         const factura = await tx.facturas.findFirst({
@@ -274,22 +274,23 @@ export async function PATCH(
     }
 
     return NextResponse.json(resultado);
-  } catch (error: any) {
-    console.error('Error updating delivery status:', error);
-    if (error.message === 'FACTURA_REQUERIDA') {
+  } catch (error) {
+    const err = error as Error;
+    console.error('Error updating delivery status:', err);
+    if (err.message === 'FACTURA_REQUERIDA') {
       return NextResponse.json(
         { error: 'El cliente debe solicitar la factura antes de que puedas confirmar la entrega.' },
         { status: 400 }
       );
     }
-    if (error.message === 'JORNADA_DE_CAJA_NO_ABIERTA') {
+    if (err.message === 'JORNADA_DE_CAJA_NO_ABIERTA') {
       return NextResponse.json(
         { error: 'No hay ninguna jornada de caja abierta. Debe abrir caja antes de registrar el pago.' },
         { status: 400 }
       );
     }
     return NextResponse.json(
-      { error: error.message || 'Error al actualizar el estado del pedido' },
+      { error: err.message || 'Error al actualizar el estado del pedido' },
       { status: 500 }
     );
   }

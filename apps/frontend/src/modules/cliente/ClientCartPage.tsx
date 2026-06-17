@@ -35,7 +35,7 @@ interface LeafletMap {
   on: (event: string, fn: (e: { latlng: { lat: number; lng: number } }) => void) => void;
   off: (event: string, fn: (e: { latlng: { lat: number; lng: number } }) => void) => void;
   remove: () => void;
-  removeLayer: (layer: any) => void;
+  removeLayer: (layer: unknown) => void;
 }
 
 interface LeafletMarker {
@@ -51,7 +51,7 @@ interface LeafletGlobal {
       bindPopup: (content: string) => void;
     };
   };
-  polyline: (points: [number, number][], options?: unknown) => { addTo: (map: LeafletMap) => any };
+  polyline: (points: [number, number][], options?: unknown) => { addTo: (map: LeafletMap) => unknown };
 }
 
 
@@ -68,13 +68,12 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
   const [leafletLoaded, setLeafletLoaded] = useState(false);
   const mapRef = useRef<LeafletMap | null>(null);
   const selectionMarkerRef = useRef<LeafletMarker | null>(null);
-  const polylineRef = useRef<any>(null);
+  const polylineRef = useRef<unknown>(null);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
 
   const [restaurantLoc, setRestaurantLoc] = useState({ lat: -17.391537153336852, lng: -66.15233613739282 });
   const [deliveryLat, setDeliveryLat] = useState<number | null>(null);
   const [deliveryLng, setDeliveryLng] = useState<number | null>(null);
-  const [deliveryDistance, setDeliveryDistance] = useState<number>(0);
   const [calculatedDeliveryFee, setCalculatedDeliveryFee] = useState<number>(5);
 
   // Fetch restaurant coordinates on mount
@@ -197,9 +196,16 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
         const data = await res.json();
         if (data.code === 'Ok' && data.routes?.length > 0) {
           // Find the route with the shortest distance among alternatives
-          const shortestRoute = data.routes.reduce((prev: any, curr: any) =>
+          interface RouteGeometry {
+            coordinates: [number, number][];
+          }
+          interface OSRMRoute {
+            distance: number;
+            geometry: RouteGeometry;
+          }
+          const shortestRoute = data.routes.reduce((prev: OSRMRoute, curr: OSRMRoute) =>
             curr.distance < prev.distance ? curr : prev
-            , data.routes[0]);
+            , data.routes[0] as OSRMRoute);
 
           routeDistance = shortestRoute.distance / 1000;
           pathPoints = shortestRoute.geometry.coordinates.map(([lon, l]: number[]) => [l, lon]);
@@ -222,7 +228,6 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
       const fee = roundedDistance <= 2 ? 5 : 5 + 2 * (roundedDistance - 2);
 
       setCalculatedDeliveryFee(Number(fee.toFixed(2)));
-      setDeliveryDistance(roundedDistance);
       setDeliveryLat(lat);
       setDeliveryLng(lng);
       setAddress(`📍 Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)} (${routeDistance.toFixed(2)} km)`);
@@ -299,9 +304,10 @@ export default function ClientCartPage({ user, onLogout, onNavigate }: ClientCar
 
       setIsSubmitting(false);
       onNavigate('orders');
-    } catch (e: any) {
+    } catch (e) {
+      const err = e as Error;
       setIsSubmitting(false);
-      setErrorMsg(e.message || 'Error al procesar el pedido. Intente nuevamente.');
+      setErrorMsg(err.message || 'Error al procesar el pedido. Intente nuevamente.');
       console.error(e);
     }
   };
