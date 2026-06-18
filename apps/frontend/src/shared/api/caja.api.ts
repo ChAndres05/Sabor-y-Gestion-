@@ -116,5 +116,24 @@ export const cajaApi = {
             return { valido: false, error: data.error || 'Error al validar el cupón' };
         }
         return res.json() as Promise<{ valido: boolean; cupon?: Coupon; error?: string }>;
+    },
+
+    async listFrequentClients(): Promise<{ id: number; name: string; email: string; purchasesCount: number }[]> {
+        const res = await fetch(`${API_URL}/api/admin/cupones/enviar-frecuentes`);
+        if (!res.ok) throw new Error('Error al obtener la lista de clientes frecuentes');
+        return res.json() as Promise<{ id: number; name: string; email: string; purchasesCount: number }[]>;
+    },
+
+    async sendCouponToFrequentClients(couponId: string, destinatarios?: number[]): Promise<{ totalSent: number }> {
+        const res = await fetch(`${API_URL}/api/admin/cupones/enviar-frecuentes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_cupon: Number(couponId), destinatarios })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Error al enviar cupones por correo');
+        }
+        return res.json() as Promise<{ totalSent: number }>;
     }
 };
