@@ -56,6 +56,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         });
 
         if (insumo) {
+          // Check if this ingredient has been excluded/disabled in custom ingredients
+          const isExcluded = Array.isArray(ingredientes) && ingredientes.some(
+            (custIng: { nombre?: string; incluido?: boolean }) => 
+              custIng && 
+              custIng.nombre && 
+              custIng.nombre.toLowerCase().trim() === insumo.nombre.toLowerCase().trim() && 
+              custIng.incluido === false
+          );
+
+          if (isExcluded) {
+            continue;
+          }
+
+          // Check stock first
+          const stockActual = Number(insumo.stock_actual);
+          if (stockActual < cantInsumo) {
+            throw new Error(`Stock insuficiente para "${insumo.nombre}". Disponible: ${stockActual}, Requerido: ${cantInsumo}`);
+          }
+
           await tx.insumos.update({
             where: { id_insumo: ing.id_insumo },
             data: {

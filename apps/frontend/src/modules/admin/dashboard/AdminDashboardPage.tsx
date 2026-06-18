@@ -4,6 +4,7 @@ import DateRangePicker from '../../../shared/components/DateRangePicker';
 import { dashboardApi } from '../../../shared/api/dashboard.api';
 import type { DashboardData } from '../../../shared/mocks/dashboard.mock';
 import { pusherClient } from '../../../shared/utils/pusher';
+import { jsPDF } from 'jspdf';
 
 interface AdminDashboardPageProps {
   onBack: () => void;
@@ -111,6 +112,244 @@ export default function AdminDashboardPage({ onBack, userName = 'Juanito Perez' 
       return `Mejores Clientes (Top 3 ${startStr} - ${endStr})`;
     }
     return 'Mejores Clientes (Top 3)';
+  };
+
+  const handleDownloadPDF = () => {
+    if (!data) return;
+
+    const doc = new jsPDF();
+    doc.setFont('helvetica');
+
+    // Title
+    doc.setFontSize(20);
+    doc.setTextColor(179, 64, 27); // #B3401B
+    doc.text('REPORTE DE VENTAS Y RENDIMIENTO', 14, 22);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generado el: ${new Date().toLocaleDateString('es-BO')} a las ${new Date().toLocaleTimeString('es-BO')}`, 14, 28);
+    doc.text(`Usuario: ${userName}`, 14, 33);
+
+    // Horizontal Line
+    doc.setDrawColor(200);
+    doc.line(14, 38, 196, 38);
+
+    // Period / Filter
+    doc.setFontSize(12);
+    doc.setTextColor(0);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Período de Reporte:', 14, 46);
+    doc.setFont('helvetica', 'normal');
+    doc.text(getSalesLabel().replace('VENTAS NETAS', '').trim() || 'Hoy', 60, 46);
+
+    // Summary Box
+    doc.setFillColor(244, 239, 230); // #F4EFE6
+    doc.rect(14, 52, 182, 25, 'F');
+
+    doc.setFontSize(11);
+    doc.setTextColor(80);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL VENTAS NETAS', 20, 62);
+
+    doc.setFontSize(18);
+    doc.setTextColor(179, 64, 27); // #B3401B
+    doc.text(data.ventas, 20, 71);
+
+    doc.setFontSize(10);
+    doc.setTextColor(22, 101, 52); // green-700
+    doc.text(`Crecimiento: ${data.porcentaje}`, 120, 67);
+
+    // Top dishes
+    doc.setFontSize(14);
+    doc.setTextColor(0);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Platos Más Vendidos (Top 3)', 14, 90);
+
+    let currentY = 100;
+    data.platos.forEach((plato, idx) => {
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(50);
+      doc.text(`${idx + 1}. ${plato.nombre}`, 18, currentY);
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${plato.u} unidades`, 130, currentY);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100);
+      doc.text(`(${plato.pct} del total)`, 160, currentY);
+      currentY += 8;
+    });
+
+    // Peak Hours
+    doc.setFontSize(14);
+    doc.setTextColor(0);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Horas Pico de Ventas', 14, currentY + 10);
+    currentY += 20;
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(50);
+    doc.text(`Hora de mayor demanda: ${data.horas.pico}`, 18, currentY);
+    currentY += 15;
+
+    // Best Clients
+    doc.setFontSize(14);
+    doc.setTextColor(0);
+    doc.setFont('helvetica', 'bold');
+    doc.text(getClientRankingLabel(), 14, currentY + 5);
+    currentY += 15;
+
+    // Table header
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100);
+    doc.text('CLIENTE', 18, currentY);
+    doc.text('CONSUMO', 110, currentY);
+    doc.text('CANT. PEDIDOS', 160, currentY);
+
+    doc.setDrawColor(220);
+    doc.line(14, currentY + 2, 196, currentY + 2);
+    currentY += 8;
+
+    data.clientes.forEach((cliente) => {
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(50);
+      doc.text(cliente.nombre, 18, currentY);
+      doc.text(cliente.consumo, 110, currentY);
+      doc.text(String(cliente.pedidos), 160, currentY);
+      currentY += 8;
+    });
+
+    // Footer / Disclaimer
+    doc.setFontSize(9);
+    doc.setTextColor(150);
+    doc.text('Restaurante Sabor y Gestión - Sistema de Business Intelligence (BI)', 14, 280);
+
+    doc.save(`Reporte_Dashboard_${activeTab}.pdf`);
+  };
+
+  const handleExportExcel = () => {
+    if (!data) return;
+
+    // Generate bar chart data for hours
+    const hourBars = data.horas.barras.map((heightStr, idx) => {
+      const pct = parseFloat(heightStr) || 0;
+      const blocks = Math.round(pct / 10);
+      const isPeak = idx === data.horas.picoIndex;
+      const barStr = '█'.repeat(Math.max(0, blocks)) + '░'.repeat(Math.max(0, 10 - blocks));
+      const label = X_AXIS_LABELS[idx];
+      return {
+        label,
+        bar: barStr,
+        pct: `${pct}%`,
+        note: isPeak ? '★ Pico de Ventas' : ''
+      };
+    });
+
+    // Generate beautiful HTML table for Excel
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8" />
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Reporte BI</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          body { font-family: Arial, sans-serif; }
+          .header { font-size: 16px; font-weight: bold; color: #B3401B; height: 30px; }
+          .meta { font-size: 10px; color: #666; }
+          .section { font-weight: bold; background-color: #48729A; color: white; height: 25px; }
+          .th { font-weight: bold; background-color: #F4EFE6; border: 1px solid #ccc; }
+          .td { border: 1px solid #ccc; }
+          .total { font-weight: bold; color: #B3401B; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr><td colspan="3" class="header">REPORTE DE VENTAS Y RENDIMIENTO</td></tr>
+          <tr><td colspan="3" class="meta">Generado el: ${new Date().toLocaleDateString('es-BO')} a las ${new Date().toLocaleTimeString('es-BO')}</td></tr>
+          <tr><td colspan="3" class="meta">Usuario: ${userName}</td></tr>
+          <tr><td colspan="3" class="meta">Período: ${getSalesLabel().replace('VENTAS NETAS', '').trim() || 'Hoy'}</td></tr>
+          <tr></tr>
+          <tr>
+            <td class="th">TOTAL VENTAS NETAS</td>
+            <td class="total">${data.ventas}</td>
+            <td style="color: green;">${data.porcentaje} de crecimiento</td>
+          </tr>
+          <tr></tr>
+          <tr class="section"><td colspan="3">PLATOS MÁS VENDIDOS (TOP 3)</td></tr>
+          <tr>
+            <td class="th">Plato</td>
+            <td class="th">Unidades Vendidas</td>
+            <td class="th">Gráfico de Barras</td>
+          </tr>
+          ${data.platos.map(p => {
+            const pctVal = parseFloat(p.pct) || 0;
+            const blocks = Math.round(pctVal / 10);
+            const bar = '█'.repeat(Math.max(0, blocks)) + '░'.repeat(Math.max(0, 10 - blocks));
+            return `
+              <tr>
+                <td class="td">${p.nombre}</td>
+                <td class="td" align="right">${p.u}</td>
+                <td class="td" style="font-family: monospace; color: #B3401B;">${bar} (${p.pct})</td>
+              </tr>
+            `;
+          }).join('')}
+          <tr></tr>
+          <tr class="section"><td colspan="3">HORAS PICO DE VENTAS (GRÁFICO)</td></tr>
+          <tr>
+            <td class="th">Hora</td>
+            <td class="th">Gráfico de Barras</td>
+            <td class="th">Porcentaje / Nota</td>
+          </tr>
+          ${hourBars.map(h => `
+            <tr>
+              <td class="td">${h.label}</td>
+              <td class="td" style="font-family: monospace; color: #48729A;">${h.bar}</td>
+              <td class="td">${h.pct} ${h.note ? `<b style="color: #B3401B;">${h.note}</b>` : ''}</td>
+            </tr>
+          `).join('')}
+          <tr></tr>
+          <tr class="section"><td colspan="3">${getClientRankingLabel().toUpperCase()}</td></tr>
+          <tr>
+            <td class="th">Cliente</td>
+            <td class="th">Consumo</td>
+            <td class="th">Cantidad Pedidos</td>
+          </tr>
+          ${data.clientes.map(c => `
+            <tr>
+              <td class="td">${c.nombre}</td>
+              <td class="td" align="right">${c.consumo}</td>
+              <td class="td" align="right">${c.pedidos}</td>
+            </tr>
+          `).join('')}
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Reporte_Dashboard_${activeTab}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -282,11 +521,17 @@ export default function AdminDashboardPage({ onBack, userName = 'Juanito Perez' 
 
             {/* Action Buttons */}
             <div className="grid grid-cols-2 gap-4 mt-2">
-              <button className="bg-[#B3401B] text-white rounded-xl py-3 px-2 flex items-center justify-center gap-2 text-[11px] font-bold shadow-md hover:bg-[#8A3114] transition-colors">
+              <button 
+                onClick={handleDownloadPDF}
+                className="bg-[#B3401B] text-white rounded-xl py-3 px-2 flex items-center justify-center gap-2 text-[11px] font-bold shadow-md hover:bg-[#8A3114] transition-colors"
+              >
                 DESCARGAR PDF
                 <FileDown className="w-4 h-4" />
               </button>
-              <button className="bg-[#CDE8D4] text-gray-800 rounded-xl py-3 px-2 flex items-center justify-center gap-2 text-[11px] font-bold shadow-md hover:bg-[#B5DAC0] transition-colors">
+              <button 
+                onClick={handleExportExcel}
+                className="bg-[#CDE8D4] text-gray-800 rounded-xl py-3 px-2 flex items-center justify-center gap-2 text-[11px] font-bold shadow-md hover:bg-[#B5DAC0] transition-colors"
+              >
                 EXPORTAR EXCEL
                 <Sheet className="w-4 h-4" />
               </button>
