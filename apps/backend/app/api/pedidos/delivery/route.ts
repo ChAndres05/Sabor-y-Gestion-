@@ -229,6 +229,19 @@ export async function POST(request: Request) {
           });
 
           if (insumo) {
+            // Check if this ingredient has been excluded/disabled in custom ingredients
+            const isExcluded = Array.isArray(item.ingredientes) && item.ingredientes.some(
+              (custIng: any) => 
+                custIng && 
+                custIng.nombre && 
+                custIng.nombre.toLowerCase().trim() === insumo.nombre.toLowerCase().trim() && 
+                custIng.incluido === false
+            );
+
+            if (isExcluded) {
+              continue;
+            }
+
             const stockActual = Number(insumo.stock_actual);
             if (stockActual < cantInsumo) {
               throw new Error(`Stock insuficiente para "${insumo.nombre}". Disponible: ${stockActual}, Requerido: ${cantInsumo}`);

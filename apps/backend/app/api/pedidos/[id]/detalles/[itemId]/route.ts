@@ -49,7 +49,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           });
 
           if (insumo) {
+            const targetIngredientes = ingredientes !== undefined ? ingredientes : detalleExistente.ingredientes;
+            const isExcluded = Array.isArray(targetIngredientes) && targetIngredientes.some(
+              (custIng: any) => 
+                custIng && 
+                custIng.nombre && 
+                custIng.nombre.toLowerCase().trim() === insumo.nombre.toLowerCase().trim() && 
+                custIng.incluido === false
+            );
+
+            if (isExcluded) {
+              continue;
+            }
+
             if (cantDiff > 0) {
+              // Check stock first
+              const stockActual = Number(insumo.stock_actual);
+              if (stockActual < cantDiff) {
+                throw new Error(`Stock insuficiente para "${insumo.nombre}". Disponible: ${stockActual}, Requerido: ${cantDiff}`);
+              }
+
               // Deducir más insumos
               await tx.insumos.update({
                 where: { id_insumo: ing.id_insumo },
@@ -183,6 +202,19 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
         });
 
         if (insumo) {
+          // Check if this ingredient has been excluded/disabled in custom ingredients
+          const isExcluded = Array.isArray(deletedItem.ingredientes) && deletedItem.ingredientes.some(
+            (custIng: any) => 
+              custIng && 
+              custIng.nombre && 
+              custIng.nombre.toLowerCase().trim() === insumo.nombre.toLowerCase().trim() && 
+              custIng.incluido === false
+          );
+
+          if (isExcluded) {
+            continue;
+          }
+
           await tx.insumos.update({
             where: { id_insumo: ing.id_insumo },
             data: { stock_actual: { increment: cantRestore } }
