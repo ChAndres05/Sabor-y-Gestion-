@@ -51,6 +51,14 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
   // Delete confirmation state
   const [couponToDelete, setCouponToDelete] = useState<{ id: string; code: string } | null>(null);
 
+  // Send to frequent clients modal state
+  const [couponToSend, setCouponToSend] = useState<Coupon | null>(null);
+  const [allClients, setAllClients] = useState<{ id: number; name: string; email: string; purchasesCount: number }[]>([]);
+  const [selectedClients, setSelectedClients] = useState<number[]>([]);
+  const [isLoadingClients, setIsLoadingClients] = useState(false);
+  const [isSendingEmails, setIsSendingEmails] = useState(false);
+  const [activeTab, setActiveTab] = useState<'frequent' | 'all'>('frequent');
+
   // Edit form state
   const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
   const [editCode, setEditCode] = useState('');
@@ -150,6 +158,90 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
         title: 'Error al generar cupón',
         message: err.message || 'Error en el servidor.'
       });
+    }
+  };
+
+  const handleOpenSendModal = async (coupon: Coupon) => {
+    setCouponToSend(coupon);
+    setIsLoadingClients(true);
+    setActiveTab('frequent');
+    try {
+      const clients = await cajaApi.listFrequentClients();
+      setAllClients(clients);
+      // Select frequent clients by default
+      const frequent = clients.filter(c => c.purchasesCount > 5);
+      setSelectedClients(frequent.map(c => c.id));
+    } catch {
+      setFeedback({
+        type: 'error',
+        title: 'Error',
+        message: 'No se pudo cargar la lista de clientes.'
+      });
+    } finally {
+      setIsLoadingClients(false);
+    }
+  };
+
+  const visibleClients = useMemo(() => {
+    if (activeTab === 'frequent') {
+      return allClients.filter(c => c.purchasesCount > 5);
+    }
+    return allClients;
+  }, [allClients, activeTab]);
+
+  const handleToggleSelectAll = () => {
+    const visibleIds = visibleClients.map(c => c.id);
+    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedClients.includes(id));
+
+    if (allVisibleSelected) {
+      setSelectedClients(selectedClients.filter(id => !visibleIds.includes(id)));
+    } else {
+      const newSelection = [...selectedClients];
+      visibleIds.forEach(id => {
+        if (!newSelection.includes(id)) {
+          newSelection.push(id);
+        }
+      });
+      setSelectedClients(newSelection);
+    }
+  };
+
+  const handleToggleSelectClient = (id: number) => {
+    if (selectedClients.includes(id)) {
+      setSelectedClients(selectedClients.filter(clientId => clientId !== id));
+    } else {
+      setSelectedClients([...selectedClients, id]);
+    }
+  };
+
+  const handleSendCoupon = async () => {
+    if (!couponToSend) return;
+    if (selectedClients.length === 0) {
+      setFeedback({
+        type: 'error',
+        title: 'Selección vacía',
+        message: 'Debe seleccionar al menos un cliente para realizar el envío.'
+      });
+      return;
+    }
+    setIsSendingEmails(true);
+    try {
+      const response = await cajaApi.sendCouponToFrequentClients(couponToSend.id, selectedClients);
+      setFeedback({
+        type: 'success',
+        title: 'Cupones Enviados',
+        message: `Se ha enviado el cupón "${couponToSend.code}" a ${response.totalSent} cliente(s) seleccionado(s) por correo.`
+      });
+      setCouponToSend(null);
+    } catch (error) {
+      const err = error as Error;
+      setFeedback({
+        type: 'error',
+        title: 'Error al enviar cupones',
+        message: err.message || 'Ocurrió un error en el servidor.'
+      });
+    } finally {
+      setIsSendingEmails(false);
     }
   };
 
@@ -486,6 +578,16 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
                       </span>
                       
                       <div className="flex gap-1.5">
+                        {coupon.status === 'active' && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSendModal(coupon)}
+                            title="Enviar a clientes frecuentes"
+                            className="w-8 h-8 rounded-full bg-orange-50 hover:bg-orange-100 text-orange-600 flex items-center justify-center text-[14px] transition-colors"
+                          >
+                            ✉️
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleCopyCode(coupon.code)}
@@ -931,6 +1033,174 @@ export default function AdminCouponsPage({ onBack }: AdminCouponsPageProps) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Send Coupon to Frequent Clients Modal */}
+      {couponToSend && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in overflow-y-auto">
+          <div className="w-full max-w-lg rounded-[2.5rem] bg-white p-6 md:p-8 shadow-2xl border border-gray-100 flex flex-col my-8 animate-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-4 mb-6">
+              <div>
+                <h2 className="text-[20px] font-black text-gray-800">
+                  Enviar Cupón a Clientes Frecuentes
+                </h2>
+                <p className="text-[12px] text-gray-500 mt-1">
+                  Enviar código <span className="font-mono font-bold bg-gray-100 px-1.5 py-0.5 rounded text-primary">{couponToSend.code}</span>
+                </p>
+              </div>
+              <button 
+                onClick={() => setCouponToSend(null)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-250 flex items-center justify-center text-lg font-bold"
+              >
+                &times;
+              </button>
+            </div>
+
+            {isLoadingClients ? (
+              <div className="py-12 flex flex-col items-center justify-center space-y-3">
+                <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-sm text-gray-500 font-semibold">Buscando clientes elegibles (&gt; 5 compras)...</p>
+              </div>
+            ) : allClients.length === 0 ? (
+              <div className="py-8 text-center">
+                <span className="text-[40px] block mb-2">👥</span>
+                <p className="font-semibold text-gray-750">Sin Clientes Elegibles</p>
+                <p className="text-gray-400 text-[13px] mt-1">
+                  Actualmente no hay usuarios registrados con correo electrónico en el sistema.
+                </p>
+                <div className="mt-6 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setCouponToSend(null)}
+                    className="px-6 py-2.5 bg-gray-100 hover:bg-gray-250 rounded-xl font-bold text-gray-700 transition-colors text-xs uppercase"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4">
+                  <p className="text-xs text-orange-800 leading-relaxed">
+                    Selecciona los destinatarios que recibirán el correo electrónico con el cupón, valor de descuento y términos de uso.
+                  </p>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex border-b border-gray-150 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('frequent');
+                      const frequent = allClients.filter(c => c.purchasesCount > 5);
+                      setSelectedClients(frequent.map(c => c.id));
+                    }}
+                    className={`flex-1 pb-3 text-center transition-colors border-b-2 ${
+                      activeTab === 'frequent' 
+                        ? 'border-primary text-primary' 
+                        : 'border-transparent text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    Clientes Frecuentes ({allClients.filter(c => c.purchasesCount > 5).length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('all');
+                      setSelectedClients([]);
+                    }}
+                    className={`flex-1 pb-3 text-center transition-colors border-b-2 ${
+                      activeTab === 'all' 
+                        ? 'border-primary text-primary' 
+                        : 'border-transparent text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    Todos los Clientes ({allClients.length})
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between px-3 py-2.5 bg-gray-50 border border-gray-150 rounded-2xl">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={visibleClients.length > 0 && visibleClients.every(client => selectedClients.includes(client.id))}
+                      onChange={handleToggleSelectAll}
+                      className="w-4 h-4 accent-primary border-gray-300 rounded cursor-pointer"
+                    />
+                    Seleccionar Visibles
+                  </label>
+                  <span className="text-[10px] font-extrabold text-gray-400 uppercase">
+                    {selectedClients.filter(id => visibleClients.some(vc => vc.id === id)).length} / {visibleClients.length} Seleccionados
+                  </span>
+                </div>
+
+                <div className="max-h-[220px] overflow-y-auto border border-gray-100 rounded-[2rem] p-2 space-y-1.5 bg-gray-50/50">
+                  {visibleClients.length === 0 ? (
+                    <p className="text-center py-8 text-gray-400 text-xs font-semibold">
+                      No hay clientes en esta categoría.
+                    </p>
+                  ) : (
+                    visibleClients.map((client) => {
+                      const isSelected = selectedClients.includes(client.id);
+                      return (
+                        <div 
+                          key={client.id}
+                          className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                            isSelected ? 'bg-orange-50/20 border-orange-100' : 'bg-white border-gray-100'
+                          }`}
+                        >
+                          <label className="flex items-center gap-3 cursor-pointer flex-1">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleToggleSelectClient(client.id)}
+                              className="w-4 h-4 accent-primary border-gray-300 rounded cursor-pointer"
+                            />
+                            <div>
+                              <p className="text-xs font-bold text-gray-800">{client.name}</p>
+                              <p className="text-[10px] text-gray-400">{client.email}</p>
+                            </div>
+                          </label>
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                            client.purchasesCount > 5 ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            {client.purchasesCount > 5 ? '⭐' : '👤'} {client.purchasesCount} compras
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setCouponToSend(null)}
+                    disabled={isSendingEmails}
+                    className="flex-1 bg-gray-100 hover:bg-gray-250 py-3.5 rounded-2xl font-bold text-gray-700 transition-colors text-xs uppercase disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendCoupon}
+                    disabled={isSendingEmails}
+                    className="flex-1 bg-primary hover:bg-primary-hover text-white py-3.5 rounded-2xl font-bold transition-all shadow-md text-xs uppercase flex items-center justify-center gap-2 disabled:opacity-75 cursor-pointer"
+                  >
+                    {isSendingEmails ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Enviando...
+                      </>
+                    ) : (
+                      <>✉️ Enviar ({selectedClients.length})</>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
