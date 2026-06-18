@@ -86,10 +86,13 @@ Cada aplicación requiere su propio archivo `.env`. Tome como referencia el arch
 | SUPABASE_PUBLISHABLE_KEY  | Clave pública de Supabase                                |
 | SUPABASE_SECRET_KEY       | Clave secreta de Supabase (confidencial)                 |
 | WEB_URL                   | http://localhost:4000/ (CORS hacia el frontend)          |
-|PUSHER_APP_ID              |ID de la aplicación en el panel de Pusher Channels        |
-|PUSHER_KEY                 |Clave pública de Pusher para la conexión de WebSockets    |
-|PUSHER_SECRET              |Clave secreta de Pusher (estrictamente confidencial)      |
-|PUSHER_CLUSTER             |Región del clúster asignado en Pusher (ej. us2, sa1)      |
+| PUSHER_APP_ID              | ID de la aplicación en el panel de Pusher Channels        |
+| PUSHER_KEY                 | Clave pública de Pusher para la conexión de WebSockets    |
+| PUSHER_SECRET              | Clave secreta de Pusher (estrictamente confidencial)      |
+| PUSHER_CLUSTER             | Región del clúster asignado en Pusher (ej. us2, sa1)      |
+| JWT_SECRET                 | Clave secreta para la firma y verificación de tokens JWT  |
+| EMAIL_USER                 | Dirección de correo de Gmail usada para envíos automáticos|
+| EMAIL_PASS                 | Contraseña de aplicación de Gmail para el servidor SMTP   |
 
 #### FRONTEND — `apps/frontend/.env`
 
@@ -97,8 +100,8 @@ Cada aplicación requiere su propio archivo `.env`. Tome como referencia el arch
 |--------------------|-----------------------------------------------------------|
 | VITE_API_URL       | http://localhost:3001/                                    |
 | VITE_PORT          | 4000                                                      |
-|VITE_PUSHER_KEY     |Clave pública de Pusher (debe coincidir con la del backend)|
-|VITE_PUSHER_CLUSTER |Región del clúster de Pusher                               |
+| VITE_PUSHER_KEY     | Clave pública de Pusher (debe coincidir con la del backend)|
+| VITE_PUSHER_CLUSTER | Región del clúster de Pusher                               |
 
 ---
 
@@ -168,19 +171,23 @@ Sabor-y-Gestion/
 │   ├── backend/                 # API & Servidor (Next.js + Prisma)
 │   │   ├── app/                 # App Router de Next.js
 │   │   │   ├── api/             # Endpoints de la API
-│   │   │   │   ├── admin/       # Gestión de mesas, usuarios, zonas y cupones
+│   │   │   │   ├── admin/       # Gestión de mesas, usuarios, zonas, config y cupones
 │   │   │   │   ├── busqueda/    # Endpoint de búsqueda global
 │   │   │   │   ├── cajero/      # Gestión de caja (apertura, asignación, cierre, movimientos)
 │   │   │   │   ├── categorias/  # CRUD y servicios de categorías
 │   │   │   │   ├── clientes/    # Búsqueda por CI y su historial
 │   │   │   │   ├── cocina/      # Monitor, armado y detalle de pedidos
+│   │   │   │   ├── debug-db/    # Diagnóstico de base de datos
 │   │   │   │   ├── forgot-password/
 │   │   │   │   ├── health/      # Healthcheck de Base de Datos
+│   │   │   │   ├── insumos/     # Gestión de materias primas e insumos
 │   │   │   │   ├── login/       # Autenticación
 │   │   │   │   ├── menu/        # Obtención de la carta
 │   │   │   │   ├── mesas/       # Obtención y estados individuales
-│   │   │   │   ├── pedidos/     # Activos, estado, historial y detalles por mesa
+│   │   │   │   ├── movimientos-stock/ # Flujo de inventario (entradas, salidas, ajustes)
+│   │   │   │   ├── pedidos/     # Activos, estado, historial, delivery y detalles
 │   │   │   │   ├── productos/   # CRUD y servicios de productos
+│   │   │   │   ├── recetas/     # Fórmulas de platos (ingredientes / insumos)
 │   │   │   │   ├── register/    # Registro de usuarios
 │   │   │   │   ├── reservas/    # Gestión de reservaciones y disponibilidad
 │   │   │   │   ├── reset-password/
@@ -371,13 +378,14 @@ A continuación se detallan los endpoints disponibles en el backend (`apps/backe
 | `PATCH` | `/api/productos/[id]` | Edita los detalles, disponibilidad, precios o presentaciones de un producto. |
 | `DELETE` | `/api/productos/[id]` | Desactiva un producto del catálogo general. |
 
-### 13.4 Carta Digital y Búsqueda
+### 13.4 Carta Digital, Búsqueda y Diagnóstico
 
 | Método | Endpoint | Descripción |
 | :--- | :--- | :--- |
 | `GET` | `/api/menu` | Retorna el menú completo estructurado por categorías y productos (optimizado para clientes). |
 | `GET` | `/api/busqueda` | Endpoint global de búsqueda rápida para filtrar elementos del panel de control. |
 | `GET` | `/api/health/db` | Healthcheck que verifica la conexión activa con la base de datos de PostgreSQL. |
+| `GET` | `/api/debug-db` | Endpoint de diagnóstico para verificar el estado de tablas y conectividad de la BD. |
 
 ### 13.5 Gestión de Mesas
 
@@ -402,6 +410,17 @@ A continuación se detallan los endpoints disponibles en el backend (`apps/backe
 | `PATCH` | `/api/pedidos/[id]/detalles/[itemId]` | Modifica la cantidad, especificaciones o notas de preparación de un ítem del pedido. |
 | `DELETE` | `/api/pedidos/[id]/detalles/[itemId]` | Elimina un ítem específico de un pedido activo. |
 | `POST` | `/api/pedidos/reserva` | Crea un pedido vinculado a una reserva de mesa previamente confirmada. |
+| `GET` | `/api/pedidos/[id]/factura` | Obtiene/Genera el recibo o factura del pedido en formato PDF/Excel. |
+
+### 13.6.1 Pedidos de Delivery
+
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/pedidos/delivery` | Obtiene el listado completo de pedidos de delivery registrados en el sistema. |
+| `POST` | `/api/pedidos/delivery` | Registra un nuevo pedido de delivery, reduciendo el stock de insumos de las recetas asociadas. |
+| `PATCH` | `/api/pedidos/delivery/[id]/estado` | Actualiza el estado del delivery (ej. EN_CAMINO, ENTREGADO). En estado PAGADO se procesa el cobro en caja y emisión de factura. |
+| `GET` | `/api/pedidos/delivery/[id]/track` | Obtiene las coordenadas de latitud/longitud actuales para el seguimiento del repartidor. |
+| `POST` | `/api/pedidos/delivery/[id]/track` | Actualiza las coordenadas de ubicación del repartidor en tiempo real. |
 
 ### 13.7 Clientes e Historiales
 
@@ -417,6 +436,7 @@ A continuación se detallan los endpoints disponibles en el backend (`apps/backe
 | `GET` | `/api/reservas` | Obtiene el listado completo de reservaciones de mesas. |
 | `POST` | `/api/reservas` | Registra una nueva reserva especificando mesa, fecha, hora y datos del cliente. |
 | `PATCH` | `/api/reservas/[id]` | Modifica el estado o los datos principales de una reserva activa. |
+| `DELETE` | `/api/reservas/[id]` | Elimina físicamente una reservación del sistema. |
 | `POST` | `/api/reservas/mesa/[tableId]/cancelar` | Cancela la reserva activa asociada a una mesa específica para liberarla de inmediato. |
 | `GET` | `/api/reservas/cliente/[userId]` | Retorna todas las reservas previas y futuras creadas por un usuario cliente determinado. |
 
@@ -425,6 +445,8 @@ A continuación se detallan los endpoints disponibles en el backend (`apps/backe
 | Método | Endpoint | Descripción |
 | :--- | :--- | :--- |
 | `GET` | `/api/admin/mesas` | Listado completo de mesas y su asignación a nivel de zonas del local para tareas de gestión. |
+| `PUT` | `/api/admin/mesas/[id]` | Modifica la configuración (número, capacidad, zona) de una mesa específica. |
+| `DELETE` | `/api/admin/mesas/[id]` | Elimina una mesa específica de la base de datos. |
 | `GET` | `/api/admin/zonas` | Obtiene el listado de zonas del restaurante (ej. Terraza, Salón Principal). |
 | `POST` | `/api/admin/zonas` | Crea una nueva zona en el mapa de distribución física del restaurante. |
 | `PATCH` | `/api/zonas/[id]` | Modifica el nombre o la descripción de una zona específica. |
@@ -438,8 +460,12 @@ A continuación se detallan los endpoints disponibles en el backend (`apps/backe
 | `PUT` | `/api/admin/cupones/[id]` | Edita y actualiza los parámetros o el estado de un cupón existente. |
 | `DELETE` | `/api/admin/cupones/[id]` | Elimina físicamente un cupón de descuento del sistema. |
 | `GET` | `/api/admin/cupones/validar` | Valida la vigencia y condiciones de un cupón dado su código y el monto de compra. |
+| `POST` | `/api/admin/cupones/enviar-frecuentes` | Envía por correo un cupón a clientes específicos o masivamente a clientes frecuentes (> 5 compras). |
 | `GET` | `/api/admin/facturas` | Obtiene el historial detallado de todas las facturas emitidas por el sistema en orden cronológico descendente. |
 | `PATCH` | `/api/admin/facturas/[id]/anular` | Anula una factura emitida actualizando su estado a 'ANULADA' y notificando el cambio en tiempo real vía WebSockets (Pusher). |
+| `GET` | `/api/admin/dashboard` | Obtiene estadísticas y métricas acumuladas del restaurante para la administración general. |
+| `GET` | `/api/admin/config` | Obtiene la latitud y longitud configuradas del restaurante. |
+| `POST` | `/api/admin/config` | Guarda/Actualiza la latitud y longitud de ubicación geográfica del restaurante. |
 
 ### 13.10 Gestión de Inventario y Recetas
 
@@ -447,6 +473,10 @@ A continuación se detallan los endpoints disponibles en el backend (`apps/backe
 | :--- | :--- | :--- |
 | `GET` | `/api/insumos` | Obtiene el listado de todos los insumos activos en el inventario con sus cantidades y límites mínimos de stock. |
 | `POST` | `/api/insumos` | Registra un nuevo insumo en el inventario con su unidad de medida y stock inicial. |
+| `GET` | `/api/insumos/categorias` | Obtiene el listado de todas las categorías de insumos. |
+| `POST` | `/api/insumos/categorias` | Crea una nueva categoría para organizar los insumos en el inventario. |
+| `PUT` | `/api/insumos/categorias/[id]` | Modifica el nombre o descripción de una categoría de insumo específica. |
+| `DELETE` | `/api/insumos/categorias/[id]` | Elimina una categoría de insumos del sistema. |
 | `GET` | `/api/movimientos-stock` | Obtiene el historial completo de movimientos de stock (entradas, salidas, mermas, ajustes) y calcula retrospectivamente los balances de stock. |
 | `POST` | `/api/movimientos-stock` | Registra una nueva transacción de stock (entrada, salida, ajuste, merma) actualizando la cantidad del insumo correspondiente. |
 | `GET` | `/api/recetas` | Obtiene el listado de productos del menú con sus respectivos ingredientes e insumos necesarios (recetas). |
@@ -458,11 +488,16 @@ A continuación se detallan los endpoints disponibles en el backend (`apps/backe
 
 El frontend (`apps/frontend`) está diseñado con base en roles y vistas independientes que coordinan los procesos operativos del restaurante. A continuación se detallan los principales flujos y las acciones que cada rol realiza:
 
-### 14.1 Flujo del Cliente (Auto-servicio / Consulta)
+### 14.1 Flujo del Cliente (Auto-servicio, Reservas y Delivery)
 * **Acceso y Autenticación**: El cliente inicia sesión en la plataforma desde su dispositivo móvil o tablet.
 * **Consulta de la Carta Digital**: Visualiza el menú estructurado por categorías de alimentos y bebidas actualizadas en tiempo real.
-* **Carrito y Pedido**: Selecciona los productos de su preferencia, especifica notas/observaciones especiales y envía el pedido directamente al sistema.
-* **Seguimiento del Estado**: Monitorea el progreso de su orden (si está en preparación o lista para retirar) desde la vista de seguimiento.
+* **Pedidos de Consumo Local (Carrito)**: Selecciona los productos de su preferencia, especifica notas/observaciones especiales y envía el pedido a su mesa.
+* **Pedidos de Delivery**: 
+  * Selecciona productos en el carrito y elige la modalidad de envío a domicilio (Delivery).
+  * Define la dirección de entrega e indica la ubicación exacta mediante un mapa interactivo (Leaflet).
+  * Registra un teléfono de contacto y referencias de entrega.
+* **Solicitud de Factura**: Desde su panel de seguimiento, el cliente puede ingresar sus datos de facturación (CI/NIT y Nombre/Razón Social) y pulsar el botón **"Solicitar Factura"** en cualquier momento del trayecto.
+* **Seguimiento en Tiempo Real (Geolocalización)**: Monitorea el progreso de su orden (en preparación, listo, en camino). Si el pedido está en camino, se muestra un mapa interactivo que rastrea y dibuja el movimiento del repartidor en tiempo real (vía Pusher WebSockets).
 
 ### 14.2 Flujo del Mesero (Atención en Mesa)
 * **Gestión Visual de Mesas**: Accede al plano o listado de mesas del restaurante, filtrando por estado (disponible, ocupada, reservada).
@@ -472,27 +507,41 @@ El frontend (`apps/frontend`) está diseñado con base en roles y vistas indepen
 * **Atención y Cuenta**: Hace seguimiento de los platos listos para servirlos a la mesa. Posteriormente, solicita la pre-cuenta del cliente desde el panel.
 
 ### 14.3 Flujo de la Cocina (Monitor en Tiempo Real)
-* **Monitor de Preparación**: El personal de cocina visualiza las órdenes entrantes en una pantalla táctil o monitor dedicada, actualizada en tiempo real mediante WebSockets (Pusher).
+* **Monitor de Preparación**: El personal de cocina visualiza las órdenes entrantes (tanto locales como de delivery) en una pantalla dedicada, actualizada en tiempo real mediante WebSockets (Pusher).
 * **Cambio de Estado a "En Preparación"**: Al iniciar un plato, el cocinero hace clic sobre él en la pantalla para cambiar el estado a "PREPARÁNDOSE".
 * **Control de Ítems (Switches)**: Marca de forma individual la terminación de cada ítem de un pedido.
-* **Notificación de Listo**: Cuando se completan todos los platos de una orden, pulsa el botón "LISTO", lo cual notifica inmediatamente al mesero para la entrega.
+* **Notificación de Listo**: Cuando se completan todos los platos de una orden, pulsa el botón "LISTO", lo cual notifica inmediatamente al mesero (si es local) o al repartidor (si es delivery).
 
-### 14.4 Flujo del Cajero (Gestión de Caja y Pagos)
+### 14.4 Flujo del Cajero (Gestión de Caja, Pagos y Despacho Delivery)
 * **Apertura de Turno**: Al iniciar la jornada, el cajero realiza la "Apertura de Caja" declarando el saldo inicial en efectivo en la caja física.
 * **Registro de Movimientos**: Puede registrar ingresos y egresos manuales con justificación (ej. pago a proveedores).
-* **Procesamiento de Pagos**:
+* **Procesamiento de Pagos Locales**:
   * Visualiza las mesas que han solicitado cuenta.
   * Valida y aplica **cupones de descuento** (con validación de vigencia y monto mínimo).
   * Selecciona el método de pago (Efectivo, Tarjeta, Transferencia / QR).
   * En efectivo, calcula el cambio a entregar de acuerdo al monto recibido.
+* **Atención Delivery**:
+  * Visualiza y despacha los pedidos que están listos para envío, cambiando el estado a "EN_CAMINO" y asignando un repartidor.
+  * Monitorea el estado y el trayecto de los repartidores en el mapa.
+  * Al completarse la entrega física, y una vez que el cliente haya solicitado su factura, registra el cobro definitivo en efectivo, lo que ingresa el dinero a la jornada activa de caja, crea el movimiento contable y genera/emite la factura oficial automáticamente (`estado: PAGADO`).
 * **Cierre de Caja**: Al finalizar el turno, efectúa el arqueo de caja. El sistema compara los montos computados por el sistema con los montos reales declarados y calcula las discrepancias.
 
-### 14.5 Flujo del Administrador (Gestión y Control)
-* **Administración de Personal**: Actualiza los roles, datos y estados de activación del personal del restaurante.
+### 14.5 Flujo del Administrador (Gestión, Control y Configuración)
+* **Administración de Personal**: Actualiza los roles, datos y estados de activación del personal del restaurante (incluyendo repartidores).
 * **Configuración del Mapa de Zonas y Mesas**: Crea o edita las zonas del local (ej. Terraza, Salón) y distribuye/asigna mesas a cada una.
+* **Configuración de Ubicación del Restaurante**: Define las coordenadas geográficas base (latitud y longitud) del establecimiento seleccionándolas sobre un mapa de Leaflet en el panel de control.
 * **Auditoría e Infracciones**: Visualiza el historial acumulado de cierres de caja y movimientos financieros.
 * **Auditoría de Invoices / Facturas**: Consulta el registro de facturas emitidas y posee permisos para anular facturas (anulación en caliente con restablecimiento visual en tiempo real).
 * **Gestión de Cupones**: Crea, edita, desactiva o elimina cupones promocionales con topes de uso y fechas de expiración.
 * **Gestión de Inventario y Recetas**: Registra materias primas (insumos), realiza ajustes de stock y mapea recetas a los productos para el descuento automático de ingredientes.
+* **Simulador de Rutas Delivery**: Permite simular a través de un botón en el mapa el trayecto del repartidor desde el restaurante hasta el destino del cliente utilizando el motor de ruteo OSRM, transmitiendo las coordenadas GPS segundo a segundo a través de Pusher WebSockets.
+
+### 14.6 Flujo del Repartidor / Motorizado (Delivery en Ruta)
+* **Asignación y Despacho**: Visualiza las órdenes de delivery listas para salir. Al tomar posesión de un envío, se asigna como conductor y el pedido cambia de estado a "EN_CAMINO".
+* **Navegación e Indicaciones**: Visualiza en su panel móvil la dirección, teléfono, comentarios y la ubicación geográfica exacta del cliente sobre el mapa para trazar su ruta.
+* **Transmisión de Coordenadas**: Mediante geolocalización activa (o simulación en el panel), envía sus coordenadas GPS actualizadas periódicamente al servidor para que el cliente y el administrador sigan el reparto en tiempo real.
+* **Entrega del Pedido**: Al llegar con el cliente, cambia el estado del pedido a "ENTREGADO" (acción bloqueada en el sistema hasta que el cliente ingrese sus datos y solicite su factura).
+* **Liquidación del Pago**: Recibe el cobro en efectivo y entrega el dinero al cajero del local, quien registra el cobro en el sistema, completando el flujo (`PAGADO`).
+
 
 
