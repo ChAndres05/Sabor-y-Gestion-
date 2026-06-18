@@ -51,7 +51,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           if (insumo) {
             const targetIngredientes = ingredientes !== undefined ? ingredientes : detalleExistente.ingredientes;
             const isExcluded = Array.isArray(targetIngredientes) && targetIngredientes.some(
-              (custIng: any) => 
+              (custIng: { nombre?: string; incluido?: boolean }) => 
                 custIng && 
                 custIng.nombre && 
                 custIng.nombre.toLowerCase().trim() === insumo.nombre.toLowerCase().trim() && 
@@ -204,7 +204,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
         if (insumo) {
           // Check if this ingredient has been excluded/disabled in custom ingredients
           const isExcluded = Array.isArray(deletedItem.ingredientes) && deletedItem.ingredientes.some(
-            (custIng: any) => 
+            (custIng: { nombre?: string; incluido?: boolean }) => 
               custIng && 
               custIng.nombre && 
               custIng.nombre.toLowerCase().trim() === insumo.nombre.toLowerCase().trim() && 

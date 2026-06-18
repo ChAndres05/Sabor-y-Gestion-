@@ -7,12 +7,11 @@ export const dynamic = 'force-dynamic';
 const CONFIG_PATH = path.join(process.cwd(), 'data', 'restaurant_config.json');
 const DEFAULT_LAT = -17.391537153336852;
 const DEFAULT_LNG = -66.15233613739282;
-
 async function ensureConfigDir() {
   const dir = path.dirname(CONFIG_PATH);
   try {
     await fs.mkdir(dir, { recursive: true });
-  } catch (err) {
+  } catch {
     // Ignore if directory exists
   }
 }
